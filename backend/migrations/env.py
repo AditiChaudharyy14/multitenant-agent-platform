@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from app.config import require_owner_url
 
 if context.config.config_file_name is not None:
-    fileConfig(context.config.config_file_name)
+    # Keep loggers created before migrations ran (the test session migrates in-process).
+    fileConfig(context.config.config_file_name, disable_existing_loggers=False)
 
 # Read directly rather than via config.set_main_option, which would treat any % in
 # the URL as ini interpolation.
