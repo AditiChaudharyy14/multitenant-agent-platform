@@ -16,3 +16,6 @@ node_modules/
 next-env.d.ts
 *.tsbuildinfo
 .hypothesis/
+
+# Playwright venv for make e2e
+e2e/.venv/

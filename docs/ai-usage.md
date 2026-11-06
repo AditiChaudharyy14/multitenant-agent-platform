@@ -43,3 +43,9 @@ Reviewed by hand: Specified that every business rule is enforced in code with a 
 Claude Code built the booking agent test-first (138 new tests, 692 green): a pure slot engine behind a `SlotProvider` interface, checked by Hypothesis against a brute-force oracle; the relative-date resolver; LW booking numbers on the order-counter pattern; proposal-only booking tools; and committers that re-check price, slot and fee and turn `exclusion_violation` (deadlocks retried once) into 3 nearest alternatives. Ten concurrent confirms make exactly one booking.
 The live Gemini demo (45 requests today) showed the model passing dates in our own card format ("Tuesday 10 November afternoon", "2026-11-10 13:30"), which the resolver then rejected; those forms were added as tests and fixed. A cancellation inside 24 hours couldn't happen live, because the studio is closed from Friday 15:00 to Sunday 09:00, so tests cover the 50% fee.
 Reviewed by hand: Defined the date-ambiguity rule (ask when "next <weekday>" is tomorrow) and required property tests for the slot engine.
+
+## Chat UI core
+
+Claude Code built the Next.js chat UI on the existing API: a same-origin `/api` proxy (Next rewrites, checked to stream SSE and pass Stop through to the server), branded landing with login/sign-up tabs, a gate that calls only `/api/me` and shows a "This account belongs to …" screen on an org mismatch, streaming chat with Stop, live tool status, markdown with highlighted code, citation chips and a source drawer.
+It added `GET /api/kb/source` (RLS-scoped, one 404 for foreign, missing and malformed refs), a `quota_exhausted` error code, and a YAML-scripted `ScriptedProvider` (`LLM_PROVIDER=fake` + `FAKE_SCENARIO_FILE`) that the Playwright smoke tests (`make e2e`, screenshots in `docs/screenshots/`) run against.
+Reviewed by hand: Required the cross-org "belongs to" screen as a visible demo moment and a fake-provider mode so UI tests spend no LLM quota.

@@ -1,5 +1,5 @@
 # Everything runs inside the containers, so the host needs only Docker and make.
-.PHONY: up build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin eval advance logs
+.PHONY: up build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin eval e2e e2e-setup advance logs
 
 # Owner-only commands run in the one-shot `ops` container, which is the only place
 # DATABASE_URL_OWNER exists. The running backend never holds app_owner credentials.
@@ -70,6 +70,21 @@ llm-budget:  ## Show today's LLM requests per model against the daily budget
 create-admin:  ## make create-admin ORG=<slug> EMAIL=<email>
 	@test -n "$(ORG)" -a -n "$(EMAIL)" || (echo "usage: make create-admin ORG=<slug> EMAIL=<email>" && exit 1)
 	docker compose exec backend python -m app.auth.create_admin --org "$(ORG)" --email "$(EMAIL)"
+
+# UI smoke tests (Playwright, run from WSL against localhost) on the scripted fake LLM: no
+# quota is spent. The backend is switched to LLM_PROVIDER=fake for the run and always put
+# back afterwards. One-time setup: make e2e-setup.
+E2E_PY = e2e/.venv/bin/python
+e2e-setup:  ## Create e2e/.venv with Playwright and download Chromium (once)
+	python3 -m venv e2e/.venv
+	e2e/.venv/bin/pip install -q -r e2e/requirements.txt
+	e2e/.venv/bin/playwright install chromium
+
+e2e:  ## Playwright smoke tests + screenshots in docs/screenshots (fake LLM)
+	@test -x $(E2E_PY) || (echo "run make e2e-setup first" && exit 1)
+	docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --wait backend frontend
+	cd e2e && BASE_URL=http://localhost:3000 SCREENSHOT_DIR=../docs/screenshots .venv/bin/python -m pytest -q $(ARGS); \
+	  status=$$?; cd .. && docker compose up -d --wait backend; exit $$status
 
 eval:  ## Stub until the eval suite exists
 	docker compose exec backend echo "eval: not implemented yet"

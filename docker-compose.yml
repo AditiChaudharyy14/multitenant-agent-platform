@@ -100,6 +100,8 @@ services:
     build: ./frontend
     environment:
       WATCHPACK_POLLING: ${WATCHPACK_POLLING:-true}
+      # Where the Next server proxies /api/* (and fetches org branding server-side).
+      BACKEND_URL: ${BACKEND_URL:-http://backend:8000}
     volumes:
       - ./frontend:/app
       # Anonymous volumes keep the image's dependencies and build cache from being

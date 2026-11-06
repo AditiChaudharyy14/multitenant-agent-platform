@@ -1,0 +1,8 @@
+# Override for `make e2e`: the backend answers with the scripted fake model, so the
+# Playwright tests (run from WSL against http://localhost:3000) spend no LLM quota.
+#   docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --wait backend
+services:
+  backend:
+    environment:
+      LLM_PROVIDER: fake
+      FAKE_SCENARIO_FILE: /app/fake_scenarios/e2e.yaml
