@@ -1,0 +1,76 @@
+# Lotus Wellness Studio: relational seed data (fictional). Loaded by `make seed`, which
+# wipes and rebuilds this org's rows. Prices are NPR.
+#
+# Booking times are relative to the seed "now" (SEED_NOW, else the real clock) in the
+# org's timezone: `day_offset` days from today (negative = past) at local time `at`.
+# If that day is closed or a holiday, the seeder moves away from today (forward for
+# future bookings, backward for past ones) to the nearest open day. Holidays are absolute.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEMO ONLY: these passwords exist so reviewers can log in to a local demo.
+# They are not secrets, are listed in the README, and must never be reused.
+# ─────────────────────────────────────────────────────────────────────────────
+users:
+  - key: c1
+    email: rina@lotus.test
+    display_name: Rina Maharjan
+    role: customer
+    password: demo-rina-2026          # DEMO ONLY
+  - key: c2
+    email: suman@lotus.test
+    display_name: Suman Karki
+    role: customer
+    password: demo-suman-2026         # DEMO ONLY
+  - key: c3
+    email: pooja@lotus.test
+    display_name: Pooja Adhikari
+    role: customer
+    password: demo-pooja-2026         # DEMO ONLY
+  - key: admin
+    email: admin@lotus.test
+    display_name: Lotus Admin
+    role: admin
+    password: demo-admin-lotus        # DEMO ONLY
+
+services:
+  - {key: swedish, name: Swedish Relaxation Massage, duration_min: 60, price: 3500}
+  - {key: deep-tissue, name: Deep Tissue Massage, duration_min: 90, price: 5200}
+  - {key: hot-stone, name: Hot Stone Therapy, duration_min: 75, price: 4800}
+  - {key: physio-assessment, name: Physiotherapy Assessment, duration_min: 45, price: 2500}
+  - {key: sports-rehab, name: Sports Injury Rehab, duration_min: 60, price: 3200}
+  - {key: hatha, name: Private Hatha Yoga, duration_min: 60, price: 2800}
+  - {key: prenatal, name: Prenatal Yoga, duration_min: 45, price: 2200}
+
+practitioners:
+  - key: sunita
+    name: Sunita Rai
+    services: [swedish, deep-tissue, hot-stone]
+  - key: prakash
+    name: Dr. Prakash Thapa
+    services: [physio-assessment, sports-rehab, deep-tissue]
+  - key: maya
+    name: Maya Tamang
+    services: [hatha, prenatal, swedish]
+
+# Local org time. weekday 0 = Monday … 6 = Sunday. A missing weekday means closed
+# (Saturday). Friday closes early.
+opening_hours:
+  - {weekday: 0, opens: "09:00", closes: "19:00"}
+  - {weekday: 1, opens: "09:00", closes: "19:00"}
+  - {weekday: 2, opens: "09:00", closes: "19:00"}
+  - {weekday: 3, opens: "09:00", closes: "19:00"}
+  - {weekday: 4, opens: "09:00", closes: "15:00"}
+  - {weekday: 6, opens: "09:00", closes: "19:00"}
+
+holidays:
+  - {day: 2026-11-11, name: Tihar (Bhai Tika)}
+  - {day: 2026-12-02, name: Studio Maintenance Day}
+  - {day: 2026-12-25, name: Christmas Day}
+
+bookings:
+  # Customer 1: a past completed booking and an upcoming confirmed one.
+  - {key: c1-past, customer: c1, service: swedish, practitioner: maya, day_offset: -9, at: "10:00", status: completed}
+  - {key: c1-upcoming, customer: c1, service: deep-tissue, practitioner: sunita, day_offset: 2, at: "11:00", status: confirmed}
+  # Customer 2: same shape, different practitioners so nothing overlaps.
+  - {key: c2-past, customer: c2, service: hatha, practitioner: maya, day_offset: -6, at: "12:00", status: completed}
+  - {key: c2-upcoming, customer: c2, service: physio-assessment, practitioner: prakash, day_offset: 4, at: "13:30", status: confirmed}

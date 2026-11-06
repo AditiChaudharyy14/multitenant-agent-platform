@@ -1,0 +1,108 @@
+# Himali Tea House: relational seed data (fictional). Loaded by `make seed`, which wipes
+# and rebuilds this org's rows. Prices are NPR. Stock is current stock (historic orders
+# below are already accounted for).
+#
+# Times are relative to the seed "now" (SEED_NOW, else the real clock) in the org's
+# timezone: `days_ago` back from today, `at` local wall-clock time, and each history step
+# `after_hours` counted from when the order was placed.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEMO ONLY: these passwords exist so reviewers can log in to a local demo.
+# They are not secrets, are listed in the README, and must never be reused.
+# ─────────────────────────────────────────────────────────────────────────────
+users:
+  - key: c1
+    email: anisha@himali.test
+    display_name: Anisha Gurung
+    role: customer
+    password: demo-anisha-2026        # DEMO ONLY
+  - key: c2
+    email: bikash@himali.test
+    display_name: Bikash Shrestha
+    role: customer
+    password: demo-bikash-2026        # DEMO ONLY
+  - key: c3
+    email: kiran@himali.test
+    display_name: Kiran Lama
+    role: customer
+    password: demo-kiran-2026         # DEMO ONLY
+  - key: admin
+    email: admin@himali.test
+    display_name: Himali Admin
+    role: admin
+    password: demo-admin-himali       # DEMO ONLY
+
+products:
+  # Green
+  - {sku: HT-GRN-001, name: Ilam First Flush Green, category: green, price: 850, stock: 40}
+  - {sku: HT-GRN-002, name: Jasmine Pearl Green, category: green, price: 1200, stock: 25}
+  - {sku: HT-GRN-003, name: Himalayan Sencha, category: green, price: 750, stock: 60}
+  - {sku: HT-GRN-004, name: Kanchenjunga Mist Green, category: green, price: 1450, stock: 2}   # low; alt Himalayan Sencha
+  # Black
+  - {sku: HT-BLK-001, name: Ilam Second Flush Black, category: black, price: 900, stock: 45}
+  - {sku: HT-BLK-002, name: Golden Tips Black, category: black, price: 1650, stock: 18}
+  - {sku: HT-BLK-003, name: Everest Breakfast Black, category: black, price: 600, stock: 80}
+  - {sku: HT-BLK-004, name: Smoky Lapsang Hills, category: black, price: 1100, stock: 0}       # out; alt Ilam Second Flush Black
+  # Oolong
+  - {sku: HT-OOL-001, name: Himalayan Amber Oolong, category: oolong, price: 1350, stock: 22}
+  - {sku: HT-OOL-002, name: Pathivara Jade Oolong, category: oolong, price: 1550, stock: 15}
+  - {sku: HT-OOL-003, name: Rhododendron Valley Oolong, category: oolong, price: 1900, stock: 1} # low; alt Himalayan Amber Oolong
+  # White
+  - {sku: HT-WHT-001, name: Silver Needle White, category: white, price: 2400, stock: 12}
+  - {sku: HT-WHT-002, name: Moonlight White, category: white, price: 1750, stock: 20}
+  - {sku: HT-WHT-003, name: White Peony Himalaya, category: white, price: 1300, stock: 28}
+  # Herbal
+  - {sku: HT-HRB-001, name: Tulsi Lemongrass Infusion, category: herbal, price: 550, stock: 50}
+  - {sku: HT-HRB-002, name: Himalayan Nettle and Mint, category: herbal, price: 500, stock: 35}
+  - {sku: HT-HRB-003, name: Chamomile Calm, category: herbal, price: 650, stock: 30}
+  # Chai blends
+  - {sku: HT-CHA-001, name: Kathmandu Masala Chai, category: chai, price: 480, stock: 90}
+  - {sku: HT-CHA-002, name: Ginger Cardamom Chai, category: chai, price: 520, stock: 55}
+  - {sku: HT-CHA-003, name: Saffron Royal Chai, category: chai, price: 1250, stock: 14}
+  # Teaware
+  - {sku: HT-TWR-001, name: Clay Kulhad Cup Set, category: teaware, price: 950, stock: 20}
+  - {sku: HT-TWR-002, name: Glass Teapot with Infuser, category: teaware, price: 2200, stock: 9}
+
+orders:
+  # Customer 1: one delivered, one shipped.
+  - key: c1-delivered
+    customer: c1
+    delivery_address: House 14, Jhamsikhel Marg, Lalitpur
+    placed: {days_ago: 20, at: "10:30"}
+    items:
+      - {sku: HT-GRN-001, qty: 2}
+      - {sku: HT-TWR-001, qty: 1}
+    history:
+      - {to: confirmed, after_hours: 2}
+      - {to: shipped, after_hours: 26}
+      - {to: delivered, after_hours: 74}
+  - key: c1-shipped
+    customer: c1
+    delivery_address: House 14, Jhamsikhel Marg, Lalitpur
+    placed: {days_ago: 3, at: "11:15"}
+    items:
+      - {sku: HT-OOL-001, qty: 1}
+      - {sku: HT-CHA-001, qty: 3}
+    history:
+      - {to: confirmed, after_hours: 1}
+      - {to: shipped, after_hours: 20}
+  # Customer 2: one delivered, one still pending.
+  - key: c2-delivered
+    customer: c2
+    delivery_address: Flat 3B, Baluwatar Residency, Kathmandu
+    placed: {days_ago: 14, at: "16:45"}
+    items:
+      - {sku: HT-BLK-003, qty: 2}
+      - {sku: HT-HRB-001, qty: 1}
+    history:
+      - {to: confirmed, after_hours: 3}
+      - {to: shipped, after_hours: 22}
+      - {to: delivered, after_hours: 50}
+  - key: c2-pending
+    customer: c2
+    delivery_address: Flat 3B, Baluwatar Residency, Kathmandu
+    placed: {days_ago: 1, at: "18:20"}
+    items:
+      - {sku: HT-WHT-002, qty: 1}
+      - {sku: HT-CHA-002, qty: 2}
+    history: []   # still pending: only the initial 'pending' row is written
