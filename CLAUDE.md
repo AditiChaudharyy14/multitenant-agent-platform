@@ -59,6 +59,8 @@ docs/ai-usage.md
 Makefile, docker-compose.yml, .env.example
 ```
 
+`schema_reference.sql` is historical and superseded by `backend/migrations/`, which is the source of truth for the schema.
+
 ## NON-NEGOTIABLE INVARIANTS
 
 1. **Identity comes only from the server-side session.** `org_id`, `user_id` and `role` are never read from URL params, headers or request bodies. The URL slug is used only for branding and for choosing the org at sign-up or login.
