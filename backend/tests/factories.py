@@ -9,7 +9,7 @@ import itertools
 import string
 import uuid
 from dataclasses import dataclass, field
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 
 import asyncpg
 import pytest
@@ -544,13 +544,13 @@ async def seed_studio(owner: AsyncEngine) -> Studio:
             await conn.execute(
                 text(
                     "INSERT INTO opening_hours (org_id, weekday, opens, closes) "
-                    "VALUES (:o, :w, CAST(:a AS time), CAST(:b AS time))"
+                    "VALUES (:o, :w, :a, :b)"
                 ),
-                {"o": org_id, "w": weekday, "a": opens, "b": closes},
+                {"o": org_id, "w": weekday, "a": time.fromisoformat(opens), "b": time.fromisoformat(closes)},
             )
         await conn.execute(
-            text("INSERT INTO holidays (org_id, day, name) VALUES (:o, CAST(:d AS date), 'Tihar')"),
-            {"o": org_id, "d": STUDIO_HOLIDAY},
+            text("INSERT INTO holidays (org_id, day, name) VALUES (:o, :d, 'Tihar')"),
+            {"o": org_id, "d": date.fromisoformat(STUDIO_HOLIDAY)},
         )
         conversations = {}
         for user in (x, y):
@@ -588,8 +588,9 @@ async def insert_studio_booking(
             text(
                 "INSERT INTO bookings (org_id, user_id, service_id, practitioner_id, starts_at, ends_at, "
                 "status, price, created_at) VALUES (:o, :u, :s, :p, :start, :end, :status, "
-                "CAST(:price AS numeric), :start - interval '7 days') RETURNING booking_number"
+                "CAST(:price AS numeric), :created) RETURNING booking_number"
             ),
             {"o": studio.org_id, "u": user, "s": studio.services[service], "p": studio.practitioners[practitioner],
-             "start": starts_at, "end": starts_at + timedelta(minutes=minutes), "status": status, "price": price},
+             "start": starts_at, "end": starts_at + timedelta(minutes=minutes), "status": status, "price": price,
+             "created": starts_at - timedelta(days=7)},
         )  # fmt: skip

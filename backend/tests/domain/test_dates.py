@@ -43,6 +43,12 @@ CASES = [
     (MONDAY, "this weekend", [D(2026, 11, 14), D(2026, 11, 15)], None),
     (MONDAY, "tomorrow evening", [D(2026, 11, 10)], EVENING),
     (SUNDAY, "this weekend", [D(2026, 11, 8)], None),  # only what is left of it
+    # Forms the live model actually sent: our own display format, a weekday + date, a datetime.
+    (THURSDAY, "Tue 10 Nov 2026", [D(2026, 11, 10)], None),
+    (THURSDAY, "Tuesday 10 November afternoon", [D(2026, 11, 10)], AFTERNOON),
+    (THURSDAY, "Tuesday, November 10", [D(2026, 11, 10)], None),
+    (THURSDAY, "2026-11-10 13:30", [D(2026, 11, 10)], None),
+    (THURSDAY, "2026-11-10T13:30", [D(2026, 11, 10)], None),
 ]
 
 
@@ -81,7 +87,7 @@ def test_past_dates_are_rejected(text: str) -> None:
     assert r.days == []
 
 
-@pytest.mark.parametrize("text", ["whenever", "the 31st of Smarch", "2026-02-30", ""])
+@pytest.mark.parametrize("text", ["whenever", "the 31st of Smarch", "2026-02-30", "", "Wednesday 10 November"])
 def test_unparseable_is_an_error_not_a_guess(text: str) -> None:
     r = resolve_when(text, THURSDAY, TZ_NAME)
     assert r.error is not None and r.days == []
