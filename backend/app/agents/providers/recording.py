@@ -72,6 +72,12 @@ class RecordReplayProvider(LLMProvider):
         self.mode, self.dir, self.inner = mode, Path(cassette_dir), inner
         self.name = inner.name if inner else "replay"
 
+    def pin(self, model: str) -> "RecordReplayProvider":
+        # Replay has no live model to restrict. Record pins the provider it records from.
+        if self.inner is None:
+            return self
+        return RecordReplayProvider(self.mode, self.dir, self.inner.pin(model))  # type: ignore[arg-type]
+
     def _path(self, scenario: str) -> Path:
         return self.dir / f"{scenario}.json"
 

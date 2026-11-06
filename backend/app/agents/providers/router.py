@@ -7,7 +7,8 @@ For each request it tries [primary, *fallbacks] in order. Per model:
 A daily-quota 429 marks the model exhausted for today and moves on; other 429s back off
 exponentially (honouring the vendor's retry delay) and fall back after max_retries.
 Fallback only happens before the first event is yielded: a half-streamed answer is never
-continued by a different model.
+continued by a different model. Across a multi-step turn, the agent loop goes further and
+pin()s the router to the model that answered the turn's first step.
 """
 
 import asyncio
@@ -64,6 +65,17 @@ class ModelRouter(LLMProvider):
         self.adapter, self.models, self.budget = adapter, models, budget
         self.limiters, self.retry = limiters, retry
         self._sleep, self._jitter = sleep, jitter
+
+    def pin(self, model: str) -> "ModelRouter":
+        """A router over `model` only. It shares the adapter, the daily budget, the RPM
+        limiters and the retry policy, so it still backs off and counts against the same
+        quotas; it just has nothing to fall back to."""
+        if model not in self.models:
+            raise ValueError(f"{model!r} is not one of {self.models}")
+        return ModelRouter(
+            self.adapter, [model], self.budget, self.limiters, self.retry,
+            sleep=self._sleep, jitter=self._jitter,
+        )  # fmt: skip
 
     def _backoff(self, attempt: int, err: RateLimited) -> float:
         if err.retry_after is not None:

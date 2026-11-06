@@ -83,6 +83,15 @@ class LLMProvider(ABC):
     def stream(self, req: ChatRequest) -> AsyncIterator[Event]:
         """Stream one model response: text deltas and/or tool calls, then exactly one Finished."""
 
+    def pin(self, model: str) -> "LLMProvider":
+        """This provider restricted to `model`, for the rest of a turn.
+
+        The agent loop calls it after a turn's first response, so every later step of the
+        turn goes to the model that answered first and never falls back mid-turn. A
+        provider with a single model has nothing to restrict and returns itself.
+        """
+        return self
+
 
 # ───────────── errors ─────────────
 
