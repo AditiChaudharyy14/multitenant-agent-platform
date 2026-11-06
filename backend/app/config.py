@@ -13,7 +13,10 @@ class Settings(BaseSettings):
     # does not get it; those commands run in the one-shot `ops` service (see Makefile).
     database_url_owner: str | None = None
 
-    seed_dir: str = "/seed"  # holds <slug>/org.yaml
+    seed_dir: str = "/seed"  # holds <slug>/org.yaml, data.yaml and kb/
+    embed_cache_dir: str = "/models"  # fastembed model cache (a named Docker volume)
+    # Optional fixed "now" for seeding: ISO datetime, naive = org timezone. Empty = real clock.
+    seed_now: str | None = None
     # Comma-separated list of origins allowed to send non-GET requests to /api (CSRF).
     allowed_origins: str = "http://localhost:3000"
     # "local" turns off the Secure flag on the session cookie (plain-HTTP dev only).

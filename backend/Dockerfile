@@ -12,7 +12,9 @@ COPY pyproject.toml ./
 RUN pip install --no-cache-dir .
 
 # UID 1000 matches the usual WSL2 user, so generated files stay owned by the host user.
-RUN useradd --uid 1000 --create-home app && chown app:app /app
+# /models is where the fastembed_cache named volume mounts; Docker copies this directory's
+# ownership into the volume when it is first created, so uid 1000 can write the model there.
+RUN useradd --uid 1000 --create-home app && mkdir /models && chown app:app /app /models
 USER app
 
 EXPOSE 8000

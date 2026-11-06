@@ -33,9 +33,12 @@ services:
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
       APP_ENV: ${APP_ENV:-local}
       WATCHFILES_FORCE_POLLING: ${WATCHFILES_FORCE_POLLING:-true}
+      EMBED_CACHE_DIR: ${EMBED_CACHE_DIR:-/models}
     volumes:
       - ./backend:/app
       - ./seed:/seed:ro
+      # Query embeddings at runtime; the model is downloaded once into this volume.
+      - fastembed_cache:/models
     ports:
       - "8000:8000"
     depends_on:
@@ -63,9 +66,13 @@ services:
       SEED_DIR: /seed
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
       APP_ENV: local
+      EMBED_CACHE_DIR: ${EMBED_CACHE_DIR:-/models}
+      # Optional fixed "now" for seeding (evals pin it so dates are identical every run).
+      SEED_NOW: ${SEED_NOW:-}
     volumes:
       - ./backend:/app
       - ./seed:/seed:ro
+      - fastembed_cache:/models
     depends_on:
       db:
         condition: service_healthy
@@ -95,3 +102,5 @@ services:
 
 volumes:
   db_data:
+  # Shared by backend and ops, so the embedding model is downloaded only once.
+  fastembed_cache:

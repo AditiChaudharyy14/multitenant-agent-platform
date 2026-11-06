@@ -1,5 +1,5 @@
 # Everything runs inside the containers, so the host needs only Docker and make.
-.PHONY: up build down migrate sync-orgs seed testdb test create-admin eval advance logs
+.PHONY: up build down migrate sync-orgs seed kb-search testdb test create-admin eval advance logs
 
 # Owner-only commands run in the one-shot `ops` container, which is the only place
 # DATABASE_URL_OWNER exists. The running backend never holds app_owner credentials.
@@ -26,8 +26,15 @@ migrate:  ## alembic upgrade head, as app_owner
 sync-orgs:  ## Upsert the orgs table from seed/<slug>/org.yaml, as app_owner
 	$(OPS) python -m app.tenancy.sync
 
-seed: sync-orgs  ## Stub until the seed data exists
-	$(OPS) echo "seed: not implemented yet"
+# Rebuilds every org's tenant rows and KB vectors from seed/ (idempotent). SEED_NOW pins
+# the "now" that relative seed dates resolve against: make seed SEED_NOW=2026-11-09T10:00
+seed: sync-orgs  ## Wipe and reseed each org's data and knowledge base, as app_owner
+	docker compose run --rm $(if $(SEED_NOW),-e SEED_NOW="$(SEED_NOW)") ops python -m app.seed
+
+# Runs as app_user in the backend container, exactly like the agent's search tool.
+kb-search:  ## make kb-search ORG=<slug> Q="question"
+	@test -n "$(ORG)" -a -n "$(Q)" || (echo 'usage: make kb-search ORG=<slug> Q="..."' && exit 1)
+	docker compose exec backend python -m app.domain.kb.cli --org "$(ORG)" "$(Q)"
 
 # app_owner has no CREATEDB, so the superuser creates app_test. The pytest session then
 # rebuilds its schema with alembic (downgrade base, upgrade head) on every run.
