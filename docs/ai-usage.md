@@ -37,3 +37,9 @@ Reviewed by hand: Required model pinning per turn (no mid-turn fallback, since G
 
 Claude Code added order numbers (per-org counter trigger, `HT-1042`), the shared proposal/confirm module, the store tools and committers (row locks, guarded stock decrements, re-quote on price/stock change), the deterministic Confirm-button path and `make advance`, writing the 106 new tests first (554 green). The live Gemini demo showed the model re-calling `confirm_proposal` after a button commit (the server refused it), so a button turn no longer offers that tool at all.
 Reviewed by hand: Specified that every business rule is enforced in code with a test (same-turn confirm refused, price re-check at commit, concurrent last-unit orders); reviewed the plan before approving.
+
+## Booking agent: slots, dates and appointments
+
+Claude Code built the booking agent test-first (138 new tests, 692 green): a pure slot engine behind a `SlotProvider` interface, checked by Hypothesis against a brute-force oracle; the relative-date resolver; LW booking numbers on the order-counter pattern; proposal-only booking tools; and committers that re-check price, slot and fee and turn `exclusion_violation` (deadlocks retried once) into 3 nearest alternatives. Ten concurrent confirms make exactly one booking.
+The live Gemini demo (45 requests today) showed the model passing dates in our own card format ("Tuesday 10 November afternoon", "2026-11-10 13:30"), which the resolver then rejected; those forms were added as tests and fixed. A cancellation inside 24 hours couldn't happen live, because the studio is closed from Friday 15:00 to Sunday 09:00, so tests cover the 50% fee.
+Reviewed by hand: Defined the date-ambiguity rule (ask when "next <weekday>" is tomorrow) and required property tests for the slot engine.
