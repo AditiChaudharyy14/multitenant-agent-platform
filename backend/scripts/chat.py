@@ -2,7 +2,8 @@
 
 Talks to the running backend over HTTP exactly like the browser: logs in (the slug only
 picks the org), creates a conversation (or continues CONV), posts the question and prints
-the SSE stream. Q="!confirm <proposal_id>" presses a card's Confirm button instead.
+the SSE stream. Q="!confirm <proposal_id>" presses a card's Confirm button instead, and
+Q="!select <service>|<start>[|<practitioner>[|<booking number>]]" presses a slot button.
 Runs inside the backend container. DEMO ONLY: a password on the command line is visible
 in the process list and shell history; use the seeded demo accounts.
 """
@@ -40,6 +41,10 @@ def main() -> int:
         body: dict = {"content": a.question}
         if a.question.startswith("!confirm "):  # the Confirm button: no model decides the commit
             body = {"action": {"type": "confirm_proposal", "proposal_id": a.question.split(maxsplit=1)[1]}}
+        elif a.question.startswith("!select "):  # a slot button: service|start[|practitioner[|booking]]
+            parts = [x.strip() or None for x in a.question.split(maxsplit=1)[1].split("|")] + [None, None]
+            body = {"action": {"type": "select_slot", "service": parts[0], "start": parts[1],
+                               "practitioner": parts[2], "booking_number": parts[3]}}  # fmt: skip
         with c.stream("POST", f"/api/conversations/{cid}/messages", json=body) as resp:
             if resp.status_code != 200:
                 print(f"error {resp.status_code}: {resp.read().decode()}", file=sys.stderr)
@@ -88,6 +93,38 @@ def _card(card: dict) -> str:
         out += [f"    history: {h['from_status']} -> {h['to_status']} at {h['at']}" for h in card.get("history", [])]
         if card.get("actions"):
             out.append(f"    [button] {card['actions'][0]['label']}  proposal_id={card['proposal_id']}")
+        return "\n".join(out)
+    if kind in {"slot_list", "slot_alternatives"}:
+        head = f"{kind} {card['service']}" + (f" (refused: {card['reason']})" if kind == "slot_alternatives" else "")
+        if card.get("resolved_dates"):
+            head += f" on {', '.join(card['resolved_dates'])}" + (f", {card['window']}" if card.get("window") else "")
+        out = [head] + [f"    note: {n}" for n in card.get("notes", [])]
+        for slot in card["slots"]:
+            who = slot.get("practitioner") or ", ".join(slot.get("practitioners", []))
+            act = slot["action"]
+            button = f"!select {act['service']}|{act['start']}|{act.get('practitioner') or ''}"
+            button += f"|{act['booking_number']}" if act.get("booking_number") else ""
+            out.append(f"    [button] {slot['display']} ({who})  -> {button.rstrip('|')}")
+        return "\n".join(out)
+    if kind in {"booking_summary", "booking_confirmed", "booking_rescheduled", "booking_cancelled"}:
+        head = f"{kind}" + (f" ({card['kind']})" if "kind" in card else "") + f" {card.get('booking_number') or ''}".rstrip()
+        out = [head, f"    {card.get('service', '')} with {card.get('practitioner', '')}: {card.get('when', '')}"
+                     + (f", {card['duration_min']} min" if "duration_min" in card else "")
+                     + (f", {card['price_display']}" if "price_display" in card else "")]  # fmt: skip
+        if card.get("old"):
+            out.append(f"    was: {card['old']['when']} with {card['old']['practitioner']}")
+        if "fee_display" in card:
+            out.append(f"    cancellation fee: {card['fee_display']}")
+        out += [f"    change: {c}" for c in card.get("changes", [])]
+        if card.get("actions"):
+            out.append(f"    [button] {card['actions'][0]['label']}  proposal_id={card['proposal_id']}")
+        return "\n".join(out)
+    if kind == "booking_list":
+        out = ["booking_list"]
+        for group in ("upcoming", "past"):
+            out += [f"    {group}: {b['booking_number']} {b['when']} {b['service']} with {b['practitioner']} [{b['status']}]"
+                    + (f" fee {b['cancellation_fee_display']}" if b.get("cancellation_fee_display") else "")
+                    for b in card[group]]  # fmt: skip
         return "\n".join(out)
     return json.dumps(card, ensure_ascii=False)
 

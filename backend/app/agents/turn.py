@@ -9,19 +9,20 @@ second cancel can't cut that write short.
 import asyncio
 import logging
 import time
-import uuid
 from dataclasses import dataclass
+from typing import Any
+
+from pydantic import ValidationError
 
 from app import clock
 from app.agents.loop import run_turn
 from app.agents.prompts.system import build_system_prompt
 from app.agents.providers.base import LLMProvider, Message
 from app.agents.state import AgentEvent, TurnState
-from app.agents.tools.base import Tool
+from app.agents.tools.base import Tool, ToolResult, error_result
 from app.agents.tools.registry import tools_for
 from app.db.session import tenant_tx
 from app.domain.conversations import repo
-from app.domain.proposals import service as proposals
 from app.tenancy.context import ToolContext
 from app.tenancy.orgs import Org
 
@@ -35,10 +36,14 @@ _running: set[asyncio.Task[None]] = set()
 
 
 @dataclass(frozen=True, slots=True)
-class ConfirmAction:
-    """The Confirm button on a proposal card. Executed by the server before the model runs."""
+class ServerAction:
+    """A card button (Confirm on a proposal, a time slot). The server runs `tool`, one of the
+    org's own vertical's tools, with `arguments` before the model runs: the model decides
+    nothing about it. The tool validates the arguments like any model call would."""
 
-    proposal_id: uuid.UUID
+    tool: str  # e.g. confirm_proposal, create_booking, reschedule_booking
+    arguments: dict[str, Any]
+    pressed: str  # what the customer pressed, in words, for the model
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,16 +52,18 @@ class TurnInput:
     ctx: ToolContext  # conversation_id and turn_id set
     history: list[Message]
     user_text: str
-    action: ConfirmAction | None = None
+    action: ServerAction | None = None
 
 
 ACTION_NOTE = """
 SERVER ACTION THIS TURN (trusted, done by the server, not by you): the customer pressed \
-the Confirm button on a proposal. The result was:
+{pressed}, so the server ran {tool}. The result was:
 {result}
-Tell the customer this result in one or two sentences (an order number if there is one). \
-Do not call confirm_proposal for it. If it says CHANGED, briefly explain what changed and \
-ask them to confirm the new summary.
+Tell the customer this result in one or two sentences (an order or booking number if there \
+is one). Do not call {tool} for it. If it says PROPOSED, show the summary briefly and ask \
+them to confirm. If it says CHANGED, briefly explain what changed and ask them to confirm \
+the new summary. If it says REFUSED, say why and offer the alternatives it lists. Speak \
+to the customer as yourself; don't mention "the server".
 """
 
 
@@ -76,12 +83,12 @@ async def _run(provider: LLMProvider, inp: TurnInput, tools: dict[str, Tool], qu
     try:
         system = build_system_prompt(inp.org, clock.now())
         if inp.action is not None:
-            # Deterministic: the commit happens here, before (and regardless of) any model call.
-            reply = await _confirm_action(inp, state, queue)
-            system += ACTION_NOTE.format(result=reply.text)
-            # The server already confirmed; the model only acknowledges, so it isn't offered
-            # the tool at all (a prompt alone didn't stop it from trying again).
-            tools = {name: t for name, t in tools.items() if name != "confirm_proposal"}
+            # Deterministic: the action runs here, before (and regardless of) any model call.
+            result = await _server_action(inp, tools, state, queue)
+            system += ACTION_NOTE.format(pressed=inp.action.pressed, tool=inp.action.tool, result=result.content_for_model)
+            # The server already ran it; the model only acknowledges, so it isn't offered
+            # that tool at all (a prompt alone didn't stop it from confirming again).
+            tools = {name: t for name, t in tools.items() if name != inp.action.tool}
         async for event in run_turn(provider, system=system, history=inp.history, user_text=inp.user_text,
                                     tools=tools, ctx=inp.ctx, state=state):  # fmt: skip
             queue.put_nowait(event)
@@ -106,24 +113,34 @@ async def _run(provider: LLMProvider, inp: TurnInput, tools: dict[str, Tool], qu
         raise asyncio.CancelledError  # the task really was cancelled; say so to whoever awaits it
 
 
-async def _confirm_action(inp: TurnInput, state: TurnState, queue: Queue):  # noqa: ANN202
-    """Run the button's confirm, stream it like a tool call, and record it in the turn."""
+async def _server_action(inp: TurnInput, tools: dict[str, Tool], state: TurnState, queue: Queue) -> ToolResult:
+    """Run the button's tool, stream it like a tool call, and record it in the turn."""
     assert inp.action is not None
-    call_id, name = f"server_confirm_{inp.ctx.turn_id}", "confirm_proposal"
-    queue.put_nowait(AgentEvent("tool_start", {"call_id": call_id, "name": name, "label": "Confirming…"}))
-    reply = await proposals.confirm(inp.ctx, inp.action.proposal_id)
+    call_id, name = f"server_{inp.action.tool}_{inp.ctx.turn_id}", inp.action.tool
+    tool = tools.get(name)
+    queue.put_nowait(AgentEvent("tool_start", {"call_id": call_id, "name": name,
+                                               "label": tool.activity_label if tool else name}))  # fmt: skip
+    if tool is None:  # the API checks the vertical first; this only guards direct callers
+        result = error_result(f"{name} is not available here")
+    else:
+        try:
+            args = tool.args_model.model_validate(inp.action.arguments)
+        except ValidationError as exc:
+            result = error_result(f"invalid button: {exc.errors(include_url=False)}")
+        else:
+            result = await tool.handler(inp.ctx, args)  # ctx comes from the session, never the request
     state.tools_called.append(f"server:{name}")
-    state.cards.extend(reply.cards)
-    for card in reply.cards:
+    state.cards.extend(result.cards)
+    for card in result.cards:
         queue.put_nowait(AgentEvent("card", {"card": card}))
-    queue.put_nowait(AgentEvent("tool_end", {"call_id": call_id, "name": name, "ok": reply.ok,
-                                             "label": "Done" if reply.status == "committed" else "Couldn't confirm"}))  # fmt: skip
+    queue.put_nowait(AgentEvent("tool_end", {"call_id": call_id, "name": name, "ok": result.ok,
+                                             "label": result.activity_label or ("Done" if result.ok else "Failed")}))  # fmt: skip
     # Recorded like a tool step, so later turns' history shows what the server did.
     state.steps.append({"step": -1, "text": "", "server": True, "calls": [{
-        "id": call_id, "name": name, "arguments": {"proposal_id": str(inp.action.proposal_id)},
-        "provider_meta": None, "result": reply.text, "ok": reply.ok,
+        "id": call_id, "name": name, "arguments": inp.action.arguments,
+        "provider_meta": None, "result": result.content_for_model, "ok": result.ok,
     }]})  # fmt: skip
-    return reply
+    return result
 
 
 async def _persist(ctx: ToolContext, state: TurnState, latency_ms: int):  # noqa: ANN202
