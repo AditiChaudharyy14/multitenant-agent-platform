@@ -17,12 +17,22 @@ RRF_K = 60  # standard RRF constant (CLAUDE.md): score = Σ 1 / (RRF_K + rank)
 CANDIDATES = 20  # rows taken from each ranker before fusion
 
 # Answerability gate on the best cosine similarity. RRF scores are rank-based and say
-# nothing about absolute relevance, so the gate uses the raw cosine instead. Calibrated on
-# the seed KBs (5 in-scope + 5 out-of-scope questions per org, `make kb-search
-# --all-scores`): in-scope top cosines were 0.744–0.889, out-of-scope 0.392–0.619 (the
-# highest was "boiling point of mercury" against the tea brewing guide). bge-small packs
-# unrelated English around 0.4–0.5, so 0.68, the middle of the gap, leaves margin both ways.
-KB_MIN_COSINE = 0.68
+# nothing about absolute relevance, so the gate uses the raw cosine instead.
+#
+# Calibrated on the seed KBs (`make kb-search --all-scores`), per org:
+#   15 casual/indirect in-scope questions ("can I send it back", "what if I'm late"):
+#      0.592–0.810 over both orgs
+#   10 near-domain unanswerables ("do you sell coffee", "do you offer acupuncture"):
+#      0.597–0.748, the same range as in-scope, so no cosine cutoff can separate them
+#   5 clearly off-topic questions ("capital of Peru", "boiling point of mercury"):
+#      0.392–0.619
+# The gate favours recall: it sits just above the off-topic maximum (0.619, mercury vs the
+# tea brewing guide's "boiling water"). Near-domain unanswerables pass it on purpose; the
+# model and the eval suite handle them. 27 of 30 casual in-scope questions pass; the
+# misses ("where's my stuff" 0.592, "something smoky?" 0.612, "I want something really
+# relaxing" 0.617) score below the off-topic max, and the first two are database-tool
+# questions (order status, products) anyway.
+KB_MIN_COSINE = 0.625
 
 # One statement: both rankers over the RLS-filtered kb_chunks, fused with a FULL JOIN so a
 # chunk found by only one ranker still scores. Ties break on id for stable output.

@@ -17,7 +17,29 @@ KNOWN = [
     ("booking", "do you work on saturday", "faq#are-you-open-on-saturdays"),
 ]
 
-OUT_OF_SCOPE = ["What's the capital of Peru?", "Who won the 2018 football World Cup?"]
+# Casual, indirect phrasings that must stay answerable (recall). Only answerability is
+# asserted here: these are vague, so the exact top chunk isn't pinned.
+CASUAL = [
+    ("store", "can I send it back"),
+    ("store", "how long till it gets here"),
+    ("store", "is the green one good for mornings"),
+    ("store", "can i pay when it arrives"),
+    ("booking", "what if I'm late"),
+    ("booking", "my back hurts what should I book"),
+    ("booking", "sprained my ankle playing football"),
+    ("booking", "can I move my appointment"),
+]
+
+# Clearly off-topic: the cutoff sits just above the highest of these (see KB_MIN_COSINE).
+# Near-domain unanswerables ("do you sell coffee") are deliberately not tested here: they
+# pass the cutoff by design and are left to the model and the eval suite.
+OUT_OF_SCOPE = [
+    "What's the capital of Peru?",
+    "Who won the 2018 football World Cup?",
+    "How do I fix a flat bicycle tyre?",
+    "Write me a python function to sort a list",
+    "What is the boiling point of mercury?",
+]
 
 
 def customer(org_id: uuid.UUID) -> TenantContext:
@@ -32,6 +54,12 @@ async def test_known_question_in_top_3(
     assert res.answerable
     top3 = [h.citation for h in res.results[:3]]
     assert citation in top3, top3
+
+
+@pytest.mark.parametrize(("vertical", "question"), CASUAL)
+async def test_casual_question_is_answerable(seeded: dict[str, uuid.UUID], vertical: str, question: str) -> None:
+    res = await search_kb(customer(seeded[vertical]), question)
+    assert res.answerable, (question, res.top_cosine)
 
 
 @pytest.mark.parametrize("vertical", ["store", "booking"])
