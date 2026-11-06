@@ -32,3 +32,8 @@ Reviewed by hand: TODO(Aditi): note what you checked yourself (e.g. the fallback
 
 Claude Code wrote the tool framework (registry keyed on vertical, `search_knowledge` with `<kb_source>` delimiters), the agent loop (167 lines, model pinned per turn via `pin()`, server-side citation filter), the cancellable turn service and the SSE chat API, writing the 40 tests first (436 green). It reweighted RRF 2:1 toward vectors and isolated the chat tests in fresh orgs after they polluted the seed idempotency test.
 Reviewed by hand: TODO(Aditi): note what you checked yourself (e.g. loop.py line by line, the cancel/shield path in turn.py, and the `user_id` filters in the conversations repo).
+
+## Store agent: order life cycle
+
+Claude Code added order numbers (per-org counter trigger, `HT-1042`), the shared proposal/confirm module, the store tools and committers (row locks, guarded stock decrements, re-quote on price/stock change), the deterministic Confirm-button path and `make advance`, writing the 106 new tests first (554 green). The live Gemini demo showed the model re-calling `confirm_proposal` after a button commit (the server refused it), so a button turn no longer offers that tool at all.
+Reviewed by hand: TODO(Aditi): note what you checked yourself (e.g. commit.py's lock order and stock deltas, the 0005 trigger and backfill, and the not-found text being identical).
