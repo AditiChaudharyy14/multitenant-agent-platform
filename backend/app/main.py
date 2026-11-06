@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import health
+from app.api import chat, conversations, health
 from app.auth import routes as auth_routes
 from app.auth.csrf import OriginCheckMiddleware
 from app.config import get_settings
@@ -31,3 +31,5 @@ app = FastAPI(title="Multi-Tenant Agent Platform", lifespan=lifespan)
 app.add_middleware(OriginCheckMiddleware, allowed_origins=get_settings().allowed_origin_set)
 app.include_router(health.router)
 app.include_router(auth_routes.router)
+app.include_router(conversations.router)
+app.include_router(chat.router)
