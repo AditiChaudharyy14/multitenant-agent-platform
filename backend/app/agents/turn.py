@@ -9,6 +9,7 @@ second cancel can't cut that write short.
 import asyncio
 import logging
 import time
+import uuid
 from dataclasses import dataclass
 
 from app import clock
@@ -20,6 +21,7 @@ from app.agents.tools.base import Tool
 from app.agents.tools.registry import tools_for
 from app.db.session import tenant_tx
 from app.domain.conversations import repo
+from app.domain.proposals import service as proposals
 from app.tenancy.context import ToolContext
 from app.tenancy.orgs import Org
 
@@ -33,11 +35,29 @@ _running: set[asyncio.Task[None]] = set()
 
 
 @dataclass(frozen=True, slots=True)
+class ConfirmAction:
+    """The Confirm button on a proposal card. Executed by the server before the model runs."""
+
+    proposal_id: uuid.UUID
+
+
+@dataclass(frozen=True, slots=True)
 class TurnInput:
     org: Org
     ctx: ToolContext  # conversation_id and turn_id set
     history: list[Message]
     user_text: str
+    action: ConfirmAction | None = None
+
+
+ACTION_NOTE = """
+SERVER ACTION THIS TURN (trusted, done by the server, not by you): the customer pressed \
+the Confirm button on a proposal. The result was:
+{result}
+Tell the customer this result in one or two sentences (an order number if there is one). \
+Do not call confirm_proposal for it. If it says CHANGED, briefly explain what changed and \
+ask them to confirm the new summary.
+"""
 
 
 def start_turn(provider: LLMProvider, inp: TurnInput, *, tools: dict[str, Tool] | None = None) -> tuple[asyncio.Task[None], Queue]:
@@ -55,6 +75,13 @@ async def _run(provider: LLMProvider, inp: TurnInput, tools: dict[str, Tool], qu
     cancelled = False
     try:
         system = build_system_prompt(inp.org, clock.now())
+        if inp.action is not None:
+            # Deterministic: the commit happens here, before (and regardless of) any model call.
+            reply = await _confirm_action(inp, state, queue)
+            system += ACTION_NOTE.format(result=reply.text)
+            # The server already confirmed; the model only acknowledges, so it isn't offered
+            # the tool at all (a prompt alone didn't stop it from trying again).
+            tools = {name: t for name, t in tools.items() if name != "confirm_proposal"}
         async for event in run_turn(provider, system=system, history=inp.history, user_text=inp.user_text,
                                     tools=tools, ctx=inp.ctx, state=state):  # fmt: skip
             queue.put_nowait(event)
@@ -77,6 +104,26 @@ async def _run(provider: LLMProvider, inp: TurnInput, tools: dict[str, Tool], qu
     queue.put_nowait(None)
     if cancelled:
         raise asyncio.CancelledError  # the task really was cancelled; say so to whoever awaits it
+
+
+async def _confirm_action(inp: TurnInput, state: TurnState, queue: Queue):  # noqa: ANN202
+    """Run the button's confirm, stream it like a tool call, and record it in the turn."""
+    assert inp.action is not None
+    call_id, name = f"server_confirm_{inp.ctx.turn_id}", "confirm_proposal"
+    queue.put_nowait(AgentEvent("tool_start", {"call_id": call_id, "name": name, "label": "Confirming…"}))
+    reply = await proposals.confirm(inp.ctx, inp.action.proposal_id)
+    state.tools_called.append(f"server:{name}")
+    state.cards.extend(reply.cards)
+    for card in reply.cards:
+        queue.put_nowait(AgentEvent("card", {"card": card}))
+    queue.put_nowait(AgentEvent("tool_end", {"call_id": call_id, "name": name, "ok": reply.ok,
+                                             "label": "Done" if reply.status == "committed" else "Couldn't confirm"}))  # fmt: skip
+    # Recorded like a tool step, so later turns' history shows what the server did.
+    state.steps.append({"step": -1, "text": "", "server": True, "calls": [{
+        "id": call_id, "name": name, "arguments": {"proposal_id": str(inp.action.proposal_id)},
+        "provider_meta": None, "result": reply.text, "ok": reply.ok,
+    }]})  # fmt: skip
+    return reply
 
 
 async def _persist(ctx: ToolContext, state: TurnState, latency_ms: int):  # noqa: ANN202

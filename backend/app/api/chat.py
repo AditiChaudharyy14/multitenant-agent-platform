@@ -9,17 +9,17 @@ import asyncio
 from collections.abc import AsyncIterator
 from datetime import timedelta
 from functools import lru_cache
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import BaseModel, ConfigDict, StringConstraints, model_validator
 
 from app.agents.history import HISTORY_LIMIT, to_messages
 from app.agents.providers import get_provider
 from app.agents.providers.base import LLMProvider
-from app.agents.turn import TurnInput, start_turn
+from app.agents.turn import ConfirmAction, TurnInput, start_turn
 from app.api.conversations import not_found
 from app.auth.deps import current_ctx
 from app.auth.ratelimit import SlidingWindowLimiter
@@ -44,9 +44,29 @@ def get_chat_provider() -> LLMProvider:
     return get_provider()
 
 
+class ActionIn(BaseModel):
+    """A card button. Only confirm_proposal exists; anything else is a 422."""
+
+    model_config = ConfigDict(extra="forbid")
+    type: Literal["confirm_proposal"]
+    proposal_id: UUID
+
+
 class MessageIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    content: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_MESSAGE_CHARS)]
+    content: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_MESSAGE_CHARS)] | None = None
+    action: ActionIn | None = None
+
+    @model_validator(mode="after")
+    def _content_or_action(self) -> "MessageIn":
+        if self.content is None and self.action is None:
+            raise ValueError("a message needs content or an action")
+        return self
+
+    @property
+    def text(self) -> str:
+        """What is stored as the user's message (and shown to the model)."""
+        return self.content or "Confirm"
 
 
 @router.post("/{conversation_id}/messages")
@@ -66,14 +86,15 @@ async def post_message(
     # One transaction: load history, store the user message (its id is the turn id), read the org.
     async with tenant_tx(ctx.tenant) as conn:
         history = to_messages(await repo.recent_messages(conn, ctx, conversation_id, HISTORY_LIMIT))
-        turn_id = await repo.add_user_message(conn, ctx, conversation_id, body.content)
+        turn_id = await repo.add_user_message(conn, ctx, conversation_id, body.text)
         if turn_id is None:
             raise not_found()  # rolls the transaction back; nothing was stored
         org = await get_org_by_id(conn, ctx.org_id)
     assert org is not None  # the session's org always exists (FK)
 
     turn_ctx = ToolContext(ctx.org_id, ctx.user_id, ctx.role, conversation_id, turn_id)
-    inp = TurnInput(org=org, ctx=turn_ctx, history=history, user_text=body.content)
+    action = ConfirmAction(body.action.proposal_id) if body.action else None
+    inp = TurnInput(org=org, ctx=turn_ctx, history=history, user_text=body.text, action=action)
     return StreamingResponse(
         _stream(provider, inp),
         media_type="text/event-stream",

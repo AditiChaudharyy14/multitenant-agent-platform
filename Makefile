@@ -38,9 +38,10 @@ kb-search:  ## make kb-search ORG=<slug> Q="question"
 
 # One real chat turn through the running backend's HTTP API (spends LLM requests).
 # DEMO ONLY: the password is on the command line; use a seeded demo account.
-chat:  ## make chat ORG=<slug> EMAIL=<email> PASSWORD=<pw> Q="question"
-	@test -n "$(ORG)" -a -n "$(EMAIL)" -a -n "$(PASSWORD)" -a -n "$(Q)" || (echo 'usage: make chat ORG=<slug> EMAIL=<email> PASSWORD=<pw> Q="..."' && exit 1)
-	docker compose exec backend python -m scripts.chat --org "$(ORG)" --email "$(EMAIL)" --password "$(PASSWORD)" "$(Q)"
+# CONV=<id> continues a conversation (its id is printed on the first line).
+chat:  ## make chat ORG=<slug> EMAIL=<email> PASSWORD=<pw> Q="question" [CONV=<id>]
+	@test -n "$(ORG)" -a -n "$(EMAIL)" -a -n "$(PASSWORD)" -a -n "$(Q)" || (echo 'usage: make chat ORG=<slug> EMAIL=<email> PASSWORD=<pw> Q="..." [CONV=<id>]' && exit 1)
+	docker compose exec backend python -m scripts.chat --org "$(ORG)" --email "$(EMAIL)" --password "$(PASSWORD)" $(if $(CONV),--conversation "$(CONV)") "$(Q)"
 
 # app_owner has no CREATEDB, so the superuser creates app_test. The pytest session then
 # rebuilds its schema with alembic (downgrade base, upgrade head) on every run.
@@ -73,8 +74,11 @@ create-admin:  ## make create-admin ORG=<slug> EMAIL=<email>
 eval:  ## Stub until the eval suite exists
 	docker compose exec backend echo "eval: not implemented yet"
 
-advance:  ## Stub: make advance ORDER=<uuid>
-	docker compose exec backend echo "advance: not implemented yet (ORDER=$(ORDER))"
+# Admin/demo: one status step (pending → confirmed → shipped → delivered). The prefix picks
+# the org; runs as app_user in an admin-scoped transaction, so no owner credentials.
+advance:  ## make advance ORDER=<order number, e.g. HT-1042>
+	@test -n "$(ORDER)" || (echo "usage: make advance ORDER=HT-1042" && exit 1)
+	docker compose exec backend python -m scripts.advance "$(ORDER)"
 
 logs:  ## Follow logs from all services
 	docker compose logs -f
