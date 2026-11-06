@@ -3,6 +3,8 @@ slug: lotus-wellness
 name: Lotus Wellness Studio
 vertical: booking
 timezone: Asia/Kathmandu
+# Shown before booking numbers (LW-1001).
+booking_prefix: LW
 business_type: wellness studio offering massage, spa and wellness treatments by appointment
 branding:
   primary_color: "#7B4B94"

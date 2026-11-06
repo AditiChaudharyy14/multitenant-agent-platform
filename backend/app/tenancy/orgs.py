@@ -53,14 +53,16 @@ class OrgConfig(BaseModel):
     business_type: str = ""
     # Shown before order numbers (HT-1042). Unique across orgs, so a number names one org.
     order_prefix: str | None = None
+    # Shown before booking numbers (LW-1001). Unique across orgs, like order_prefix.
+    booking_prefix: str | None = None
     currency: str = "NPR"  # ISO 4217 code, shown in front of every amount
     branding: Branding
 
-    @field_validator("order_prefix")
+    @field_validator("order_prefix", "booking_prefix")
     @classmethod
     def _prefix(cls, v: str | None) -> str | None:
         if v is not None and not _ORDER_PREFIX.match(v):
-            raise ValueError("order_prefix must be 2-4 capital letters")
+            raise ValueError("prefixes must be 2-4 capital letters")
         return v
 
     @field_validator("currency")
@@ -75,6 +77,9 @@ class OrgConfig(BaseModel):
         # Keyed on the vertical: every store has orders, so every store needs a prefix.
         if self.vertical == "store" and self.order_prefix is None:
             raise ValueError("a store org needs an order_prefix")
+        # Likewise every booking org has bookings, so it needs a booking prefix.
+        if self.vertical == "booking" and self.booking_prefix is None:
+            raise ValueError("a booking org needs a booking_prefix")
         return self
 
     @field_validator("slug")
@@ -118,11 +123,12 @@ async def sync_orgs(owner_url: str, configs: list[OrgConfig]) -> None:
                 await conn.execute(
                     text(
                         "INSERT INTO orgs (slug, name, vertical, timezone, business_type, order_prefix, "
-                        "currency, branding) VALUES (:slug, :name, :vertical, :tz, :business_type, "
-                        ":prefix, :currency, CAST(:branding AS jsonb)) "
+                        "booking_prefix, currency, branding) VALUES (:slug, :name, :vertical, :tz, "
+                        ":business_type, :prefix, :booking_prefix, :currency, CAST(:branding AS jsonb)) "
                         "ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, "
                         "vertical = EXCLUDED.vertical, timezone = EXCLUDED.timezone, "
                         "business_type = EXCLUDED.business_type, order_prefix = EXCLUDED.order_prefix, "
+                        "booking_prefix = EXCLUDED.booking_prefix, "
                         "currency = EXCLUDED.currency, branding = EXCLUDED.branding"
                     ),
                     {
@@ -132,6 +138,7 @@ async def sync_orgs(owner_url: str, configs: list[OrgConfig]) -> None:
                         "tz": cfg.timezone,
                         "business_type": cfg.business_type,
                         "prefix": cfg.order_prefix,
+                        "booking_prefix": cfg.booking_prefix,
                         "currency": cfg.currency,
                         "branding": json.dumps(cfg.branding.model_dump()),
                     },
@@ -161,6 +168,7 @@ class Org:
     business_type: str = ""
     order_prefix: str | None = None
     currency: str = "NPR"
+    booking_prefix: str | None = None
 
     def public(self) -> dict[str, Any]:
         """What anyone may see: used for branding before and after login."""
@@ -172,7 +180,7 @@ class Org:
         }
 
 
-_ORG_COLUMNS = "id, slug, name, vertical, timezone, branding, business_type, order_prefix, currency"
+_ORG_COLUMNS = "id, slug, name, vertical, timezone, branding, business_type, order_prefix, currency, booking_prefix"
 
 
 async def get_org_by_slug(conn: AsyncConnection, slug: str) -> Org | None:
