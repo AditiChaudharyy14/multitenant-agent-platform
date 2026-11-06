@@ -1,0 +1,6 @@
+{
+  "source": "HAND-BUILT from Mistral's documented chat-completions SSE format (no MISTRAL_API_KEY available to record real responses).",
+  "model": "mistral-small-latest",
+  "status": 200,
+  "body": "data: {\"id\": \"cmpl-fixture\", \"object\": \"chat.completion.chunk\", \"created\": 1762412400, \"model\": \"mistral-small-latest\", \"choices\": [{\"index\": 0, \"delta\": {\"role\": \"assistant\", \"content\": \"\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"cmpl-fixture\", \"object\": \"chat.completion.chunk\", \"created\": 1762412400, \"model\": \"mistral-small-latest\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"Namaste! \"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"cmpl-fixture\", \"object\": \"chat.completion.chunk\", \"created\": 1762412400, \"model\": \"mistral-small-latest\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"How can I help?\"}, \"finish_reason\": null}]}\n\ndata: {\"id\": \"cmpl-fixture\", \"object\": \"chat.completion.chunk\", \"created\": 1762412400, \"model\": \"mistral-small-latest\", \"choices\": [{\"index\": 0, \"delta\": {\"content\": \"\"}, \"finish_reason\": \"stop\"}], \"usage\": {\"prompt_tokens\": 21, \"completion_tokens\": 7, \"total_tokens\": 28}}\n\ndata: [DONE]\n\n"
+}

@@ -1,0 +1,53 @@
+{
+  "source": "RECORDED from gemini-3.5-flash-lite on 2026-11-06 by make record-fixtures",
+  "model": "gemini-3.5-flash-lite",
+  "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:streamGenerateContent?alt=sse",
+  "request_body": {
+    "contents": [
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": "What is your return policy for opened tea?"
+          }
+        ]
+      }
+    ],
+    "generationConfig": {
+      "temperature": 0.0,
+      "maxOutputTokens": 1024
+    },
+    "systemInstruction": {
+      "parts": [
+        {
+          "text": "You are the assistant of a tea shop. Always call search_knowledge before answering a question about shop policies, then answer briefly using only what it returns."
+        }
+      ]
+    },
+    "tools": [
+      {
+        "functionDeclarations": [
+          {
+            "name": "search_knowledge",
+            "description": "Search the shop's knowledge base for policies and product descriptions.",
+            "parameters": {
+              "type": "object",
+              "properties": {
+                "query": {
+                  "type": "string",
+                  "description": "What to search for"
+                }
+              },
+              "required": [
+                "query"
+              ]
+            }
+          }
+        ]
+      }
+    ]
+  },
+  "status": 200,
+  "content_type": "text/event-stream",
+  "body": "data: {\"candidates\": [{\"content\": {\"parts\": [{\"functionCall\": {\"name\": \"search_knowledge\",\"args\": {\"query\": \"return policy opened tea\"},\"id\": \"call_13867095218840858322\"},\"thoughtSignature\": \"EmAKXgFpFH0TVfBq62x1ouks9TqW/VcanXDHG6iLeIF0t2N6l1dtgODpZqr0X/+MpAh1AkT2ZM7gn8IuLVZ027olkRwZvFV4zrIXGLItVvBfi5aLCjYfZnAzE4jcgdmvlcI=\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 100,\"candidatesTokenCount\": 19,\"totalTokenCount\": 119,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 100}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash-lite\",\"responseId\": \"bpHtaqH8Jo6m694Py_OOkAw\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"\"}],\"role\": \"model\"},\"finishReason\": \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 100,\"candidatesTokenCount\": 19,\"totalTokenCount\": 119,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 100}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash-lite\",\"responseId\": \"bpHtaqH8Jo6m694Py_OOkAw\"}\r\n\r\n"
+}

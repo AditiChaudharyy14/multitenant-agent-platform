@@ -19,6 +19,13 @@ for _var in _URL_VARS:
         make_url(os.environ[_var]).set(database=TEST_DATABASE).render_as_string(hide_password=False)
     )
 
+# No test ever talks to a real LLM: `make test` must be offline, deterministic and free.
+# The ops container has no API keys anyway; this makes the guarantee explicit.
+os.environ["LLM_PROVIDER"] = "fake"
+os.environ["GEMINI_API_KEY"] = ""
+os.environ["MISTRAL_API_KEY"] = ""
+os.environ["EVAL_MODE"] = "off"
+
 # The app imports must come after the rewrite above.
 import uuid  # noqa: E402
 from collections.abc import AsyncIterator, Iterator  # noqa: E402

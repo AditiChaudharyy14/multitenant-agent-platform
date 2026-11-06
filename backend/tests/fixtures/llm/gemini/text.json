@@ -1,0 +1,24 @@
+{
+  "source": "RECORDED from gemini-3.5-flash-lite on 2026-11-06 by make record-fixtures",
+  "model": "gemini-3.5-flash-lite",
+  "url": "https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash-lite:streamGenerateContent?alt=sse",
+  "request_body": {
+    "contents": [
+      {
+        "role": "user",
+        "parts": [
+          {
+            "text": "Reply with exactly this sentence and nothing else: Namaste from Himali Tea House."
+          }
+        ]
+      }
+    ],
+    "generationConfig": {
+      "temperature": 0.0,
+      "maxOutputTokens": 1024
+    }
+  },
+  "status": 200,
+  "content_type": "text/event-stream",
+  "body": "data: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"Namaste\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 18,\"candidatesTokenCount\": 2,\"totalTokenCount\": 20,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 18}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash-lite\",\"responseId\": \"bZHtasCoFdeC694P8-za0Q8\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \" from Himali Tea House.\"}],\"role\": \"model\"},\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 18,\"candidatesTokenCount\": 8,\"totalTokenCount\": 26,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 18}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash-lite\",\"responseId\": \"bZHtasCoFdeC694P8-za0Q8\"}\r\n\r\ndata: {\"candidates\": [{\"content\": {\"parts\": [{\"text\": \"\",\"thoughtSignature\": \"EmAKXgFpFH0TQrXt92zVSCTNvjZZejHvdmYGsnck/WQ7vIyX0kiv11JMuczlHAmcYfP7cSIIek6oaK2Z1ASDPEnibN0dtSPuAXyxOlq9cscrs8Epy84tRDzJfXpS7s0wNbE=\"}],\"role\": \"model\"},\"finishReason\": \"STOP\",\"index\": 0}],\"usageMetadata\": {\"promptTokenCount\": 18,\"candidatesTokenCount\": 8,\"totalTokenCount\": 26,\"promptTokensDetails\": [{\"modality\": \"TEXT\",\"tokenCount\": 18}],\"serviceTier\": \"standard\"},\"modelVersion\": \"gemini-3.5-flash-lite\",\"responseId\": \"bZHtasCoFdeC694P8-za0Q8\"}\r\n\r\n"
+}
