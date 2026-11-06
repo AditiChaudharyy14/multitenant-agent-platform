@@ -198,6 +198,16 @@ def test_system_prompt_has_identity_time_and_rules() -> None:
         assert rule in lowered, rule
 
 
+def test_store_prompt_rules_keyed_on_vertical() -> None:
+    store = Org(uuid.uuid4(), "x", "Shop", "store", "UTC", {}, "", order_prefix="QQ")
+    booking = Org(uuid.uuid4(), "y", "Spa", "booking", "UTC", {}, "")
+    now = datetime(2026, 11, 6, 8, 45, tzinfo=UTC)
+    store_prompt = build_system_prompt(store, now).lower()
+    for rule in ("cash on delivery", "confirm_proposal", "staff can help", "qq-1042", "never show internal"):
+        assert rule in store_prompt, rule
+    assert "cash on delivery" not in build_system_prompt(booking, now).lower()
+
+
 def test_system_prompt_without_branding_falls_back() -> None:
     org = Org(uuid.uuid4(), "x", "Third Org", "booking", "UTC", {}, "")
     prompt = build_system_prompt(org, datetime(2026, 11, 6, 8, 45, tzinfo=UTC))

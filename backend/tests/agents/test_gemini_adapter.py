@@ -161,3 +161,12 @@ async def test_other_errors_carry_status_and_message() -> None:
     with pytest.raises(ProviderError) as ei:
         await run(Replay(error(400, body)), "m", ChatRequest(system="", messages=[Message("user", "q")]))
     assert "400" in str(ei.value) and "bad schema" in str(ei.value)
+
+
+def test_tool_without_arguments_sends_no_parameters() -> None:
+    """Gemini rejects an OBJECT schema with empty properties (e.g. list_my_orders)."""
+    no_args = ToolSpec("list_my_orders", "List orders.", {"type": "object", "properties": {}, "additionalProperties": False})
+    body = GeminiAdapter("k").build_body("m", ChatRequest(system="s", messages=[Message("user", "q")], tools=[SEARCH, no_args]))
+    with_args, without = body["tools"][0]["functionDeclarations"]
+    assert "parameters" in with_args
+    assert without == {"name": "list_my_orders", "description": "List orders."}

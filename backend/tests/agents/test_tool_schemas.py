@@ -60,3 +60,25 @@ def test_tool_names_are_unique_per_vertical() -> None:
     for vertical, tools in REGISTRY.items():
         names = [t.name for t in tools]
         assert len(names) == len(set(names)), vertical
+
+
+def keys_anywhere(node: Any) -> set[str]:
+    if isinstance(node, dict):
+        return set(node) | {k for v in node.values() for k in keys_anywhere(v)}
+    if isinstance(node, list):
+        return {k for v in node for k in keys_anywhere(v)}
+    return set()
+
+
+@pytest.mark.parametrize(("vertical", "tool"), all_tools(), ids=lambda v: getattr(v, "name", v))
+def test_schemas_use_the_portable_subset(vertical: str, tool: Any) -> None:
+    """No $ref/$defs (Gemini rejects them) and no anyOf-with-null for optional fields."""
+    keys = keys_anywhere(tool.spec().parameters)
+    assert not keys & {"$ref", "$defs", "anyOf"}, f"{vertical}/{tool.name}: {keys & {'$ref', '$defs', 'anyOf'}}"
+
+
+def test_store_tools_registered() -> None:
+    assert set(tools_for("store")) == {
+        "search_knowledge", "search_products", "create_order", "update_order", "cancel_order",
+        "get_order_status", "list_my_orders", "reorder", "confirm_proposal",
+    }  # fmt: skip
