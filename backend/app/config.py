@@ -1,7 +1,9 @@
 """Application settings, read from the environment Docker Compose provides."""
 
 from functools import lru_cache
+from typing import Literal
 
+from pydantic import SecretStr
 from pydantic_settings import BaseSettings
 
 
@@ -21,6 +23,29 @@ class Settings(BaseSettings):
     allowed_origins: str = "http://localhost:3000"
     # "local" turns off the Secure flag on the session cookie (plain-HTTP dev only).
     app_env: str = "local"
+
+    # ── LLM ── Gemini is the default: Mistral's free plan isn't available to this account.
+    # "fake" is the scripted offline provider every test uses.
+    llm_provider: Literal["gemini", "mistral", "fake"] = "gemini"
+    gemini_api_key: SecretStr = SecretStr("")
+    llm_model_gemini: str = "gemini-3.5-flash-lite"
+    llm_fallback_models_gemini: str = "gemini-3.1-flash-lite"  # comma-separated, tried in order
+    llm_rpm_gemini: int = 12  # per model; the free tier allows 15
+    llm_daily_budget_gemini: int = 450  # per model; the free tier allows 500
+    mistral_api_key: SecretStr = SecretStr("")
+    llm_model_mistral: str = "mistral-small-latest"
+    llm_fallback_models_mistral: str = ""
+    llm_rpm_mistral: int = 60
+    llm_daily_budget_mistral: int = 1000
+    # off: live provider. record: live, and save responses. replay: saved responses only.
+    eval_mode: Literal["off", "record", "replay"] = "off"
+    eval_cassette_dir: str = "/eval/cassettes"
+
+    def llm_models(self, provider: str) -> list[str]:
+        """Primary model first, then the fallbacks in order."""
+        primary = getattr(self, f"llm_model_{provider}")
+        fallbacks = getattr(self, f"llm_fallback_models_{provider}")
+        return [primary, *(m.strip() for m in fallbacks.split(",") if m.strip())]
 
     @property
     def allowed_origin_set(self) -> frozenset[str]:

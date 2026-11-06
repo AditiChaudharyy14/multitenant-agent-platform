@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
@@ -21,6 +22,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     await app_engine.dispose()
     await readonly_engine.dispose()
 
+
+# uvicorn configures only its own loggers; this makes app.* INFO lines (e.g. the LLM
+# budget: "gemini/<model>: 37/450 requests today, 413 left") visible in `make logs`.
+logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
 
 app = FastAPI(title="Multi-Tenant Agent Platform", lifespan=lifespan)
 app.add_middleware(OriginCheckMiddleware, allowed_origins=get_settings().allowed_origin_set)
