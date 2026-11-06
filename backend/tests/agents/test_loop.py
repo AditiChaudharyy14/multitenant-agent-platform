@@ -171,6 +171,19 @@ async def test_provider_failure_mid_turn_ends_with_an_error_event() -> None:
     assert state.tools_called == ["search_knowledge"]  # what was produced is kept
 
 
+async def test_daily_budget_exhausted_has_its_own_code() -> None:
+    """The UI tells a spent daily quota apart from a momentary rate limit."""
+    from datetime import UTC, datetime
+
+    from app.agents.providers.base import DailyBudgetExhausted
+
+    spent = DailyBudgetExhausted("fake", [("fake-model", 450, 450)], datetime(2026, 11, 7, 8, tzinfo=UTC))
+    events, state = await run(FakeProvider([spent]))
+    assert events[-1].type == "error" and events[-1].data["code"] == "quota_exhausted"
+    assert "quota" in events[-1].data["message"].lower()
+    assert state.status == "rate_limited"  # agent_runs still records it as rate limited
+
+
 async def test_history_is_sent_before_the_new_user_message() -> None:
     from app.agents.providers.base import Message
 

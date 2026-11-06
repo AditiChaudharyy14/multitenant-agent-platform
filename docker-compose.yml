@@ -49,6 +49,8 @@ services:
       LLM_DAILY_BUDGET_MISTRAL: ${LLM_DAILY_BUDGET_MISTRAL:-1000}
       EVAL_MODE: ${EVAL_MODE:-off}
       EVAL_CASSETTE_DIR: ${EVAL_CASSETTE_DIR:-/eval/cassettes}
+      # With LLM_PROVIDER=fake: a scripted "model" (make e2e sets both). Empty = unset.
+      FAKE_SCENARIO_FILE: ${FAKE_SCENARIO_FILE:-}
     volumes:
       - ./backend:/app
       - ./seed:/seed:ro

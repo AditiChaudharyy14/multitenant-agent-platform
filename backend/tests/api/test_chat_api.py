@@ -281,3 +281,25 @@ async def test_message_body_is_validated(client: Client, store_sid: str, fake: F
         r = await c.post(f"/api/conversations/{cid}/messages",
                          json={"content": "hi", "org_id": str(uuid.uuid4())})  # fmt: skip
         assert r.status_code == 422  # unknown fields are rejected, never read
+
+
+async def test_e2e_scenario_cites_the_real_kb_through_the_api(client: Client, store_sid: str) -> None:
+    """The Playwright scenario, end to end in-process: the scripted model calls the real
+    search_knowledge, and the citation it fills in survives the server-side filter."""
+    from app.agents.providers.scripted import ScriptedProvider, load_scenario
+
+    scenario = load_scenario(Path(__file__).resolve().parents[2] / "fake_scenarios" / "e2e.yaml")
+    app.dependency_overrides[get_chat_provider] = lambda: ScriptedProvider(scenario)
+    try:
+        async with client(store_sid) as c:
+            cid = await new_conversation(c)
+            r = await c.post(f"/api/conversations/{cid}/messages", json={"content": "How long does delivery take?"})
+    finally:
+        app.dependency_overrides.pop(get_chat_provider, None)
+    events = parse_sse(r.text)
+    done = events[-1][1]
+    assert done["status"] == "complete"
+    assert any(k == "tool_start" and d["name"] == "search_knowledge" for k, d in events)
+    cited = [d["id"] for k, d in events if k == "citation"]
+    assert cited and cited == [x["id"] for x in done["citations"]]
+    assert f"[{cited[0]}]" in done["content"]

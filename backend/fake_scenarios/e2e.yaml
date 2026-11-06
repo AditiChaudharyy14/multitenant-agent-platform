@@ -1,0 +1,24 @@
+# Scripted "model" for the Playwright tests (LLM_PROVIDER=fake, FAKE_SCENARIO_FILE).
+# The real tools still run: search_knowledge searches the signed-in org's KB, and the
+# server's citation filter checks every [id]. See app/agents/providers/scripted.py.
+default: "This is the offline demo provider, so I can only answer the scripted questions. Try asking how long delivery takes."
+rules:
+  # Store: a KB answer with a citation chip.
+  - match: "how long does delivery take"
+    steps:
+      - tool: search_knowledge
+        args: {query: delivery time}
+      - text: "Inside the Kathmandu Valley most orders arrive within a couple of days, and elsewhere in Nepal it usually takes a few days more {source}."
+        chunk_delay_ms: 60
+  # Booking: the same shape for the studio.
+  - match: "do i need to book"
+    steps:
+      - tool: search_knowledge
+        args: {query: book in advance}
+      - text: "Booking ahead is the best way to get the time you want, though we take walk-ins when a practitioner is free {source}."
+        chunk_delay_ms: 60
+  # Slow on purpose, so the Stop button can be pressed mid-stream.
+  - match: "long story"
+    steps:
+      - text: "Once upon a time, high in the hills above Ilam, a tea picker named Maya walked the terraces every morning before the mist lifted. She knew each bush by the shape of its leaves and the way the dew sat on them. One spring the first flush came early, and the whole valley smelled of fresh green leaves. Maya carried her basket down to the factory, where the leaves were withered, rolled, oxidised and dried. The tea that year was the best anyone could remember, bright and floral with a long sweet finish. People still talk about it."
+        chunk_delay_ms: 150

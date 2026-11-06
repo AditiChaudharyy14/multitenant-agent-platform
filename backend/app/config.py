@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     # off: live provider. record: live, and save responses. replay: saved responses only.
     eval_mode: Literal["off", "record", "replay"] = "off"
     eval_cassette_dir: str = "/eval/cassettes"
+    # With LLM_PROVIDER=fake: a YAML scenario that scripts the "model" (UI end-to-end tests).
+    # Empty = the plain FakeProvider that unit tests script themselves.
+    fake_scenario_file: str = ""
 
     def llm_models(self, provider: str) -> list[str]:
         """Primary model first, then the fallbacks in order."""

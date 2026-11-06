@@ -1,7 +1,8 @@
 """LLM providers. get_provider() builds the one selected by LLM_PROVIDER (default gemini).
 
     gemini / mistral → ModelRouter(adapter, [primary, *fallbacks], daily budget, RPM limiters)
-    fake             → FakeProvider (what every `make test` test runs on)
+    fake             → FakeProvider (what every `make test` test runs on), or, with
+                       FAKE_SCENARIO_FILE, a ScriptedProvider (Playwright, no quota spent)
     EVAL_MODE=record|replay wraps the result in RecordReplayProvider; replay needs no key.
 
 Behaviour is keyed on the provider name and settings only; nothing here knows an org.
@@ -13,6 +14,7 @@ from app.agents.providers.fake import FakeProvider
 from app.agents.providers.limiter import limiter_for
 from app.agents.providers.recording import RecordReplayProvider
 from app.agents.providers.router import ModelRouter
+from app.agents.providers.scripted import ScriptedProvider, load_scenario
 from app.config import Settings, get_settings
 
 
@@ -41,7 +43,10 @@ def get_provider(settings: Settings | None = None) -> LLMProvider:
     s = settings or get_settings()
     if s.eval_mode == "replay":
         return RecordReplayProvider("replay", s.eval_cassette_dir)  # offline: no key, no budget
-    inner = FakeProvider() if s.llm_provider == "fake" else _live(s, s.llm_provider)
+    if s.llm_provider == "fake":
+        inner: LLMProvider = ScriptedProvider(load_scenario(s.fake_scenario_file)) if s.fake_scenario_file else FakeProvider()
+    else:
+        inner = _live(s, s.llm_provider)
     if s.eval_mode == "record":
         return RecordReplayProvider("record", s.eval_cassette_dir, inner)
     return inner

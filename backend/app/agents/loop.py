@@ -43,6 +43,7 @@ _RATE_LIMITED = (DailyBudgetExhausted, ProviderUnavailable, RateLimited)
 # What the user sees for each error code. Internal details go to agent_runs.error only.
 USER_MESSAGES = {
     "rate_limited": "I'm getting a lot of requests right now. Please try again in a minute.",
+    "quota_exhausted": "I've used up today's assistant quota. It resets at midnight Pacific time; please come back then.",
     "provider_error": "Sorry, something went wrong on my side. Please try again.",
     "max_steps": "Sorry, I couldn't finish that request. Could you try asking in a simpler way?",
 }
@@ -137,8 +138,10 @@ async def run_turn(
     except LLMError as exc:
         # The provider failed after its own retries. No other model is tried mid-turn.
         state.finalize()
-        code = "rate_limited" if isinstance(exc, _RATE_LIMITED) else "provider_error"
-        _fail(state, "rate_limited" if code == "rate_limited" else "error", f"{type(exc).__name__}: {exc}")
+        # A spent daily budget gets its own code, so the UI doesn't say "try again in a minute".
+        code = ("quota_exhausted" if isinstance(exc, DailyBudgetExhausted)
+                else "rate_limited" if isinstance(exc, _RATE_LIMITED) else "provider_error")  # fmt: skip
+        _fail(state, "rate_limited" if isinstance(exc, _RATE_LIMITED) else "error", f"{type(exc).__name__}: {exc}")
         yield AgentEvent("error", {"code": code, "message": USER_MESSAGES[code]})
 
 
