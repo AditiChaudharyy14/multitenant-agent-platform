@@ -212,3 +212,11 @@ def test_system_prompt_without_branding_falls_back() -> None:
     org = Org(uuid.uuid4(), "x", "Third Org", "booking", "UTC", {}, "")
     prompt = build_system_prompt(org, datetime(2026, 11, 6, 8, 45, tzinfo=UTC))
     assert "Third Org" in prompt and "08:45" in prompt
+
+
+def test_booking_prompt_rules_keyed_on_vertical() -> None:
+    booking = Org(uuid.uuid4(), "y", "Spa", "booking", "Asia/Kathmandu", {}, "", booking_prefix="SP")
+    prompt = build_system_prompt(booking, datetime(2026, 11, 6, 8, 45, tzinfo=UTC)).lower()
+    for rule in ("find_available_slots", "confirm_proposal", "sp-1001", "ambiguous", "never show internal",
+                 "pass the customer's own words"):  # fmt: skip
+        assert rule in prompt, rule

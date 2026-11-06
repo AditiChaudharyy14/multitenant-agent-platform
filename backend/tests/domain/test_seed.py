@@ -35,7 +35,7 @@ async def snapshot(owner: AsyncEngine, org_id: uuid.UUID) -> dict:
             (await conn.execute(text("SELECT order_id, to_status, changed_at FROM order_status_history"))).all()
         )
         bookings = sorted(
-            (await conn.execute(text("SELECT id, status, starts_at, ends_at FROM bookings"))).all()
+            (await conn.execute(text("SELECT id, booking_number, status, starts_at, ends_at FROM bookings"))).all()
         )
         products = sorted((await conn.execute(text("SELECT sku, price, stock FROM products"))).all())
     return {
@@ -194,3 +194,16 @@ def test_seed_data_has_no_slug_specific_keys() -> None:
             "opening_hours", "holidays", "bookings",
         }  # fmt: skip
 
+
+
+async def test_seed_bookings_get_numbers_from_1001(seeded: dict[str, uuid.UUID], owner_engine: AsyncEngine) -> None:
+    """Seed bookings are numbered by the same per-org counter trigger as new ones, in data.yaml
+    order, and the wipe restarts the counter, so the numbers are identical on every reseed."""
+    async with owner_engine.begin() as conn:
+        await set_owner_tenant(conn, seeded["booking"])
+        numbers = list(await conn.scalars(text("SELECT booking_number FROM bookings ORDER BY booking_number")))
+        last = await conn.scalar(text("SELECT last_number FROM booking_counters"))
+        prefix = await conn.scalar(text("SELECT booking_prefix FROM orgs WHERE id = :o"), {"o": seeded["booking"]})
+    assert numbers == list(range(1001, 1001 + len(numbers))) and numbers
+    assert last == numbers[-1]
+    assert prefix == "LW"

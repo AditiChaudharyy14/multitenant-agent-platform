@@ -25,7 +25,7 @@ TENANT_TABLES = (
     "users", "products", "orders", "order_items", "order_status_history",
     "services", "practitioners", "practitioner_services", "opening_hours", "holidays",
     "bookings", "conversations", "messages", "proposals", "agent_runs", "kb_chunks",
-    "order_counters",
+    "order_counters", "booking_counters",
 )  # fmt: skip
 
 # Customer-owned tables: also carry user_id and a RESTRICTIVE own-rows policy.
@@ -132,9 +132,13 @@ async def seed_tenant(owner: AsyncEngine, vertical: str) -> Tenant:
     async with owner.begin() as conn:
         # orgs has no RLS (it's global), so it needs no settings.
         await conn.execute(
-            text("INSERT INTO orgs (id, slug, name, vertical, order_prefix) VALUES (:id, :slug, :name, :v, :p)"),
+            text(
+                "INSERT INTO orgs (id, slug, name, vertical, order_prefix, booking_prefix) "
+                "VALUES (:id, :slug, :name, :v, :p, :bp)"
+            ),
             {"id": org_id, "slug": f"test-{org_id.hex}", "name": "Test org", "v": vertical,
-             "p": unique_prefix() if vertical == "store" else None},  # fmt: skip
+             "p": unique_prefix() if vertical == "store" else None,
+             "bp": unique_prefix() if vertical == "booking" else None},  # fmt: skip
         )
         await set_owner_tenant(conn, org_id)
 
@@ -330,6 +334,12 @@ def valid_row_sql(table: str, t: Tenant) -> tuple[str, dict]:
             "ON CONFLICT (org_id) DO UPDATE SET last_number = c.last_number + 1",
             {},
         ),
+        # Likewise: the fixture bookings already created this org's booking counter.
+        "booking_counters": (
+            "INSERT INTO booking_counters AS c (org_id, last_number) VALUES (:o, 5000) "
+            "ON CONFLICT (org_id) DO UPDATE SET last_number = c.last_number + 1",
+            {},
+        ),
     }
     sql, params = rows[table]
     return sql, {"o": o, "x": x, **params}
@@ -458,3 +468,128 @@ async def insert_shop_order(
             )
             previous = step
     return number
+
+
+# ───────────── Booking studio: known hours, holiday, services and practitioners ─────────────
+
+# Local (Asia/Kathmandu) weekly hours: Mon–Thu 09–19, Fri 09–15, Saturday closed, Sun 09–19.
+STUDIO_HOURS = {0: ("09:00", "19:00"), 1: ("09:00", "19:00"), 2: ("09:00", "19:00"),
+                3: ("09:00", "19:00"), 4: ("09:00", "15:00"), 6: ("09:00", "19:00")}  # fmt: skip
+STUDIO_HOLIDAY = "2026-11-11"  # a Wednesday
+# key -> (name, minutes, price)
+STUDIO_SERVICES = {
+    "swedish": ("Swedish Massage", 60, "3500.00"),
+    "deep": ("Deep Tissue Massage", 90, "5200.00"),
+    "yoga": ("Private Yoga", 45, "2200.00"),
+}  # fmt: skip
+# key -> (name, service keys). Asha sorts first, so she is the auto-pick when both are free.
+STUDIO_PRACTITIONERS = {
+    "asha": ("Asha Gurung", ("swedish", "deep")),
+    "bina": ("Bina Shrestha", ("swedish", "deep", "yoga")),
+}  # fmt: skip
+
+
+@dataclass
+class Studio:
+    org_id: uuid.UUID
+    prefix: str
+    admin: uuid.UUID
+    x: uuid.UUID
+    y: uuid.UUID
+    services: dict[str, uuid.UUID]  # key -> id
+    practitioners: dict[str, uuid.UUID]  # key -> id
+    conversations: dict[uuid.UUID, uuid.UUID]  # user -> conversation
+
+    def number(self, n: int) -> str:
+        return f"{self.prefix}-{n}"
+
+
+async def seed_studio(owner: AsyncEngine) -> Studio:
+    """A booking org with STUDIO_* hours, holiday, services and practitioners; customers X
+    and Y with one chat each; no bookings."""
+    org_id = new_id()
+    prefix = unique_prefix()
+    async with owner.begin() as conn:
+        await conn.execute(
+            text(
+                "INSERT INTO orgs (id, slug, name, vertical, timezone, booking_prefix, currency) "
+                "VALUES (:id, :slug, 'Test studio', 'booking', 'Asia/Kathmandu', :p, 'NPR')"
+            ),
+            {"id": org_id, "slug": f"studio-{org_id.hex}", "p": prefix},
+        )
+        await set_owner_tenant(conn, org_id)
+        admin = await insert_user(conn, org_id, "admin")
+        x = await insert_user(conn, org_id, "customer")
+        y = await insert_user(conn, org_id, "customer")
+        services = {}
+        for key, (name, minutes, price) in STUDIO_SERVICES.items():
+            services[key] = await conn.scalar(
+                text(
+                    "INSERT INTO services (org_id, name, duration_min, price) "
+                    "VALUES (:o, :n, :m, CAST(:p AS numeric)) RETURNING id"
+                ),
+                {"o": org_id, "n": name, "m": minutes, "p": price},
+            )
+        practitioners = {}
+        for key, (name, offers) in STUDIO_PRACTITIONERS.items():
+            practitioners[key] = await conn.scalar(
+                text("INSERT INTO practitioners (org_id, name) VALUES (:o, :n) RETURNING id"), {"o": org_id, "n": name}
+            )
+            for s in offers:
+                await conn.execute(
+                    text("INSERT INTO practitioner_services (org_id, practitioner_id, service_id) VALUES (:o, :p, :s)"),
+                    {"o": org_id, "p": practitioners[key], "s": services[s]},
+                )
+        for weekday, (opens, closes) in STUDIO_HOURS.items():
+            await conn.execute(
+                text(
+                    "INSERT INTO opening_hours (org_id, weekday, opens, closes) "
+                    "VALUES (:o, :w, CAST(:a AS time), CAST(:b AS time))"
+                ),
+                {"o": org_id, "w": weekday, "a": opens, "b": closes},
+            )
+        await conn.execute(
+            text("INSERT INTO holidays (org_id, day, name) VALUES (:o, CAST(:d AS date), 'Tihar')"),
+            {"o": org_id, "d": STUDIO_HOLIDAY},
+        )
+        conversations = {}
+        for user in (x, y):
+            conversations[user] = await conn.scalar(
+                text("INSERT INTO conversations (org_id, user_id) VALUES (:o, :u) RETURNING id"),
+                {"o": org_id, "u": user},
+            )
+    return Studio(org_id, prefix, admin, x, y, services, practitioners, conversations)
+
+
+async def add_studio_customers(owner: AsyncEngine, studio: Studio, n: int) -> list[uuid.UUID]:
+    """n more customers, each with a conversation (recorded in studio.conversations)."""
+    async with owner.begin() as conn:
+        await set_owner_tenant(conn, studio.org_id)
+        users = []
+        for _ in range(n):
+            user = await insert_user(conn, studio.org_id, "customer")
+            studio.conversations[user] = await conn.scalar(
+                text("INSERT INTO conversations (org_id, user_id) VALUES (:o, :u) RETURNING id"),
+                {"o": studio.org_id, "u": user},
+            )
+            users.append(user)
+    return users
+
+
+async def insert_studio_booking(
+    owner: AsyncEngine, studio: Studio, user: uuid.UUID, service: str, practitioner: str,
+    starts_at: datetime, *, status: str = "confirmed",
+) -> int:  # fmt: skip
+    """An existing booking written directly; returns its trigger-assigned booking number."""
+    _, minutes, price = STUDIO_SERVICES[service]
+    async with owner.begin() as conn:
+        await set_owner_tenant(conn, studio.org_id)
+        return await conn.scalar(
+            text(
+                "INSERT INTO bookings (org_id, user_id, service_id, practitioner_id, starts_at, ends_at, "
+                "status, price, created_at) VALUES (:o, :u, :s, :p, :start, :end, :status, "
+                "CAST(:price AS numeric), :start - interval '7 days') RETURNING booking_number"
+            ),
+            {"o": studio.org_id, "u": user, "s": studio.services[service], "p": studio.practitioners[practitioner],
+             "start": starts_at, "end": starts_at + timedelta(minutes=minutes), "status": status, "price": price},
+        )  # fmt: skip

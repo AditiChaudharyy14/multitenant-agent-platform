@@ -48,8 +48,11 @@ def test_invalid_config_rejected() -> None:
     for bad in bad_cases:
         with pytest.raises(ValidationError):
             OrgConfig.model_validate({**good, **bad})
-    # A booking org has no orders, so it needs no prefix.
-    OrgConfig.model_validate({**good, "vertical": "booking", "order_prefix": None})
+    # A booking org has no orders, so it needs no order prefix; it needs a booking prefix.
+    OrgConfig.model_validate({**good, "vertical": "booking", "order_prefix": None, "booking_prefix": "LW"})
+    for bad in ({"booking_prefix": None}, {"booking_prefix": "lw"}, {"booking_prefix": "TOOLONG"}):
+        with pytest.raises(ValidationError):
+            OrgConfig.model_validate({**good, "vertical": "booking", "order_prefix": None, **bad})
 
 
 def test_folder_must_match_slug(tmp_path: Path) -> None:
