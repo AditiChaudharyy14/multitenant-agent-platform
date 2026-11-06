@@ -9,7 +9,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.exc import SQLAlchemyError
 
-from app.db import engine as db
+from app.db import session as db
 
 router = APIRouter()
 logger = logging.getLogger(__name__)

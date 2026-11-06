@@ -3,7 +3,7 @@ from sqlalchemy import text
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.api import health as health_module
-from app.db.engine import app_engine
+from app.db.session import app_engine
 from app.main import app
 
 
