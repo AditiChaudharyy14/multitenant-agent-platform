@@ -4,7 +4,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
-from app.api import admin, chat, conversations, health
+from app.api import admin, chat, conversations, health, kb
 from app.auth import routes as auth_routes
 from app.auth.csrf import OriginCheckMiddleware
 from app.config import get_settings
@@ -34,3 +34,4 @@ app.include_router(auth_routes.router)
 app.include_router(conversations.router)
 app.include_router(chat.router)
 app.include_router(admin.router)
+app.include_router(kb.router)
