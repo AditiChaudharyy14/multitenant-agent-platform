@@ -4,11 +4,17 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api import health
+from app.config import get_settings
 from app.db.session import app_engine, readonly_engine
+from app.tenancy.orgs import check_orgs_present, load_org_configs
 
 
 @asynccontextmanager
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    # Read-only startup check as app_user: the app never writes orgs (make sync-orgs does).
+    configs = load_org_configs(get_settings().seed_dir)
+    async with app_engine.connect() as conn:
+        await check_orgs_present(conn, configs)
     yield
     await app_engine.dispose()
     await readonly_engine.dispose()

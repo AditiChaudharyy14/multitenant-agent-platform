@@ -1,0 +1,11 @@
+# Org config: branding and behaviour. Behaviour is keyed on `vertical`, never on the slug.
+slug: himali-tea
+name: Himali Tea House
+vertical: store
+timezone: Asia/Kathmandu
+branding:
+  primary_color: "#2F5D50"
+  secondary_color: "#C8A165"
+  logo_emoji: "🍵"
+  agent_name: Chiya
+  greeting: "Namaste! I'm Chiya. I can help you choose a tea, place an order, or check on one you've already placed."

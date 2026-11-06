@@ -8,14 +8,14 @@ from sqlalchemy import pool
 from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import create_async_engine
 
-from app.config import get_settings
+from app.config import require_owner_url
 
 if context.config.config_file_name is not None:
     fileConfig(context.config.config_file_name)
 
 # Read directly rather than via config.set_main_option, which would treat any % in
 # the URL as ini interpolation.
-OWNER_URL = get_settings().database_url_owner
+OWNER_URL = require_owner_url()
 
 
 def run_migrations(connection: Connection) -> None:

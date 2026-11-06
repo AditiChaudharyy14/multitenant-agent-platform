@@ -21,14 +21,21 @@ services:
 
   backend:
     build: ./backend
+    # Shared with `ops`, so `make build` refreshes both.
+    image: multitenant-agents-backend:dev
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # No DATABASE_URL_OWNER here on purpose: the running app never holds app_owner
+    # credentials. Owner-only commands run in the `ops` service below.
     environment:
-      DATABASE_URL_OWNER: ${DATABASE_URL_OWNER:?copy .env.example to .env}
       DATABASE_URL_APP: ${DATABASE_URL_APP:?copy .env.example to .env}
       DATABASE_URL_READONLY: ${DATABASE_URL_READONLY:?copy .env.example to .env}
+      SEED_DIR: /seed
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      APP_ENV: ${APP_ENV:-local}
       WATCHFILES_FORCE_POLLING: ${WATCHFILES_FORCE_POLLING:-true}
     volumes:
       - ./backend:/app
+      - ./seed:/seed:ro
     ports:
       - "8000:8000"
     depends_on:
@@ -41,6 +48,27 @@ services:
       timeout: 5s
       retries: 10
       start_period: 10s
+
+  # One-shot container for owner-only work: migrations, org sync, seed and tests.
+  # The profile keeps `docker compose up` from starting it; Makefile targets use
+  # `docker compose run --rm ops ...`, which exits when the command finishes.
+  ops:
+    build: ./backend
+    image: multitenant-agents-backend:dev
+    profiles: ["ops"]
+    environment:
+      DATABASE_URL_OWNER: ${DATABASE_URL_OWNER:?copy .env.example to .env}
+      DATABASE_URL_APP: ${DATABASE_URL_APP:?copy .env.example to .env}
+      DATABASE_URL_READONLY: ${DATABASE_URL_READONLY:?copy .env.example to .env}
+      SEED_DIR: /seed
+      ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
+      APP_ENV: local
+    volumes:
+      - ./backend:/app
+      - ./seed:/seed:ro
+    depends_on:
+      db:
+        condition: service_healthy
 
   frontend:
     build: ./frontend

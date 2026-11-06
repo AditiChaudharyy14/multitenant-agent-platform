@@ -29,13 +29,14 @@ from alembic.config import Config  # noqa: E402
 from sqlalchemy import pool, text  # noqa: E402
 from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine  # noqa: E402
 
-from app.config import get_settings  # noqa: E402
+from app.config import get_settings, require_owner_url  # noqa: E402
 from app.db.session import app_engine, readonly_engine  # noqa: E402
+from app.tenancy.orgs import OrgConfig, load_org_configs, sync_orgs  # noqa: E402
 from tests.factories import Tenant, seed_tenant  # noqa: E402
 
 # Refuse to run at all if any engine could reach a database other than app_test.
 for _url in (
-    get_settings().database_url_owner,
+    require_owner_url(),
     get_settings().database_url_app,
     get_settings().database_url_readonly,
 ):
@@ -70,7 +71,7 @@ async def dispose_engines() -> AsyncIterator[None]:
 @pytest.fixture
 async def owner_engine() -> AsyncIterator[AsyncEngine]:
     """app_owner engine, for fixture setup only. Runtime code never connects as the owner."""
-    engine = create_async_engine(get_settings().database_url_owner, poolclass=pool.NullPool)
+    engine = create_async_engine(require_owner_url(), poolclass=pool.NullPool)
     yield engine
     await engine.dispose()
 
@@ -109,3 +110,15 @@ async def as_app_user() -> None:
     assert tuple(row) == ("app_user", TEST_DATABASE)
     assert tuple(flags) == (False, False), "app_user must be NOSUPERUSER NOBYPASSRLS"
     assert owned == 0, "app_user must own no tables"
+
+
+@pytest.fixture
+async def org_configs() -> list[OrgConfig]:
+    return load_org_configs(get_settings().seed_dir)
+
+
+@pytest.fixture
+async def synced_orgs(org_configs: list[OrgConfig]) -> dict[str, OrgConfig]:
+    """The seed orgs upserted into app_test, keyed by vertical so tests never name a slug."""
+    await sync_orgs(require_owner_url(), org_configs)
+    return {c.vertical: c for c in org_configs}

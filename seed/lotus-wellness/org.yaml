@@ -1,0 +1,11 @@
+# Org config: branding and behaviour. Behaviour is keyed on `vertical`, never on the slug.
+slug: lotus-wellness
+name: Lotus Wellness Studio
+vertical: booking
+timezone: Asia/Kathmandu
+branding:
+  primary_color: "#7B4B94"
+  secondary_color: "#F2C6D0"
+  logo_emoji: "🪷"
+  agent_name: Kamala
+  greeting: "Namaste! I'm Kamala. I can tell you about our treatments and book, move or cancel an appointment for you."
