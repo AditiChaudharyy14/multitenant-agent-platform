@@ -52,9 +52,10 @@ SAME_TURN = (
 def _committers() -> dict[str, Committer]:
     # Imported here, not at module level: the committers themselves import the proposal
     # repo to issue fresh proposals, and this keeps the import graph acyclic.
+    from app.domain.bookings.commit import COMMITTERS as BOOKING_COMMITTERS
     from app.domain.orders.commit import COMMITTERS as ORDER_COMMITTERS
 
-    return {**ORDER_COMMITTERS}  # booking committers join here
+    return {**ORDER_COMMITTERS, **BOOKING_COMMITTERS}
 
 
 async def confirm(ctx: ToolContext, proposal_id: uuid.UUID) -> Reply:

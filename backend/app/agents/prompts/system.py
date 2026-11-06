@@ -50,5 +50,5 @@ def build_system_prompt(org: Org, now: datetime) -> str:
         tz=org.timezone,
         offset=_offset(local),
     )
-    extra = vertical_rules(org.vertical, order_prefix=org.order_prefix)
+    extra = vertical_rules(org)
     return f"{base}\n{extra}" if extra else base

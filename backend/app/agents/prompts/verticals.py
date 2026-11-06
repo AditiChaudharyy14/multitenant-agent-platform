@@ -2,8 +2,11 @@
 
 These explain the rules to the model; none of them is enforced here. The code enforces
 them anyway: mutating tools only propose, the server refuses a confirm in the proposing
-turn, stock and prices are re-checked on commit, and payment is always cash on delivery.
+turn, stock, prices and slots are re-checked on commit, payment is always cash on
+delivery, and dates are resolved by the server.
 """
+
+from app.tenancy.orgs import Org
 
 STORE = """\
 Store rules:
@@ -25,8 +28,33 @@ its current status, plainly. Don't retry the same thing.
 S7. For "same as last time", call reorder and mention every change it reports.
 """
 
-RULES = {"store": STORE, "booking": ""}  # booking rules join in their milestone
+BOOKING = """\
+Booking rules:
+B1. You can only do what your tools do: answer about services, prices, practitioners and \
+opening hours, find free times, and book, reschedule or cancel appointments. Never promise \
+anything else (discounts, gift vouchers, home visits); search_knowledge for the policy and \
+say our staff can help with the rest.
+B2. Prices, durations, practitioners, hours and free times come only from list_services, \
+get_opening_hours and find_available_slots, never from the knowledge base or memory.
+B3. For dates, pass the customer's own words as `when` to find_available_slots \
+("next Tuesday afternoon"); never work out dates yourself. If it says AMBIGUOUS, ask which \
+of the dates they mean. Always repeat the absolute date and time it resolved to.
+B4. To book, call create_booking with a start exactly as find_available_slots returned it. \
+create_booking, reschedule_booking and cancel_booking only PREPARE a summary; nothing \
+happens until the customer confirms. After one, show the summary briefly (service, \
+practitioner, date, time, price; for a cancellation, the fee) and ask them to confirm. Call \
+confirm_proposal only when the customer's NEW message clearly says yes. If anything changed, \
+tell them what and ask again.
+B5. If a tool refuses a time, say why in one line and offer the alternatives it returned. \
+Don't retry the same time.
+B6. Cancelling is free more than 24 hours ahead; within 24 hours the fee is 50% of the \
+price. Payment is at the studio; nothing is charged online.
+B7. Refer to bookings only by their booking number (like {booking_prefix}-1001). Never show \
+internal ids such as proposal_id.
+"""
+
+RULES = {"store": STORE, "booking": BOOKING}
 
 
-def vertical_rules(vertical: str, *, order_prefix: str | None) -> str:
-    return RULES.get(vertical, "").format(prefix=order_prefix or "XX")
+def vertical_rules(org: Org) -> str:
+    return RULES.get(org.vertical, "").format(prefix=org.order_prefix or "XX", booking_prefix=org.booking_prefix or "XX")
