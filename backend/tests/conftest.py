@@ -40,7 +40,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine, create_async_engine  # noqa: E40
 from app.config import get_settings, require_owner_url  # noqa: E402
 from app.db.session import app_engine, readonly_engine  # noqa: E402
 from app.tenancy.orgs import OrgConfig, load_org_configs, sync_orgs  # noqa: E402
-from tests.factories import Tenant, seed_tenant  # noqa: E402
+from tests.factories import Shop, Tenant, seed_shop, seed_tenant  # noqa: E402
 
 # Refuse to run at all if any engine could reach a database other than app_test.
 for _url in (
@@ -94,6 +94,18 @@ async def tenants(owner_engine: AsyncEngine) -> tuple[Tenant, Tenant]:
     a = await seed_tenant(owner_engine, vertical="store")
     b = await seed_tenant(owner_engine, vertical="booking")
     return a, b
+
+
+@pytest.fixture
+async def shop(owner_engine: AsyncEngine) -> Shop:
+    """A fresh store org with known products and stock (tests/factories.py SHOP_PRODUCTS)."""
+    return await seed_shop(owner_engine)
+
+
+@pytest.fixture
+async def other_shop(owner_engine: AsyncEngine) -> Shop:
+    """A second, unrelated store org, for cross-org isolation tests."""
+    return await seed_shop(owner_engine)
 
 
 @pytest.fixture

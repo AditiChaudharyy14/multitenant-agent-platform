@@ -4,6 +4,8 @@ name: Himali Tea House
 vertical: store
 timezone: Asia/Kathmandu
 business_type: online tea shop selling Himalayan loose-leaf tea and teaware
+order_prefix: HT        # order numbers look like HT-1042
+currency: NPR
 branding:
   primary_color: "#2F5D50"
   secondary_color: "#C8A165"

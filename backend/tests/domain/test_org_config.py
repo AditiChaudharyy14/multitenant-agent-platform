@@ -35,19 +35,27 @@ def test_no_app_code_names_a_slug(org_configs: list[OrgConfig]) -> None:
 def test_invalid_config_rejected() -> None:
     good = {
         "slug": "x", "name": "X", "vertical": "store", "timezone": "Asia/Kathmandu",
+        "order_prefix": "XX",
         "branding": {"primary_color": "#000000", "secondary_color": "#ffffff",
                      "logo_emoji": "x", "agent_name": "A", "greeting": "hi"},
     }  # fmt: skip
     OrgConfig.model_validate(good)
-    for bad in ({"vertical": "bank"}, {"timezone": "Mars/Base"}, {"slug": "Bad Slug"}):
+    bad_cases = (
+        {"vertical": "bank"}, {"timezone": "Mars/Base"}, {"slug": "Bad Slug"},
+        {"order_prefix": "ht"}, {"order_prefix": "TOOLONG"}, {"order_prefix": None},  # a store needs one
+        {"currency": "rupees"},
+    )  # fmt: skip
+    for bad in bad_cases:
         with pytest.raises(ValidationError):
             OrgConfig.model_validate({**good, **bad})
+    # A booking org has no orders, so it needs no prefix.
+    OrgConfig.model_validate({**good, "vertical": "booking", "order_prefix": None})
 
 
 def test_folder_must_match_slug(tmp_path: Path) -> None:
     (tmp_path / "wrong").mkdir()
     (tmp_path / "wrong" / "org.yaml").write_text(
-        "slug: right\nname: R\nvertical: store\ntimezone: UTC\nbranding:\n"
+        "slug: right\nname: R\nvertical: store\ntimezone: UTC\norder_prefix: RT\nbranding:\n"
         "  primary_color: '#000000'\n  secondary_color: '#000000'\n  logo_emoji: x\n"
         "  agent_name: a\n  greeting: g\n"
     )

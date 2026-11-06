@@ -31,10 +31,11 @@ from app.tenancy.orgs import OrgConfig, load_org_configs, sync_orgs
 
 # Child tables first, so no delete trips a foreign key. Deleting users also cascades the
 # org's sessions, so nobody stays logged in as a user who no longer exists.
-# tests/domain/test_seed.py checks this list covers every tenant table.
+# tests/domain/test_seed.py checks this list covers every tenant table. Wiping
+# order_counters restarts the org's order numbers at 1001, so reseeding is deterministic.
 WIPE_ORDER = (
     "kb_chunks", "agent_runs", "proposals", "messages", "conversations",
-    "order_status_history", "order_items", "orders", "bookings",
+    "order_status_history", "order_items", "orders", "order_counters", "bookings",
     "practitioner_services", "practitioners", "services", "opening_hours", "holidays",
     "products", "users",
 )  # fmt: skip

@@ -26,7 +26,7 @@ from app.config import get_settings, require_owner_url
 from app.domain.kb.ingest import PreparedKB, insert_chunks, prepare_kb
 from app.seed.data import load_seed_data
 from app.tenancy.orgs import OrgConfig, sync_orgs
-from tests.factories import set_owner_tenant
+from tests.factories import set_owner_tenant, unique_prefix
 
 pytestmark = pytest.mark.usefixtures("as_app_user")
 
@@ -46,7 +46,9 @@ async def _store_kb(cfg: OrgConfig) -> PreparedKB:
 @pytest.fixture
 async def chat_orgs(org_configs: list[OrgConfig], owner_engine: AsyncEngine) -> dict[str, str]:
     """vertical → slug of a fresh org for this test; the store one has the real KB."""
-    copies = {c.vertical: c.model_copy(update={"slug": f"chat-{c.vertical}-{uuid.uuid4().hex[:10]}"})
+    # A fresh order prefix too: orgs.order_prefix is unique, like the slug.
+    copies = {c.vertical: c.model_copy(update={"slug": f"chat-{c.vertical}-{uuid.uuid4().hex[:10]}",
+                                               "order_prefix": unique_prefix() if c.order_prefix else None})
               for c in org_configs}  # fmt: skip
     await sync_orgs(require_owner_url(), list(copies.values()))
     kb = await _store_kb(next(c for c in org_configs if c.vertical == "store"))

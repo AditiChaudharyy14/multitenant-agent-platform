@@ -15,12 +15,14 @@ from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 import yaml
-from pydantic import BaseModel, ConfigDict, field_validator
+from pydantic import BaseModel, ConfigDict, field_validator, model_validator
 from sqlalchemy import pool, text
 from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 _HEX_COLOUR = re.compile(r"^#[0-9A-Fa-f]{6}$")
 _SLUG = re.compile(r"^[a-z0-9]+(?:-[a-z0-9]+)*$")
+_ORDER_PREFIX = re.compile(r"^[A-Z]{2,4}$")
+_CURRENCY = re.compile(r"^[A-Z]{3}$")
 
 
 class Branding(BaseModel):
@@ -49,7 +51,31 @@ class OrgConfig(BaseModel):
     timezone: str
     # One line for the system prompt, e.g. "online tea shop selling Himalayan tea".
     business_type: str = ""
+    # Shown before order numbers (HT-1042). Unique across orgs, so a number names one org.
+    order_prefix: str | None = None
+    currency: str = "NPR"  # ISO 4217 code, shown in front of every amount
     branding: Branding
+
+    @field_validator("order_prefix")
+    @classmethod
+    def _prefix(cls, v: str | None) -> str | None:
+        if v is not None and not _ORDER_PREFIX.match(v):
+            raise ValueError("order_prefix must be 2-4 capital letters")
+        return v
+
+    @field_validator("currency")
+    @classmethod
+    def _currency(cls, v: str) -> str:
+        if not _CURRENCY.match(v):
+            raise ValueError("currency must be a 3-letter ISO code")
+        return v
+
+    @model_validator(mode="after")
+    def _store_needs_prefix(self) -> "OrgConfig":
+        # Keyed on the vertical: every store has orders, so every store needs a prefix.
+        if self.vertical == "store" and self.order_prefix is None:
+            raise ValueError("a store org needs an order_prefix")
+        return self
 
     @field_validator("slug")
     @classmethod
@@ -91,11 +117,13 @@ async def sync_orgs(owner_url: str, configs: list[OrgConfig]) -> None:
             for cfg in configs:
                 await conn.execute(
                     text(
-                        "INSERT INTO orgs (slug, name, vertical, timezone, business_type, branding) "
-                        "VALUES (:slug, :name, :vertical, :tz, :business_type, CAST(:branding AS jsonb)) "
+                        "INSERT INTO orgs (slug, name, vertical, timezone, business_type, order_prefix, "
+                        "currency, branding) VALUES (:slug, :name, :vertical, :tz, :business_type, "
+                        ":prefix, :currency, CAST(:branding AS jsonb)) "
                         "ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, "
                         "vertical = EXCLUDED.vertical, timezone = EXCLUDED.timezone, "
-                        "business_type = EXCLUDED.business_type, branding = EXCLUDED.branding"
+                        "business_type = EXCLUDED.business_type, order_prefix = EXCLUDED.order_prefix, "
+                        "currency = EXCLUDED.currency, branding = EXCLUDED.branding"
                     ),
                     {
                         "slug": cfg.slug,
@@ -103,6 +131,8 @@ async def sync_orgs(owner_url: str, configs: list[OrgConfig]) -> None:
                         "vertical": cfg.vertical,
                         "tz": cfg.timezone,
                         "business_type": cfg.business_type,
+                        "prefix": cfg.order_prefix,
+                        "currency": cfg.currency,
                         "branding": json.dumps(cfg.branding.model_dump()),
                     },
                 )
@@ -129,6 +159,8 @@ class Org:
     timezone: str
     branding: dict[str, Any]
     business_type: str = ""
+    order_prefix: str | None = None
+    currency: str = "NPR"
 
     def public(self) -> dict[str, Any]:
         """What anyone may see: used for branding before and after login."""
@@ -140,7 +172,7 @@ class Org:
         }
 
 
-_ORG_COLUMNS = "id, slug, name, vertical, timezone, branding, business_type"
+_ORG_COLUMNS = "id, slug, name, vertical, timezone, branding, business_type, order_prefix, currency"
 
 
 async def get_org_by_slug(conn: AsyncConnection, slug: str) -> Org | None:

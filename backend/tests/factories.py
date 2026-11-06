@@ -5,6 +5,8 @@ too, so every owner transaction first sets app.org_id (and role admin) exactly l
 request would.
 """
 
+import itertools
+import string
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -23,6 +25,7 @@ TENANT_TABLES = (
     "users", "products", "orders", "order_items", "order_status_history",
     "services", "practitioners", "practitioner_services", "opening_hours", "holidays",
     "bookings", "conversations", "messages", "proposals", "agent_runs", "kb_chunks",
+    "order_counters",
 )  # fmt: skip
 
 # Customer-owned tables: also carry user_id and a RESTRICTIVE own-rows policy.
@@ -61,6 +64,19 @@ class Tenant:
 
 def new_id() -> uuid.UUID:
     return uuid.uuid4()
+
+
+_prefix_counter = itertools.count()
+
+
+def unique_prefix() -> str:
+    """A fresh 4-letter order prefix (orgs.order_prefix is unique). The test schema is
+    rebuilt every run, so a per-process counter is enough: TAAA, TAAB, ..."""
+    n, letters = next(_prefix_counter), []
+    for _ in range(3):
+        n, r = divmod(n, 26)
+        letters.append(string.ascii_uppercase[r])
+    return "T" + "".join(reversed(letters))
 
 
 async def set_owner_tenant(conn: AsyncConnection, org_id: uuid.UUID) -> None:
@@ -116,8 +132,9 @@ async def seed_tenant(owner: AsyncEngine, vertical: str) -> Tenant:
     async with owner.begin() as conn:
         # orgs has no RLS (it's global), so it needs no settings.
         await conn.execute(
-            text("INSERT INTO orgs (id, slug, name, vertical) VALUES (:id, :slug, :name, :v)"),
-            {"id": org_id, "slug": f"test-{org_id.hex}", "name": "Test org", "v": vertical},
+            text("INSERT INTO orgs (id, slug, name, vertical, order_prefix) VALUES (:id, :slug, :name, :v, :p)"),
+            {"id": org_id, "slug": f"test-{org_id.hex}", "name": "Test org", "v": vertical,
+             "p": unique_prefix() if vertical == "store" else None},  # fmt: skip
         )
         await set_owner_tenant(conn, org_id)
 
@@ -292,8 +309,9 @@ def valid_row_sql(table: str, t: Tenant) -> tuple[str, dict]:
             {"c": t.conversations[x]},
         ),
         "proposals": (
+            # 'expired', not 'open': each conversation may hold only one open proposal.
             "INSERT INTO proposals (org_id, user_id, conversation_id, kind, payload, summary, "
-            "created_turn_id, expires_at) VALUES (:o, :x, :c, 'k', '{}', '{}', :turn, now())",
+            "status, created_turn_id, expires_at) VALUES (:o, :x, :c, 'k', '{}', '{}', 'expired', :turn, now())",
             {"c": t.conversations[x], "turn": new_id()},
         ),
         "agent_runs": (
@@ -306,6 +324,12 @@ def valid_row_sql(table: str, t: Tenant) -> tuple[str, dict]:
             "VALUES (:o, 'd', 't', :sec, 'c', CAST(:v AS vector))",
             {"sec": new_id().hex, "v": ZERO_VECTOR},
         ),
+        # The org already has a counter (its fixture orders created it), hence the upsert.
+        "order_counters": (
+            "INSERT INTO order_counters AS c (org_id, last_number) VALUES (:o, 5000) "
+            "ON CONFLICT (org_id) DO UPDATE SET last_number = c.last_number + 1",
+            {},
+        ),
     }
     sql, params = rows[table]
     return sql, {"o": o, "x": x, **params}
@@ -316,3 +340,121 @@ def pg_cause(excinfo: pytest.ExceptionInfo[DBAPIError]) -> asyncpg.PostgresError
     cause = excinfo.value.orig.__cause__
     assert isinstance(cause, asyncpg.PostgresError), repr(excinfo.value)
     return cause
+
+
+# ───────────── Store shop: products with known prices and stock ─────────────
+
+# (sku, name, category, price, stock). BLK-1 has one unit left, BLK-2 is sold out.
+SHOP_PRODUCTS = (
+    ("GRN-1", "Green Alpha", "green", "800.00", 10),
+    ("GRN-2", "Green Beta", "green", "900.00", 5),
+    ("GRN-3", "Green Gamma", "green", "1500.00", 3),
+    ("BLK-1", "Black Alpha", "black", "600.00", 1),
+    ("BLK-2", "Black Beta", "black", "700.00", 0),
+    ("BLK-3", "Black Gamma", "black", "650.00", 20),
+)  # fmt: skip
+
+
+@dataclass
+class Shop:
+    org_id: uuid.UUID
+    prefix: str
+    admin: uuid.UUID
+    x: uuid.UUID
+    y: uuid.UUID
+    products: dict[str, uuid.UUID]  # sku -> id
+    conversations: dict[uuid.UUID, uuid.UUID]  # user -> conversation
+
+    def number(self, n: int) -> str:
+        return f"{self.prefix}-{n}"
+
+
+async def seed_shop(owner: AsyncEngine) -> Shop:
+    """A store org with SHOP_PRODUCTS, an admin and customers X and Y (one chat each), no orders."""
+    org_id = new_id()
+    prefix = unique_prefix()
+    async with owner.begin() as conn:
+        await conn.execute(
+            text(
+                "INSERT INTO orgs (id, slug, name, vertical, timezone, order_prefix, currency) "
+                "VALUES (:id, :slug, 'Test shop', 'store', 'Asia/Kathmandu', :p, 'NPR')"
+            ),
+            {"id": org_id, "slug": f"shop-{org_id.hex}", "p": prefix},
+        )
+        await set_owner_tenant(conn, org_id)
+        admin = await insert_user(conn, org_id, "admin")
+        x = await insert_user(conn, org_id, "customer")
+        y = await insert_user(conn, org_id, "customer")
+        products = {}
+        for sku, name, category, price, stock in SHOP_PRODUCTS:
+            products[sku] = await conn.scalar(
+                text(
+                    "INSERT INTO products (org_id, sku, name, category, price, stock) "
+                    "VALUES (:o, :sku, :n, :c, CAST(:p AS numeric), :s) RETURNING id"
+                ),
+                {"o": org_id, "sku": sku, "n": name, "c": category, "p": price, "s": stock},
+            )
+        conversations = {}
+        for user in (x, y):
+            conversations[user] = await conn.scalar(
+                text("INSERT INTO conversations (org_id, user_id) VALUES (:o, :u) RETURNING id"),
+                {"o": org_id, "u": user},
+            )
+    return Shop(org_id, prefix, admin, x, y, products, conversations)
+
+
+async def insert_shop_order(
+    owner: AsyncEngine,
+    shop: Shop,
+    user: uuid.UUID,
+    items: list[tuple[str, int]],
+    *,
+    status: str = "pending",
+    address: str = "House 1, Thamel, Kathmandu",
+    created_at: datetime | None = None,
+) -> int:
+    """An existing order written directly (as if placed earlier), at today's catalogue
+    prices, with a history row per step up to `status`. Stock is left untouched: the
+    fixture's stock already accounts for it. Returns the trigger-assigned order number."""
+    flow = ["pending", "confirmed", "shipped", "delivered"]
+    steps = ["pending", "cancelled"] if status == "cancelled" else flow[: flow.index(status) + 1]
+    at = created_at or datetime(2026, 11, 1, 4, 15, tzinfo=UTC)
+    async with owner.begin() as conn:
+        await set_owner_tenant(conn, shop.org_id)
+        prices = dict(
+            (await conn.execute(text("SELECT sku, price FROM products WHERE org_id = :o"), {"o": shop.org_id})).all()
+        )
+        names = dict(
+            (await conn.execute(text("SELECT sku, name FROM products WHERE org_id = :o"), {"o": shop.org_id})).all()
+        )
+        oid, number = (
+            await conn.execute(
+                text(
+                    "INSERT INTO orders (org_id, user_id, status, delivery_address, total, created_at, updated_at) "
+                    "VALUES (:o, :u, :s, :a, :t, :at, :at) RETURNING id, order_number"
+                ),
+                {"o": shop.org_id, "u": user, "s": status, "a": address,
+                 "t": sum(prices[sku] * q for sku, q in items), "at": at},  # fmt: skip
+            )
+        ).one()
+        for sku, qty in items:
+            await conn.execute(
+                text(
+                    "INSERT INTO order_items (org_id, user_id, order_id, product_id, sku, name, unit_price, qty) "
+                    "VALUES (:o, :u, :ord, :p, :sku, :n, :price, :q)"
+                ),
+                {"o": shop.org_id, "u": user, "ord": oid, "p": shop.products[sku], "sku": sku,
+                 "n": names[sku], "price": prices[sku], "q": qty},  # fmt: skip
+            )
+        previous = None
+        for n, step in enumerate(steps):
+            await conn.execute(
+                text(
+                    "INSERT INTO order_status_history (org_id, user_id, order_id, from_status, to_status, "
+                    "changed_at, changed_by) VALUES (:o, :u, :ord, :f, :t, :at, 'system')"
+                ),
+                {"o": shop.org_id, "u": user, "ord": oid, "f": previous, "t": step,
+                 "at": at + timedelta(hours=n)},  # fmt: skip
+            )
+            previous = step
+    return number
