@@ -6,6 +6,7 @@ Nothing here names an org: identity, business type and timezone all come from th
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from app.agents.prompts.verticals import vertical_rules
 from app.tenancy.orgs import Org
 
 TEMPLATE = """\
@@ -38,7 +39,7 @@ def _offset(local: datetime) -> str:
 
 def build_system_prompt(org: Org, now: datetime) -> str:
     local = now.astimezone(ZoneInfo(org.timezone))
-    return TEMPLATE.format(
+    base = TEMPLATE.format(
         agent=org.branding.get("agent_name") or "the assistant",
         org=org.name,
         business=org.business_type or "a business",
@@ -49,3 +50,5 @@ def build_system_prompt(org: Org, now: datetime) -> str:
         tz=org.timezone,
         offset=_offset(local),
     )
+    extra = vertical_rules(org.vertical, order_prefix=org.order_prefix)
+    return f"{base}\n{extra}" if extra else base

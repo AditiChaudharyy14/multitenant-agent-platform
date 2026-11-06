@@ -1,16 +1,18 @@
 """Which tools each vertical gets. Keyed on org.vertical only, never on a slug (invariant 11).
 
-Store and booking tools join their lists in later milestones; admin tools get their own
-registry, used only for admin analytics.
+Booking tools join their list in a later milestone; admin tools get their own registry,
+used only for admin analytics.
 """
 
 from app.agents.tools.base import Tool
+from app.agents.tools.common.confirm_proposal import confirm_proposal
 from app.agents.tools.common.search_knowledge import search_knowledge
+from app.agents.tools.store import STORE_TOOLS
 
 COMMON: list[Tool] = [search_knowledge]
 
 REGISTRY: dict[str, list[Tool]] = {
-    "store": [*COMMON],
+    "store": [*COMMON, *STORE_TOOLS, confirm_proposal],
     "booking": [*COMMON],
 }
 

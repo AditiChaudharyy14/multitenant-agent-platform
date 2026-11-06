@@ -11,6 +11,7 @@ from typing import Any
 from pydantic import BaseModel
 
 from app.agents.providers.base import ToolSpec
+from app.domain.reply import Reply
 from app.tenancy.context import ToolContext
 
 
@@ -41,9 +42,44 @@ class Tool:
     activity_label: str  # UI text while it runs, e.g. "Checking stock…"
 
     def spec(self) -> ToolSpec:
-        return ToolSpec(self.name, self.description, self.args_model.model_json_schema())
+        return ToolSpec(self.name, self.description, plain_schema(self.args_model.model_json_schema()))
 
 
 def error_result(message: str) -> ToolResult:
     """A failed call, reported to the model as data so it can recover (not a crash)."""
     return ToolResult(f"ERROR: {message}", ok=False)
+
+
+def from_reply(reply: Reply, activity_label: str | None = None) -> ToolResult:
+    """A domain Reply as a tool result (refusals are answers, not failures: ok stays True)."""
+    return ToolResult(reply.text, cards=list(reply.cards), activity_label=activity_label, ok=reply.ok)
+
+
+def plain_schema(schema: dict[str, Any]) -> dict[str, Any]:
+    """The JSON schema in the subset every provider accepts.
+
+    Pydantic emits $defs/$ref for nested models and anyOf[X, null] for optional fields;
+    Gemini's function schema rejects $ref. Refs are inlined, an optional field becomes
+    plain X (it is simply not required), and a null default is dropped.
+    """
+    defs = schema.get("$defs", {})
+
+    def walk(node: Any) -> Any:
+        if isinstance(node, list):
+            return [walk(v) for v in node]
+        if not isinstance(node, dict):
+            return node
+        if "$ref" in node:  # "#/$defs/Name"
+            return walk({**defs[node["$ref"].rsplit("/", 1)[-1]], **{k: v for k, v in node.items() if k != "$ref"}})
+        out = {k: walk(v) for k, v in node.items() if k != "$defs"}
+        options = out.get("anyOf")
+        if isinstance(options, list):
+            non_null = [o for o in options if o.get("type") != "null"]
+            if len(non_null) == 1 and len(options) == 2:
+                out.pop("anyOf")
+                out = {**non_null[0], **out}
+        if out.get("default", 0) is None:
+            out.pop("default")
+        return out
+
+    return walk(schema)

@@ -48,6 +48,15 @@ def _schema(node: Any) -> Any:
     return node
 
 
+def _declaration(t: Any) -> dict:
+    """One functionDeclaration. A tool without arguments gets no `parameters` at all:
+    Gemini rejects an OBJECT schema whose `properties` is empty."""
+    decl = {"name": t.name, "description": t.description}
+    if t.parameters.get("properties"):
+        decl["parameters"] = _schema(t.parameters)
+    return decl
+
+
 def _tool_response(content: str) -> dict:
     """functionResponse.response must be an object: wrap anything else as {"result": ...}."""
     try:
@@ -110,9 +119,7 @@ class GeminiAdapter:
         if req.system:
             body["systemInstruction"] = {"parts": [{"text": req.system}]}
         if req.tools:
-            body["tools"] = [{"functionDeclarations": [
-                {"name": t.name, "description": t.description, "parameters": _schema(t.parameters)} for t in req.tools
-            ]}]  # fmt: skip
+            body["tools"] = [{"functionDeclarations": [_declaration(t) for t in req.tools]}]
         return body
 
     async def stream_once(self, model: str, req: ChatRequest) -> AsyncIterator[Event]:
