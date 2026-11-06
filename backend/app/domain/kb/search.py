@@ -15,6 +15,11 @@ from app.domain.kb.embeddings import embed_query
 
 RRF_K = 60  # standard RRF constant (CLAUDE.md): score = Σ 1 / (RRF_K + rank)
 CANDIDATES = 20  # rows taken from each ranker before fusion
+# Weighted RRF: score = VEC_WEIGHT/(k + vector rank) + FTS_WEIGHT/(k + text rank). Customers
+# phrase things casually ("how do I stop my order"), where the embedding generalises and
+# word overlap misleads, so the vector side counts double.
+VEC_WEIGHT = 2.0
+FTS_WEIGHT = 1.0
 
 # Answerability gate on the best cosine similarity. RRF scores are rank-based and say
 # nothing about absolute relevance, so the gate uses the raw cosine instead.
@@ -58,7 +63,9 @@ fts AS (
 )
 SELECT c.id, c.doc_id, c.doc_title, c.section, c.content,
        1 - (c.embedding <=> CAST(:q AS vector)) AS cosine,
-       COALESCE(1.0 / (:rrf_k + vec.rnk), 0) + COALESCE(1.0 / (:rrf_k + fts.rnk), 0) AS rrf
+       -- Casts: asyncpg would otherwise infer the weights as bigint and divide as integers.
+       COALESCE(CAST(:wv AS float8) / (:rrf_k + vec.rnk), 0)
+         + COALESCE(CAST(:wf AS float8) / (:rrf_k + fts.rnk), 0) AS rrf
 FROM vec
 FULL JOIN fts ON fts.id = vec.id
 JOIN kb_chunks c ON c.id = COALESCE(vec.id, fts.id)
@@ -120,7 +127,11 @@ async def search_kb(
         # keeps reading the index until enough of this org's rows are found, in exact order.
         await conn.execute(text("SET LOCAL hnsw.iterative_scan = strict_order"))
         rows = (
-            await conn.execute(_SEARCH, {"q": qvec, "text": query, "n": CANDIDATES, "rrf_k": RRF_K})
+            await conn.execute(
+                _SEARCH,
+                {"q": qvec, "text": query, "n": CANDIDATES, "rrf_k": RRF_K,
+                 "wv": VEC_WEIGHT, "wf": FTS_WEIGHT},  # fmt: skip
+            )
         ).all()
     hits = [
         KBHit(r.id, r.doc_id, r.doc_title, r.section, r.content, float(r.rrf), float(r.cosine))
