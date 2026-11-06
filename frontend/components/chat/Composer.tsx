@@ -32,7 +32,7 @@ export function Composer({ value, onChange, onSend, onStop, streaming, disabled,
   }
 
   return (
-    <div className="flex items-end gap-2 rounded-[var(--radius-bubble)] border border-rule bg-white p-2 focus-within:border-brand">
+    <div className="flex items-end gap-2 rounded-[var(--radius-bubble)] border border-rule bg-white p-2 focus-within:border-brand focus-within:ring-2 focus-within:ring-brand/20">
       <label htmlFor="composer" className="sr-only">
         Message
       </label>
@@ -45,7 +45,7 @@ export function Composer({ value, onChange, onSend, onStop, streaming, disabled,
         onKeyDown={onKeyDown}
         placeholder={placeholder}
         maxLength={4000}
-        className="max-h-[200px] min-h-[40px] flex-1 resize-none bg-transparent px-2 py-2 text-[16px] leading-6 outline-none placeholder:text-muted"
+        className="max-h-[200px] min-h-[40px] flex-1 resize-none bg-transparent focus-visible:outline-none px-2 py-2 text-[16px] leading-6 outline-none placeholder:text-muted"
       />
       {streaming ? (
         <button

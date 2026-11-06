@@ -7,6 +7,9 @@ const backend = process.env.BACKEND_URL ?? "http://localhost:8000";
 const nextConfig: NextConfig = {
   // Gzip would buffer the SSE chat stream; the backend's responses are small anyway.
   compress: false,
+  // Keeps the floating dev button out of screenshots. Console errors still surface: the
+  // Playwright tests fail on any of them.
+  devIndicators: false,
   async rewrites() {
     return [{ source: "/api/:path*", destination: `${backend}/api/:path*` }];
   },

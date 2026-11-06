@@ -59,3 +59,14 @@ export async function fetchPublicOrg(slug: string): Promise<PublicOrg | null> {
   if (!res.ok) throw new Error(`org lookup failed: ${res.status}`);
   return res.json();
 }
+
+/**
+ * Server-side only: who the visitor's session cookie belongs to, or null. The cookie is
+ * forwarded as-is; the backend alone decides identity from it.
+ */
+export async function fetchSessionMe(sid: string | undefined): Promise<Me | null> {
+  if (!sid) return null;
+  const base = process.env.BACKEND_URL ?? "http://localhost:8000";
+  const res = await fetch(`${base}/api/me`, { headers: { Cookie: `sid=${sid}` }, cache: "no-store" });
+  return res.ok ? res.json() : null;
+}

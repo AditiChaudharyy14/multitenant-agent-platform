@@ -13,6 +13,9 @@ BASE_URL = os.environ.get("BASE_URL", "http://localhost:3000")
 SHOTS = Path(os.environ.get("SCREENSHOT_DIR", "/screenshots"))
 PASSWORD = "correct horse battery staple"
 
+# expect() has its own 5 s default, separate from the context timeouts below.
+expect.set_options(timeout=30_000)
+
 VIEWPORTS = {"desktop": {"width": 1280, "height": 800}, "mobile": {"width": 375, "height": 760}}
 
 
@@ -31,15 +34,30 @@ def warm_routes(browser: Browser) -> None:
 def page(request: pytest.FixtureRequest, browser: Browser, warm_routes: None) -> Iterator[Page]:
     """A fresh context (no cookies) at 1280 px and at 375 px wide."""
     context = browser.new_context(viewport=VIEWPORTS[request.param], base_url=BASE_URL)
-    context.set_default_timeout(20_000)
+    # next dev on a small WSL VM (about 3.7 GiB shared with Docker and Chromium) can take
+    # 10+ s to serve a page and its dev chunks under load: generous budgets, not retries.
+    context.set_default_timeout(30_000)
+    context.set_default_navigation_timeout(60_000)
     p = context.new_page()
+    errors: list[str] = []
+    p.on("console", lambda m: errors.append(f"console.{m.type}: {m.text}") if m.type == "error" else None)
+    p.on("pageerror", lambda e: errors.append(f"pageerror: {e}"))
     yield p
     context.close()
+    # Any console error is a bug (Next's dev overlay shows it as "1 Issue"), even if the
+    # visible flow worked.
+    if errors and os.environ.get("E2E_ERROR_LOG"):
+        Path(os.environ["E2E_ERROR_LOG"]).write_text("\n\n".join(errors))
+    assert not errors, "\n".join(errors)
 
 
 def shot(page: Page, name: str) -> None:
     SHOTS.mkdir(parents=True, exist_ok=True)
-    page.screenshot(path=str(SHOTS / f"{name}-{page.viewport_size['width']}.png"))
+    # animations="disabled" finishes transitions first (e.g. the drawer's slide-in).
+    # caret="initial": by default Playwright hides the caret by writing a style onto inputs,
+    # which React then reports as a hydration mismatch if the page is still hydrating.
+    page.screenshot(path=str(SHOTS / f"{name}-{page.viewport_size['width']}.png"),
+                    animations="disabled", caret="initial")
 
 
 def sign_up(page: Page, slug: str, *, screenshot: str | None = None) -> str:

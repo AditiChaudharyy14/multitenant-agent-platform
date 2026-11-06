@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { cookies } from "next/headers";
+import { notFound, redirect } from "next/navigation";
 
 import { AuthPanel } from "@/components/auth/AuthPanel";
 import { OrgSeal } from "@/components/OrgSeal";
-import { fetchPublicOrg } from "@/lib/api";
+import { fetchPublicOrg, fetchSessionMe } from "@/lib/api";
 import { brandStyle } from "@/lib/brand";
 
 type Params = { params: Promise<{ slug: string }> };
@@ -19,6 +20,9 @@ export default async function OrgLanding({ params }: Params) {
   const { slug } = await params;
   const org = await fetchPublicOrg(slug);
   if (!org) notFound();
+  // Checked here rather than in the browser, so an anonymous visit makes no failing request.
+  const me = await fetchSessionMe((await cookies()).get("sid")?.value);
+  if (me?.org.slug === org.slug) redirect(`/a/${org.slug}/chat`); // already signed in here
 
   return (
     <main style={brandStyle(org)} className="min-h-dvh bg-brand-soft">
@@ -40,7 +44,12 @@ export default async function OrgLanding({ params }: Params) {
           </figure>
         </section>
 
-        <AuthPanel slug={org.slug} orgName={org.name} agentName={org.branding.agent_name} />
+        <AuthPanel
+          slug={org.slug}
+          orgName={org.name}
+          agentName={org.branding.agent_name}
+          signedInElsewhere={me ? me.org.name : null}
+        />
       </div>
     </main>
   );

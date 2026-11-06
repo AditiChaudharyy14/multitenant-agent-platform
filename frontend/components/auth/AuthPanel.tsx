@@ -1,14 +1,20 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { type FormEvent, useEffect, useId, useState } from "react";
+import { type FormEvent, useId, useState } from "react";
 
 import { api, ApiError } from "@/lib/api";
-import type { Me } from "@/lib/types";
 
 type Mode = "login" | "signup";
 
-export function AuthPanel({ slug, orgName, agentName }: { slug: string; orgName: string; agentName: string }) {
+interface Props {
+  slug: string;
+  orgName: string;
+  agentName: string;
+  signedInElsewhere: string | null; // the other org's name, when the session belongs there
+}
+
+export function AuthPanel({ slug, orgName, agentName, signedInElsewhere }: Props) {
   const router = useRouter();
   const [mode, setMode] = useState<Mode>("login");
   const [email, setEmail] = useState("");
@@ -16,17 +22,8 @@ export function AuthPanel({ slug, orgName, agentName }: { slug: string; orgName:
   const [name, setName] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [signedInElsewhere, setSignedInElsewhere] = useState<Me | null>(null);
   const ids = useId();
   const chatUrl = `/a/${slug}/chat`;
-
-  // Already signed in to this org: go straight to the chat.
-  useEffect(() => {
-    api
-      .me()
-      .then((me) => (me.org.slug === slug ? router.replace(chatUrl) : setSignedInElsewhere(me)))
-      .catch(() => undefined);
-  }, [slug, chatUrl, router]);
 
   async function submit(e: FormEvent) {
     e.preventDefault();
@@ -69,7 +66,7 @@ export function AuthPanel({ slug, orgName, agentName }: { slug: string; orgName:
 
       {signedInElsewhere && (
         <p className="mt-4 rounded-[var(--radius-control)] bg-brand-tint px-3 py-2 text-sm">
-          You&apos;re signed in to {signedInElsewhere.org.name}. Log in below to use a {orgName} account instead.
+          You&apos;re signed in to {signedInElsewhere}. Log in below to use a {orgName} account instead.
         </p>
       )}
 

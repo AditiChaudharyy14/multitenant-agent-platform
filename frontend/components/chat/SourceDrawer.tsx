@@ -64,7 +64,11 @@ export function SourceDrawer({ citation, onClose }: { citation: Citation; onClos
         <div className="overflow-y-auto px-5 py-5 text-[15px]">
           {error && <p className="text-danger">{error}</p>}
           {!error && !source && <p className="text-muted">Loading the source…</p>}
-          {source && <Markdown text={source.content} />}
+          {source && (
+            <div data-testid="source-content">
+              <Markdown text={source.content} />
+            </div>
+          )}
           <p className="mt-6 border-t border-rule pt-3 text-[13px] text-muted">
             From our help pages. Prices, stock and availability always come from live data, never from here.
           </p>

@@ -36,21 +36,21 @@ export function WrongOrgScreen({ me, requestedSlug }: { me: Me; requestedSlug: s
         <p className="mt-4 text-[16px] leading-relaxed text-muted">
           You&apos;re signed in as <strong className="font-semibold text-ink">{me.user.email}</strong>, a {me.org.name}{" "}
           account. Each business on this platform keeps its own accounts, chats and records, so this account can&apos;t
-          open <code className="rounded bg-brand-soft px-1.5 py-0.5 text-[14px] text-ink">/a/{requestedSlug}</code>.
+          open <code className="whitespace-nowrap rounded bg-brand-soft px-1.5 py-0.5 text-[14px] text-ink">/a/{requestedSlug}</code>.
         </p>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row">
           <Link
             href={home}
-            className="rounded-[var(--radius-control)] bg-brand px-5 py-3 text-center font-medium text-white"
+            className="whitespace-nowrap rounded-[var(--radius-control)] bg-brand px-5 py-3 text-center font-medium text-white"
           >
             Go to {me.org.name}
           </Link>
           <button
             type="button"
             onClick={logout}
-            className="rounded-[var(--radius-control)] border border-rule bg-white px-5 py-3 font-medium"
+            className="whitespace-nowrap rounded-[var(--radius-control)] border border-rule bg-white px-5 py-3 font-medium"
           >
-            Log out to use another account
+            Log out
           </button>
         </div>
       </section>

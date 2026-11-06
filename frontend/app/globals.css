@@ -42,9 +42,13 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-:focus-visible {
-  outline: 2px solid var(--brand);
-  outline-offset: 2px;
+/* In the base layer so a component can replace it with a utility (unlayered CSS would
+   beat every Tailwind utility, whatever its specificity). */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+  }
 }
 
 /* Assistant prose: markdown from the model. */

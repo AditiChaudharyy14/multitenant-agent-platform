@@ -36,7 +36,8 @@ def test_sign_up_ask_and_open_the_cited_source(page: Page) -> None:
     drawer = page.get_by_test_id("source-drawer")
     expect(drawer).to_be_visible()
     expect(drawer).to_contain_text("Frequently Asked Questions")
-    expect(drawer).to_contain_text(re.compile("deliver", re.I))
+    # The cited passage itself, fetched from /api/kb/source (not just the drawer's title).
+    expect(drawer.get_by_test_id("source-content")).to_contain_text(re.compile("working days", re.I))
     shot(page, "source-drawer")
     page.keyboard.press("Escape")
     expect(drawer).to_be_hidden()
@@ -48,8 +49,11 @@ def test_sign_up_ask_and_open_the_cited_source(page: Page) -> None:
 
 def test_himali_account_opening_lotus_chat_sees_the_belongs_to_screen(page: Page) -> None:
     email = sign_up(page, "himali-tea")
-    api_calls: list[str] = []
-    page.on("request", lambda r: api_calls.append(urlparse(r.url).path) if "/api/" in r.url else None)
+    # (path, page that issued it). The Referer is the document that made the request, so
+    # late requests from the Himali page just left can't be mistaken for the lotus page's.
+    api_calls: list[tuple[str, str]] = []
+    page.on("request", lambda r: api_calls.append((urlparse(r.url).path, urlparse(r.headers.get("referer", "")).path))
+            if "/api/" in r.url else None)
 
     page.goto("/a/lotus-wellness/chat")
     screen = page.get_by_test_id("wrong-org")
@@ -59,9 +63,11 @@ def test_himali_account_opening_lotus_chat_sees_the_belongs_to_screen(page: Page
     page.wait_for_load_state("networkidle")
     shot(page, "wrong-org")
 
-    # Only the session's own identity was asked for: nothing for the other org. (React's
-    # dev StrictMode runs effects twice, so /api/me may appear twice.)
-    assert api_calls and set(api_calls) == {"/api/me"}, api_calls
+    # The lotus-wellness page asked only for the session's own identity: nothing for that
+    # org. (React's dev StrictMode runs effects twice, so /api/me may appear twice.)
+    print("api requests:", api_calls)
+    from_lotus = {path for path, referer in api_calls if referer.startswith("/a/lotus-wellness")}
+    assert from_lotus == {"/api/me"}, api_calls
 
     screen.get_by_role("link", name="Go to Himali Tea House").click()
     page.wait_for_url("**/a/himali-tea/chat")
