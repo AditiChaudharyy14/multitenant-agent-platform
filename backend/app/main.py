@@ -4,6 +4,8 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api import health
+from app.auth import routes as auth_routes
+from app.auth.csrf import OriginCheckMiddleware
 from app.config import get_settings
 from app.db.session import app_engine, readonly_engine
 from app.tenancy.orgs import check_orgs_present, load_org_configs
@@ -21,4 +23,6 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
 
 
 app = FastAPI(title="Multi-Tenant Agent Platform", lifespan=lifespan)
+app.add_middleware(OriginCheckMiddleware, allowed_origins=get_settings().allowed_origin_set)
 app.include_router(health.router)
+app.include_router(auth_routes.router)
