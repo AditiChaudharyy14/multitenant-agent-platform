@@ -20,6 +20,7 @@ for _var in _URL_VARS:
     )
 
 # The app imports must come after the rewrite above.
+import uuid  # noqa: E402
 from collections.abc import AsyncIterator, Iterator  # noqa: E402
 from pathlib import Path  # noqa: E402
 
@@ -122,3 +123,23 @@ async def synced_orgs(org_configs: list[OrgConfig]) -> dict[str, OrgConfig]:
     """The seed orgs upserted into app_test, keyed by vertical so tests never name a slug."""
     await sync_orgs(require_owner_url(), org_configs)
     return {c.vertical: c for c in org_configs}
+
+
+# Fixed seed "now" for tests: Monday 9 Nov 2026, 10:00 in the orgs' timezone. Two days
+# later is a seeded holiday, so the booking roll-forward is exercised deterministically.
+SEED_NOW = "2026-11-09T10:00"
+
+
+@pytest.fixture(scope="session")
+def seeded(migrated_test_db: None) -> dict[str, uuid.UUID]:
+    """Run the real `make seed` code once against app_test; org ids keyed by vertical.
+
+    Sync with asyncio.run, like migrated_test_db: a session fixture can't share the
+    per-test event loops. The seeder uses its own NullPool owner engine.
+    """
+    import asyncio
+
+    from app.seed.run import seed_all
+
+    result = asyncio.run(seed_all(require_owner_url(), get_settings().seed_dir, SEED_NOW))
+    return {r.vertical: r.org_id for r in result}
