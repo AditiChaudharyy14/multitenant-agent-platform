@@ -34,9 +34,26 @@ services:
       APP_ENV: ${APP_ENV:-local}
       WATCHFILES_FORCE_POLLING: ${WATCHFILES_FORCE_POLLING:-true}
       EMBED_CACHE_DIR: ${EMBED_CACHE_DIR:-/models}
+      # LLM settings and keys go to the backend only. `ops` (where `make test` runs) never
+      # gets an API key, so tests can't spend quota even by accident.
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      LLM_MODEL_GEMINI: ${LLM_MODEL_GEMINI:-gemini-3.5-flash-lite}
+      LLM_FALLBACK_MODELS_GEMINI: ${LLM_FALLBACK_MODELS_GEMINI:-gemini-3.1-flash-lite}
+      LLM_RPM_GEMINI: ${LLM_RPM_GEMINI:-12}
+      LLM_DAILY_BUDGET_GEMINI: ${LLM_DAILY_BUDGET_GEMINI:-450}
+      MISTRAL_API_KEY: ${MISTRAL_API_KEY:-}
+      LLM_MODEL_MISTRAL: ${LLM_MODEL_MISTRAL:-mistral-small-latest}
+      LLM_FALLBACK_MODELS_MISTRAL: ${LLM_FALLBACK_MODELS_MISTRAL:-}
+      LLM_RPM_MISTRAL: ${LLM_RPM_MISTRAL:-60}
+      LLM_DAILY_BUDGET_MISTRAL: ${LLM_DAILY_BUDGET_MISTRAL:-1000}
+      EVAL_MODE: ${EVAL_MODE:-off}
+      EVAL_CASSETTE_DIR: ${EVAL_CASSETTE_DIR:-/eval/cassettes}
     volumes:
       - ./backend:/app
       - ./seed:/seed:ro
+      # Eval scenarios and recorded LLM responses (EVAL_MODE=record|replay).
+      - ./eval:/eval
       # Query embeddings at runtime; the model is downloaded once into this volume.
       - fastembed_cache:/models
     ports:

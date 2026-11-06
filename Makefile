@@ -1,5 +1,5 @@
 # Everything runs inside the containers, so the host needs only Docker and make.
-.PHONY: up build down migrate sync-orgs seed kb-search testdb test create-admin eval advance logs
+.PHONY: up build down migrate sync-orgs seed kb-search testdb test test-live record-fixtures llm-budget create-admin eval advance logs
 
 # Owner-only commands run in the one-shot `ops` container, which is the only place
 # DATABASE_URL_OWNER exists. The running backend never holds app_owner credentials.
@@ -45,6 +45,18 @@ testdb:  ## Create the separate app_test database if it is missing (idempotent)
 # Isolation tests still connect through the app_user engine.
 test: testdb  ## pytest against app_test (deterministic, no LLM)
 	$(OPS) pytest
+
+# Real LLM calls, one request per test, in the backend container (which holds the keys).
+# Never part of `make test`; a provider whose key is missing is skipped.
+test-live:  ## Smoke-test the live LLM providers (spends ~1 request each)
+	docker compose exec backend pytest tests_live -q -rs
+
+# Re-records the Gemini HTTP fixtures under backend/tests/fixtures/llm/gemini (3 requests).
+record-fixtures:  ## Record real Gemini responses for the adapter tests (spends 3 requests)
+	docker compose exec backend python -m scripts.record_llm_fixtures
+
+llm-budget:  ## Show today's LLM requests per model against the daily budget
+	docker compose exec backend python -m scripts.llm_budget
 
 # Sign-up only creates customers. This prompts for the password and runs as app_user in
 # an admin-scoped transaction, so it needs no owner credentials.
