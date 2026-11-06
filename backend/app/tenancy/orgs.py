@@ -47,6 +47,8 @@ class OrgConfig(BaseModel):
     name: str
     vertical: Literal["store", "booking"]
     timezone: str
+    # One line for the system prompt, e.g. "online tea shop selling Himalayan tea".
+    business_type: str = ""
     branding: Branding
 
     @field_validator("slug")
@@ -89,17 +91,18 @@ async def sync_orgs(owner_url: str, configs: list[OrgConfig]) -> None:
             for cfg in configs:
                 await conn.execute(
                     text(
-                        "INSERT INTO orgs (slug, name, vertical, timezone, branding) "
-                        "VALUES (:slug, :name, :vertical, :tz, CAST(:branding AS jsonb)) "
+                        "INSERT INTO orgs (slug, name, vertical, timezone, business_type, branding) "
+                        "VALUES (:slug, :name, :vertical, :tz, :business_type, CAST(:branding AS jsonb)) "
                         "ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, "
                         "vertical = EXCLUDED.vertical, timezone = EXCLUDED.timezone, "
-                        "branding = EXCLUDED.branding"
+                        "business_type = EXCLUDED.business_type, branding = EXCLUDED.branding"
                     ),
                     {
                         "slug": cfg.slug,
                         "name": cfg.name,
                         "vertical": cfg.vertical,
                         "tz": cfg.timezone,
+                        "business_type": cfg.business_type,
                         "branding": json.dumps(cfg.branding.model_dump()),
                     },
                 )
@@ -125,6 +128,7 @@ class Org:
     vertical: str
     timezone: str
     branding: dict[str, Any]
+    business_type: str = ""
 
     def public(self) -> dict[str, Any]:
         """What anyone may see: used for branding before and after login."""
@@ -136,7 +140,7 @@ class Org:
         }
 
 
-_ORG_COLUMNS = "id, slug, name, vertical, timezone, branding"
+_ORG_COLUMNS = "id, slug, name, vertical, timezone, branding, business_type"
 
 
 async def get_org_by_slug(conn: AsyncConnection, slug: str) -> Org | None:
