@@ -33,7 +33,7 @@ Correctness enforced below the LLM is the whole strategy.
 - **Backend:** FastAPI (Python 3.12), SQLAlchemy 2 async + asyncpg, Alembic (raw SQL migrations), Pydantic v2, argon2-cffi.
 - **Database:** Postgres 16 with `pgvector`, `btree_gist` and `citext` (Docker image `pgvector/pgvector:pg16`).
 - **Embeddings:** local `fastembed` with `BAAI/bge-small-en-v1.5` (384 dimensions). No API key needed, so seeding is deterministic.
-- **LLM:** a provider interface with `mistral` and `gemini` adapters, selected by the `LLM_PROVIDER` env var. Default `mistral`, because the free tiers are tight.
+- **LLM:** a provider interface with `gemini` and `mistral` adapters, selected by the `LLM_PROVIDER` env var. Default `gemini` (primary `gemini-3.5-flash-lite`, fallback `gemini-3.1-flash-lite`): Mistral's free plan isn't available to this account, so its adapter is tested offline only. `make test` always uses `FakeProvider`; evals can record and replay responses (`EVAL_MODE=record|replay`).
 - **Frontend:** Next.js (App Router) + TypeScript + Tailwind, react-markdown + rehype-highlight.
 - **Streaming:** SSE over a POST fetch stream. Stop works through AbortController plus server-side cancellation.
 - **Run:** `docker compose` + Makefile.
@@ -102,6 +102,8 @@ make migrate   # alembic upgrade head (as app_owner)
 make seed      # rebuild both orgs' relational data and KB vectors from seed/
 make test      # pytest (deterministic, no LLM)
 make eval      # LLM scenario suite → eval/results.md
+make test-live # one real request per provider (skips a provider without a key)
+make llm-budget  # today's LLM requests per model vs the daily budget
 make advance ORDER=<uuid>   # move an order to its next status (demo/admin)
 ```
 
@@ -129,7 +131,7 @@ make advance ORDER=<uuid>   # move an order to its next status (demo/admin)
 
 **Rate limiting**
 - Chat is limited to 20 messages/minute per user and returns 429 with `Retry-After`.
-- LLM calls go through a global async limiter per provider (Mistral free tier: 1 request/second) with exponential backoff on 429.
+- LLM calls go through a per-model async RPM limiter (Gemini: 12/min, under the free tier's 15) and a per-model daily budget counted in Postgres (`llm_usage`, 450/day, resets at midnight Pacific), with exponential backoff on 429 and fallback to the next model. At the budget limit calls fail fast with `DailyBudgetExhausted`.
 
 ## Gotchas
 
