@@ -1,5 +1,5 @@
 # Everything runs inside the containers, so the host needs only Docker and make.
-.PHONY: up build down migrate sync-orgs seed kb-search testdb test test-live record-fixtures llm-budget create-admin eval advance logs
+.PHONY: up build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin eval advance logs
 
 # Owner-only commands run in the one-shot `ops` container, which is the only place
 # DATABASE_URL_OWNER exists. The running backend never holds app_owner credentials.
@@ -35,6 +35,12 @@ seed: sync-orgs  ## Wipe and reseed each org's data and knowledge base, as app_o
 kb-search:  ## make kb-search ORG=<slug> Q="question"
 	@test -n "$(ORG)" -a -n "$(Q)" || (echo 'usage: make kb-search ORG=<slug> Q="..."' && exit 1)
 	docker compose exec backend python -m app.domain.kb.cli --org "$(ORG)" "$(Q)"
+
+# One real chat turn through the running backend's HTTP API (spends LLM requests).
+# DEMO ONLY: the password is on the command line; use a seeded demo account.
+chat:  ## make chat ORG=<slug> EMAIL=<email> PASSWORD=<pw> Q="question"
+	@test -n "$(ORG)" -a -n "$(EMAIL)" -a -n "$(PASSWORD)" -a -n "$(Q)" || (echo 'usage: make chat ORG=<slug> EMAIL=<email> PASSWORD=<pw> Q="..."' && exit 1)
+	docker compose exec backend python -m scripts.chat --org "$(ORG)" --email "$(EMAIL)" --password "$(PASSWORD)" "$(Q)"
 
 # app_owner has no CREATEDB, so the superuser creates app_test. The pytest session then
 # rebuilds its schema with alembic (downgrade base, upgrade head) on every run.
