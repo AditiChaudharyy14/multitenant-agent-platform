@@ -15,3 +15,8 @@ Reviewed by hand: TODO(Aditi) — note what you read and checked yourself (e.g. 
 
 Claude Code added seed `org.yaml` loading, a one-shot `ops` container so the running backend never holds `app_owner` credentials, a DB trigger that blocks admin creation outside an admin context, and argon2id cookie-session auth with an Origin check, writing the isolation tests first (285 tests green). The trigger tests also exposed that a customer could previously promote their own `users` row to admin.
 Reviewed by hand: TODO(Aditi) — note what you checked yourself (e.g. the dummy-hash verify on login misses, cookie flags, the CSRF middleware, and the `users_admin_guard` trigger).
+
+## Seed data and retrieval
+
+Claude Code wrote the fictional seed content (22 products, 7 services, 41 FAQ answers, policies and one planted prompt-injection fixture), the idempotent `make seed` (validate, lint, chunk and embed before one owner transaction under FORCE RLS; `SEED_NOW` pins relative dates) and hybrid pgvector + full-text search with RRF, writing the 52 tests first (337 green). It calibrated the answerability threshold at cosine 0.68 from 10 in-scope (0.744–0.889) vs 10 out-of-scope (0.392–0.619) queries and found that the BGE query prefix made no real difference.
+Reviewed by hand: TODO(Aditi): note what you checked yourself (e.g. the seed content for consistency, the lint patterns, the RRF SQL and the wipe order).
