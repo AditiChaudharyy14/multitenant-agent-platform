@@ -378,14 +378,19 @@ async def order_status(conn: AsyncConnection, ctx: ToolContext, org: Org, raw_nu
     )
 
 
-async def list_orders(conn: AsyncConnection, ctx: ToolContext, org: Org) -> Reply:
-    found = await repo.list_own(conn, ctx)
-    orders = [
+async def order_rows(conn: AsyncConnection, ctx: ToolContext, org: Org) -> list[dict[str, Any]]:
+    """The caller's orders, newest first, as display rows. The ONE source for both the
+    list_my_orders tool and the My orders panel (GET /api/orders), so they can't disagree."""
+    return [
         {"order_number": display_number(org.order_prefix, o.order_number), "status": o.status,
          "total": money_str(o.total), "total_display": format_money(o.total, org.currency),
          "placed_at": local_display(o.created_at, org.timezone), "units": units}
-        for o, units in found
+        for o, units in await repo.list_own(conn, ctx)
     ]  # fmt: skip
+
+
+async def list_orders(conn: AsyncConnection, ctx: ToolContext, org: Org) -> Reply:
+    orders = await order_rows(conn, ctx, org)
     if not orders:
         return Reply("This customer has no orders yet.", cards=[{"type": "order_list", "orders": []}])
     text = "\n".join(f"{o['order_number']} | {o['placed_at']} | {o['status']} | {o['total_display']}" for o in orders)

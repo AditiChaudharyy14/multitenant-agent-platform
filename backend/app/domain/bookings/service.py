@@ -380,24 +380,27 @@ def _booking_card(org: Org, b: Booking) -> dict[str, Any]:
     }  # fmt: skip
 
 
-async def list_bookings(conn: AsyncConnection, ctx: ToolContext, org: Org) -> Reply:
+async def booking_groups(conn: AsyncConnection, ctx: ToolContext, org: Org) -> dict[str, list[dict[str, Any]]]:
+    """The caller's bookings as display cards: upcoming (soonest first), then past and
+    cancelled (latest first). The ONE source for both the list_my_bookings tool and the
+    My bookings panel (GET /api/bookings), so they can't disagree."""
     now = clock.now()
     mine = await repo.list_own(conn, ctx)
     upcoming = [b for b in mine if b.status == "confirmed" and b.starts_at > now]
     past = sorted((b for b in mine if b not in upcoming), key=lambda b: b.starts_at, reverse=True)
-
-    def line(b: Booking) -> str:
-        c = _booking_card(org, b)
-        fee = f", cancellation fee {c['cancellation_fee_display']}" if b.status == "cancelled" and c["cancellation_fee_display"] else ""
-        return f"{c['booking_number']} | {c['when']} | {b.service_name} with {b.practitioner_name} | {b.status}{fee}"
-
-    text = "Upcoming:\n" + ("\n".join(line(b) for b in upcoming) or "none")
-    text += "\nPast and cancelled:\n" + ("\n".join(line(b) for b in past) or "none")
-    return Reply(text, cards=[{"type": "booking_list", "upcoming": [_booking_card(org, b) for b in upcoming],
-                               "past": [_booking_card(org, b) for b in past]}])  # fmt: skip
+    return {"upcoming": [_booking_card(org, b) for b in upcoming], "past": [_booking_card(org, b) for b in past]}
 
 
-# ───────────── proposals: create, reschedule, cancel ─────────────
+async def list_bookings(conn: AsyncConnection, ctx: ToolContext, org: Org) -> Reply:
+    groups = await booking_groups(conn, ctx, org)
+
+    def line(c: dict[str, Any]) -> str:
+        fee = f", cancellation fee {c['cancellation_fee_display']}" if c["status"] == "cancelled" and c["cancellation_fee_display"] else ""
+        return f"{c['booking_number']} | {c['when']} | {c['service']} with {c['practitioner']} | {c['status']}{fee}"
+
+    text = "Upcoming:\n" + ("\n".join(line(c) for c in groups["upcoming"]) or "none")
+    text += "\nPast and cancelled:\n" + ("\n".join(line(c) for c in groups["past"]) or "none")
+    return Reply(text, cards=[{"type": "booking_list", **groups}])
 
 
 def _parse_start(raw: str, org: Org) -> datetime | Reply:
