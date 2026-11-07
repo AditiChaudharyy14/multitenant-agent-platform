@@ -80,3 +80,21 @@ async def lock(conn: AsyncConnection, ctx: ToolContext, proposal_id: uuid.UUID) 
 
 async def set_status(conn: AsyncConnection, proposal_id: uuid.UUID, status: str) -> None:
     await conn.execute(text("UPDATE proposals SET status = :s WHERE id = :p"), {"s": status, "p": proposal_id})
+
+
+async def list_for_conversation(conn: AsyncConnection, ctx: ToolContext, conversation_id: uuid.UUID) -> list[dict[str, Any]]:
+    """Each proposal's current status, for the cards in the chat. Read-only: an open one past
+    its expiry is reported as 'expired' without writing (confirm() records it when tried)."""
+    rows = await conn.execute(
+        text(
+            "SELECT id, status, expires_at FROM proposals "
+            "WHERE conversation_id = :c AND user_id = :u ORDER BY created_at, id"
+        ),
+        {"c": conversation_id, "u": ctx.user_id},
+    )
+    now = clock.now()
+    return [
+        {"proposal_id": r.id, "status": "expired" if r.status == "open" and r.expires_at <= now else r.status,
+         "expires_at": r.expires_at}
+        for r in rows
+    ]  # fmt: skip

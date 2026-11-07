@@ -8,12 +8,14 @@ from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
 
+from fastapi.encoders import jsonable_encoder
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from app.auth.deps import current_ctx
 from app.db.session import tenant_tx
 from app.domain.conversations import repo
+from app.domain.proposals import repo as proposals_repo
 from app.tenancy.context import ToolContext
 
 router = APIRouter(prefix="/api/conversations")
@@ -76,3 +78,12 @@ async def list_messages(conversation_id: UUID, ctx: ToolContext = Depends(curren
     if messages is None:
         raise not_found()
     return messages
+
+
+@router.get("/{conversation_id}/proposals")
+async def list_proposals(conversation_id: UUID, ctx: ToolContext = Depends(current_ctx)) -> list[dict[str, Any]]:
+    """Current status of every proposal in this chat: what each summary card should show."""
+    async with tenant_tx(ctx.tenant) as conn:
+        if not await repo.exists(conn, ctx, conversation_id):
+            raise not_found()
+        return jsonable_encoder(await proposals_repo.list_for_conversation(conn, ctx, conversation_id))
