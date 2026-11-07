@@ -140,7 +140,8 @@ async def move_booking(
     conn: AsyncConnection, booking_id: uuid.UUID, *, practitioner_id: uuid.UUID, starts_at: datetime, ends_at: datetime,
 ) -> None:  # fmt: skip
     await conn.execute(
-        text("UPDATE bookings SET practitioner_id = :p, starts_at = :s, ends_at = :e WHERE id = :id"),
+        # A new time needs its own 24 h reminder (domain/notifications/reminders.py).
+        text("UPDATE bookings SET practitioner_id = :p, starts_at = :s, ends_at = :e, reminder_sent_at = NULL WHERE id = :id"),
         {"p": practitioner_id, "s": starts_at, "e": ends_at, "id": booking_id},
     )
 

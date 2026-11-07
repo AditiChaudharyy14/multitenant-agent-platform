@@ -44,6 +44,17 @@ class Settings(BaseSettings):
     # Empty = the plain FakeProvider that unit tests script themselves.
     fake_scenario_file: str = ""
 
+    # ── Email ── Transactional outbox + background sender (app/domain/notifications).
+    # Development delivers to Mailpit (web UI on :8025); nothing ever reaches a real inbox.
+    smtp_host: str = "mailpit"
+    smtp_port: int = 1025
+    email_from: str = "no-reply@agents.local"  # shown as "<Org name> <email_from>"
+    # Off unless the backend service turns it on (compose does), so tests and evals never
+    # start background loops; tests call the run_once() functions directly.
+    email_worker_enabled: bool = False
+    email_poll_seconds: int = 10  # how often the sender looks for pending mail
+    reminder_interval_seconds: int = 300  # how often the 24 h booking-reminder scan runs
+
     def llm_models(self, provider: str) -> list[str]:
         """Primary model first, then the fallbacks in order."""
         primary = getattr(self, f"llm_model_{provider}")

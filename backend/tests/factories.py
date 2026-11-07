@@ -25,7 +25,7 @@ TENANT_TABLES = (
     "users", "products", "orders", "order_items", "order_status_history",
     "services", "practitioners", "practitioner_services", "opening_hours", "holidays",
     "bookings", "conversations", "messages", "proposals", "agent_runs", "kb_chunks",
-    "order_counters", "booking_counters", "stock_events", "customer_memory",
+    "order_counters", "booking_counters", "stock_events", "customer_memory", "email_outbox",
 )  # fmt: skip
 
 # Customer-owned tables: also carry user_id and a RESTRICTIVE own-rows policy.
@@ -257,6 +257,13 @@ async def seed_tenant(owner: AsyncEngine, vertical: str) -> Tenant:
                 ),
                 {"o": org_id, "u": user},
             )
+            await conn.execute(
+                text(
+                    "INSERT INTO email_outbox (org_id, user_id, kind, to_email, subject, body_text, body_html, "
+                    "dedupe_key) VALUES (:o, :u, 'order_shipped', 'x@example.test', 's', 't', 'h', :k)"
+                ),
+                {"o": org_id, "u": user, "k": f"fixture:{user}"},
+            )
             t.orders[user] = order
             t.conversations[user] = conv
             t.bookings[user] = await insert_booking(conn, t, user, practitioner, BASE_TIME)
@@ -346,6 +353,11 @@ def valid_row_sql(table: str, t: Tenant) -> tuple[str, dict]:
             "INSERT INTO stock_events (org_id, user_id, sku, requested_qty, available_qty) "
             "VALUES (:o, :x, 'SKU-1', 5, 1)",
             {},
+        ),
+        "email_outbox": (
+            "INSERT INTO email_outbox (org_id, user_id, kind, to_email, subject, body_text, body_html, dedupe_key) "
+            "VALUES (:o, :x, 'order_shipped', 'x@example.test', 's', 't', 'h', :k)",
+            {"k": f"test:{new_id().hex}"},
         ),
         "customer_memory": (
             "INSERT INTO customer_memory (org_id, user_id, key, value, source) VALUES (:o, :x, :k, 'v', 'stated')",

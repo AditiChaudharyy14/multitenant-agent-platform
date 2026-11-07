@@ -31,6 +31,7 @@ from app import clock
 from app.domain.bookings import repo, service
 from app.domain.bookings.service import booking_number, provider_for
 from app.domain.money import format_money, money_str
+from app.domain.notifications import triggers
 from app.domain.proposals.repo import Proposal
 from app.domain.proposals.service import Committer, Describer
 from app.domain.reply import Reply
@@ -145,6 +146,10 @@ async def commit_create(conn: AsyncConnection, ctx: ToolContext, proposal: Propo
         return await service.refuse_slot(conn, ctx, org, svc, start, reason, practitioner=pid, now=now)
 
     shown = booking_number(org, number)
+    booking_id = await conn.scalar(text("SELECT id FROM bookings WHERE booking_number = :n"), {"n": number})
+    # Queued in this transaction: the email exists only if the booking commits.
+    await triggers.booking_confirmed(conn, org, booking_id=booking_id, user_id=ctx.user_id, number=shown, service=svc.name,
+                                     practitioner=p["practitioner_name"], starts_at=start)  # fmt: skip
     card = {
         "type": "booking_confirmed", "booking_number": shown, "status": "confirmed", "service": svc.name,
         "practitioner": p["practitioner_name"], **service.slot_when(org, start),
@@ -187,6 +192,8 @@ async def commit_reschedule(conn: AsyncConnection, ctx: ToolContext, proposal: P
     if reason is not None:
         return await service.refuse_slot(conn, ctx, org, svc, start, reason, practitioner=pid, booking=b, now=now)
 
+    await triggers.booking_confirmed(conn, org, booking_id=b.id, user_id=ctx.user_id, number=p["booking_number"],
+                                     service=svc.name, practitioner=new["practitioner_name"], starts_at=start)  # fmt: skip
     when = local_display(start, org.timezone)
     card = {
         "type": "booking_rescheduled", "booking_number": p["booking_number"], "status": "confirmed",

@@ -1,3 +1,4 @@
+import asyncio
 import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
@@ -9,6 +10,7 @@ from app.auth import routes as auth_routes
 from app.auth.csrf import OriginCheckMiddleware
 from app.config import get_settings
 from app.db.session import app_engine, readonly_engine
+from app.domain.notifications import worker as email_worker
 from app.tenancy.orgs import check_orgs_present, load_org_configs
 
 
@@ -18,7 +20,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     configs = load_org_configs(get_settings().seed_dir)
     async with app_engine.connect() as conn:
         await check_orgs_present(conn, configs)
+    # Email sender + 24 h reminder scan (domain/notifications), only where the service
+    # enables them: never in tests or evals, which call their run_once() directly.
+    workers = email_worker.start() if get_settings().email_worker_enabled else []
     yield
+    for task in workers:
+        task.cancel()
+    await asyncio.gather(*workers, return_exceptions=True)
     await app_engine.dispose()
     await readonly_engine.dispose()
 

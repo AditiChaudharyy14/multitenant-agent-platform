@@ -41,6 +41,8 @@ async def run(raw: str) -> int:
     finally:
         await app_engine.dispose()
     print(f"{display_number(prefix, number)}: {before} -> {after}")
+    if after == "shipped":  # queued in the same transaction; the backend's sender delivers it
+        print("shipping email queued: it appears in Mailpit (http://localhost:8025) within a few seconds")
     return 0
 
 

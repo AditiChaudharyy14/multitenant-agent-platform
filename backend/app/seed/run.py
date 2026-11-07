@@ -36,7 +36,7 @@ from app.tenancy.orgs import OrgConfig, load_org_configs, sync_orgs
 # order_counters and booking_counters restarts the org's numbers at 1001, so reseeding is
 # deterministic.
 WIPE_ORDER = (
-    "kb_chunks", "customer_memory", "stock_events", "agent_runs", "proposals", "messages", "conversations",
+    "kb_chunks", "email_outbox", "customer_memory", "stock_events", "agent_runs", "proposals", "messages", "conversations",
     "order_status_history", "order_items", "orders", "order_counters", "bookings", "booking_counters",
     "practitioner_services", "practitioners", "services", "opening_hours", "holidays",
     "products", "users",

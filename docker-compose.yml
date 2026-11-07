@@ -51,6 +51,13 @@ services:
       EVAL_CASSETTE_DIR: ${EVAL_CASSETTE_DIR:-/eval/cassettes}
       # With LLM_PROVIDER=fake: a scripted "model" (make e2e sets both). Empty = unset.
       FAKE_SCENARIO_FILE: ${FAKE_SCENARIO_FILE:-}
+      # Email: outbox sender + 24 h reminder scan, delivering to Mailpit (never a real inbox).
+      SMTP_HOST: ${SMTP_HOST:-mailpit}
+      SMTP_PORT: ${SMTP_PORT:-1025}
+      EMAIL_FROM: ${EMAIL_FROM:-no-reply@agents.local}
+      EMAIL_WORKER_ENABLED: ${EMAIL_WORKER_ENABLED:-true}
+      EMAIL_POLL_SECONDS: ${EMAIL_POLL_SECONDS:-10}
+      REMINDER_INTERVAL_SECONDS: ${REMINDER_INTERVAL_SECONDS:-300}
     volumes:
       - ./backend:/app
       - ./seed:/seed:ro
@@ -63,6 +70,8 @@ services:
     depends_on:
       db:
         condition: service_healthy
+      mailpit:
+        condition: service_started
     healthcheck:
       # urlopen raises on the 503 returned when the database is unreachable.
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)"]
@@ -214,6 +223,16 @@ services:
       timeout: 3s
       retries: 20
       start_period: 5s
+
+  # Local mail catcher: the backend's SMTP target. Nothing leaves the machine; every email
+  # shows up in the web UI at http://localhost:8025. SMTP (1025) stays on the compose
+  # network. ~20 MB of RAM.
+  mailpit:
+    image: axllent/mailpit:v1.21.8
+    environment:
+      MP_MAX_MESSAGES: 500
+    ports:
+      - "8025:8025"
 
 volumes:
   db_data:

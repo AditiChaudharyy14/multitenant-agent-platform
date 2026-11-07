@@ -7,8 +7,11 @@ cancelled orders are terminal. Every step writes order_status_history (changed_b
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.domain.notifications import triggers
 from app.domain.orders import repo
+from app.domain.orders.numbers import display_number
 from app.domain.orders.repo import Order
+from app.tenancy.orgs import get_org_by_id
 
 NEXT_STATUS = {"pending": "confirmed", "confirmed": "shipped", "shipped": "delivered"}
 
@@ -42,4 +45,10 @@ async def advance(conn: AsyncConnection, order_number: int) -> tuple[str, str]:
         raise CannotAdvance(order.status)
     org_id = await conn.scalar(text("SELECT app_org()"))
     await repo.set_status(conn, org_id, order, to_status, "admin")
+    if to_status == "shipped":  # queued in this transaction: no email unless the step commits
+        org = await get_org_by_id(conn, org_id)
+        assert org is not None
+        await triggers.order_shipped(conn, org, order_id=order.id, user_id=order.user_id,
+                                     number=display_number(org.order_prefix, order.order_number),
+                                     address=order.delivery_address, total=order.total)  # fmt: skip
     return order.status, to_status
