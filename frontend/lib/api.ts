@@ -2,7 +2,7 @@
 // cookie and the backend's Origin check just work. Identity is never sent by the client:
 // the server reads it from the session cookie.
 
-import type { Conversation, KbSource, Me, MyBookings, MyOrders, ProposalInfo, PublicOrg, StoredMessage } from "./types";
+import type { Conversation, KbSource, Me, Memory, MyBookings, MyOrders, ProposalInfo, PublicOrg, StoredMessage } from "./types";
 
 export class ApiError extends Error {
   constructor(
@@ -54,6 +54,8 @@ export const api = {
   proposals: (id: string) => call<ProposalInfo[]>(`/api/conversations/${encodeURIComponent(id)}/proposals`),
   myOrders: () => call<MyOrders>("/api/orders"),
   myBookings: () => call<MyBookings>("/api/bookings"),
+  memories: () => call<{ memories: Memory[] }>("/api/memories"),
+  forgetMemory: (key: string) => call<void>(`/api/memories/${encodeURIComponent(key)}`, { method: "DELETE" }),
   kbSource: (ref: string) => call<KbSource>(`/api/kb/source?ref=${encodeURIComponent(ref)}`),
 };
 

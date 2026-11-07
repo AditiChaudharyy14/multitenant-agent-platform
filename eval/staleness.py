@@ -16,7 +16,7 @@ BANNER = """
  {n} cassette(s) are STALE: the agent's requests changed since they were
  recorded (a new tool or prompt rule changes every fingerprint).
  This is expected after such a change, not a regression.
-   {keys}
+   {keys}{missing}
  Nothing was recorded live, and eval/results.md was left as it was.
  Re-record once the daily quota allows (needs ~3 requests per turn):
    make eval-live            # the whole suite
@@ -41,6 +41,11 @@ def may_record(stale: list[str]) -> bool:
     return not stale
 
 
-def banner(stale: list[str]) -> str:
-    shown = ", ".join(stale[:12]) + (f", … (+{len(stale) - 12} more)" if len(stale) > 12 else "")
-    return BANNER.format(n=len(stale), keys=shown)
+def _short(keys: list[str]) -> str:
+    return ", ".join(keys[:12]) + (f", … (+{len(keys) - 12} more)" if len(keys) > 12 else "")
+
+
+def banner(stale: list[str], missing: list[str] | tuple[str, ...] = ()) -> str:
+    """`missing`: scenarios that were never recorded (new ones), recorded in the same batch."""
+    extra = f"\n Not recorded yet ({len(missing)}): {_short(list(missing))}" if missing else ""
+    return BANNER.format(n=len(stale), keys=_short(stale), missing=extra)

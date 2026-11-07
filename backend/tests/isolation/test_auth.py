@@ -340,7 +340,7 @@ async def test_public_org_endpoint(client: Client, synced_orgs: dict[str, OrgCon
     assert r.status_code == 200
     assert r.json() == {
         "slug": cfg.slug, "name": cfg.name, "vertical": cfg.vertical,
-        "branding": cfg.branding.model_dump(),
+        "branding": cfg.branding.model_dump(), "features": cfg.features.model_dump(),
     }  # fmt: skip
     assert "id" not in r.json()
     assert missing.status_code == 404

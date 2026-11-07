@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { BookingRows, OrderRows } from "@/components/cards/ReadCards";
-import type { MyBookings, MyOrders, Vertical } from "@/lib/types";
+import { api } from "@/lib/api";
+import type { Memory, MyBookings, MyOrders, Vertical } from "@/lib/types";
 
 export interface PanelData {
   state: "loading" | "ready" | "error";
@@ -16,12 +17,14 @@ interface Props {
   data: PanelData;
   onRetry: () => void;
   onAsk: (text: string) => void;
+  memory?: boolean; // org.features.memory: show "What I remember"
+  version?: number; // bumped after a turn that may have changed something
 }
 
 export const panelTitle = (v: Vertical) => (v === "store" ? "My orders" : "My bookings");
 
 /** The customer's own orders or bookings, from the same domain functions the agent's tools use. */
-export function MyItemsPanel({ vertical, data, onRetry, onAsk }: Props) {
+export function MyItemsPanel({ vertical, data, onRetry, onAsk, memory = false, version = 0 }: Props) {
   const empty = vertical === "store" ? (data.orders?.orders.length ?? 0) === 0 : (data.bookings?.upcoming.length ?? 0) + (data.bookings?.past.length ?? 0) === 0;
   return (
     <section data-testid="my-items" aria-label={panelTitle(vertical)} className="flex h-full min-h-0 flex-col">
@@ -63,8 +66,78 @@ export function MyItemsPanel({ vertical, data, onRetry, onAsk }: Props) {
             )}
           </>
         )}
+        {memory && <RememberedSection version={version} />}
       </div>
     </section>
+  );
+}
+
+const MEMORY_LABELS: Record<string, string> = {
+  usual_products: "Your usual",
+  usual_practitioner: "Usual practitioner",
+  usual_service: "Usual service",
+};
+const memoryLabel = (key: string) => MEMORY_LABELS[key] ?? (key.charAt(0).toUpperCase() + key.slice(1)).replace(/_/g, " ");
+
+/** "What I remember": the same list the agent's get_my_preferences returns, each with a
+ * delete button. Derived facts ("your usual") come from the customer's own history;
+ * deleting one hides it for good. */
+function RememberedSection({ version }: { version: number }) {
+  const [items, setItems] = useState<Memory[] | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+
+  const load = useCallback(() => {
+    api.memories()
+      .then((r) => { setItems(r.memories); setFailed(false); })
+      .catch(() => setFailed(true));
+  }, []);
+  useEffect(load, [load, version]);
+
+  async function forget(key: string) {
+    setBusy(key);
+    try {
+      await api.forgetMemory(key);
+      setItems((xs) => (xs ?? []).filter((m) => m.key !== key));
+    } catch {
+      load(); // already gone (404) or a network error: show what the server has
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div data-testid="memories" className="border-t border-rule px-4 py-3">
+      <h3 className="text-[13px] font-medium text-muted">What I remember</h3>
+      {failed && <p className="mt-1 text-sm text-muted">Couldn't load this.</p>}
+      {items && items.length === 0 && (
+        <p className="mt-1 text-sm text-muted">Nothing yet. Ask me to remember a preference, like a favourite practitioner or how you take your tea.</p>
+      )}
+      {items && items.length > 0 && (
+        <ul className="mt-1.5 flex flex-col gap-2">
+          {items.map((m) => (
+            <li key={m.key} data-testid="memory-row" className="flex items-start gap-2 text-sm">
+              <div className="min-w-0 flex-1">
+                <p className="font-medium text-ink">
+                  {memoryLabel(m.key)}
+                  <span className="ml-1.5 text-[12px] font-normal text-muted">{m.source === "derived" ? "from your history" : "you told me"}</span>
+                </p>
+                <p className="text-muted [overflow-wrap:anywhere]">{m.value}</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => forget(m.key)}
+                disabled={busy === m.key}
+                aria-label={`Forget ${memoryLabel(m.key)}`}
+                className="shrink-0 rounded-[var(--radius-control)] border border-rule px-2 py-0.5 text-[12px] text-muted hover:border-brand hover:text-ink disabled:opacity-50"
+              >
+                Forget
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 

@@ -1,0 +1,17 @@
+id: memory_usual_new_conversation
+title: '"My usual tea" in a brand-new conversation → a proposal for the most-ordered product'
+rule: Long-term memory derives "usual" from the customer's own non-cancelled orders; it carries across conversations, and prices still come from tools.
+org: himali-tea
+user: anisha@himali.test
+turns:
+  # Anisha's history: 3 × Kathmandu Masala Chai is her most-ordered product (by units).
+  - user: Hi! Could you order my usual tea again? Same quantity as my usual, to House 14, Jhamsikhel Marg, Lalitpur.
+    new_conversation: true
+    expect:
+      tools_called: {includes: [create_order], excludes: [confirm_proposal]}
+      reply_matches: ['Masala Chai']
+  - action: confirm_last_proposal
+assertions:
+  new_rows: {orders: 1}
+  db:
+    - order: {latest_for: me, status: pending, items: {HT-CHA-001: 3}}

@@ -15,6 +15,14 @@ export interface PublicOrg {
   name: string;
   vertical: Vertical;
   branding: Branding;
+  features?: { memory?: boolean };
+}
+
+/** One thing the assistant remembers about the customer (GET /api/memories). */
+export interface Memory {
+  key: string;
+  value: string;
+  source: "stated" | "derived";
 }
 
 export interface User {

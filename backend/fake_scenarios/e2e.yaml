@@ -77,6 +77,12 @@ rules:
       - tool: orders_by_status
         args: {window: today}
       - text: "Here are today's orders by status (today, in the shop's timezone): orders placed today, counted by their current status."
+  # Long-term memory: the real tool writes the customer's own row; the panel lists it.
+  - match: "remember i take (\\w+) milk"
+    steps:
+      - tool: remember_preference
+        args: {key: milk, value: "{1} milk"}
+      - text: "Noted, I'll remember how you take your milk."
   # The Confirm button: the server commits before the model speaks; it only acknowledges.
   - match: "^confirm$"
     steps:

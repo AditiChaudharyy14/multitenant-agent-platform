@@ -23,6 +23,7 @@ from app.agents.state import AgentEvent, TurnState
 from app.agents.tools.base import Tool, ToolResult, error_result
 from app.agents.tools.registry import admin_tools_for, tools_for
 from app.db.session import tenant_tx
+from app.domain import memory
 from app.domain.conversations import repo
 from app.tenancy.context import ToolContext
 from app.tenancy.orgs import Org
@@ -79,8 +80,12 @@ to the customer as yourself; don't mention "the server".
 
 def start_turn(provider: LLMProvider, inp: TurnInput, *, tools: dict[str, Tool] | None = None) -> tuple[asyncio.Task[None], Queue]:
     queue: Queue = asyncio.Queue()
-    registry = admin_tools_for if inp.agent == "admin" else tools_for  # both keyed on vertical only
-    chosen = tools if tools is not None else registry(inp.org.vertical)
+    if tools is not None:
+        chosen = tools
+    elif inp.agent == "admin":
+        chosen = admin_tools_for(inp.org.vertical)  # keyed on vertical only
+    else:
+        chosen = tools_for(inp.org.vertical, inp.org.features)  # vertical, minus features switched off
     task = asyncio.create_task(_run(provider, inp, chosen, queue))
     _running.add(task)
     task.add_done_callback(_running.discard)
@@ -94,6 +99,11 @@ async def _run(provider: LLMProvider, inp: TurnInput, tools: dict[str, Tool], qu
     try:
         build = build_admin_prompt if inp.agent == "admin" else build_system_prompt
         system = build(inp.org, clock.now())
+        if inp.agent == "customer" and inp.org.has("memory"):
+            # What this customer told us and what their own history shows, read in their own
+            # RLS scope (own_rows): never another customer's facts.
+            async with tenant_tx(inp.ctx.tenant) as conn:
+                system += "\n" + await memory.prompt_block(conn, inp.ctx, inp.org.vertical)
         if inp.action is not None:
             # Deterministic: the action runs here, before (and regardless of) any model call.
             result = await _server_action(inp, tools, state, queue)

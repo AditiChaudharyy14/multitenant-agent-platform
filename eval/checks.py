@@ -22,7 +22,7 @@ from scenario import Assertions, BookingCheck, DbCheck, OrderCheck, ReplyChecks,
 
 # Tables no_new_rows / new_rows may name (all org-scoped).
 COUNTED_TABLES = ("orders", "order_items", "order_status_history", "bookings", "proposals", "products",
-                  "conversations", "stock_events")
+                  "conversations", "stock_events", "customer_memory")
 
 NEXT_STATUS = {"pending": "confirmed", "confirmed": "shipped", "shipped": "delivered"}
 
@@ -176,6 +176,11 @@ async def apply_setup(conn: AsyncConnection, org: OrgInfo, step: SetupStep) -> N
         )  # fmt: skip
     elif step.sql:
         await conn.execute(text(render_sql(org, step.sql)))
+    elif step.memory:
+        await conn.execute(
+            text("INSERT INTO customer_memory (org_id, user_id, key, value, source) VALUES (:o, :u, :k, :v, 'stated')"),
+            {"o": org.org_id, "u": await user_id(conn, step.memory.customer), "k": step.memory.key, "v": step.memory.value},
+        )  # fmt: skip
     elif step.analytics_history:
         from app.config import get_settings
         from app.seed.run import apply_analytics

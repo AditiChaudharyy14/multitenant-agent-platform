@@ -33,3 +33,6 @@ def test_banner_names_the_fix_and_the_scenarios() -> None:
     text = banner([f"store/s{i}" for i in range(15)])
     assert "15 cassette(s) are STALE" in text and "make eval-live" in text
     assert "store/s0" in text and "(+3 more)" in text
+    assert "Not recorded yet" not in text
+    with_new = banner(["admin/a"], ["store/memory_new"])
+    assert "Not recorded yet (1): store/memory_new" in with_new

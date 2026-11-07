@@ -174,6 +174,10 @@ async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider,
                 r.raise_for_status()
                 cid = r.json()["id"]
                 for turn, utext in zip(sc.turns, texts, strict=True):
+                    if turn.new_conversation:  # no transcript carries over: only long-term memory can
+                        r = await c.post(chat_api)
+                        r.raise_for_status()
+                        cid = r.json()["id"]
                     rec = checks.TurnRecord(request=utext or f"[{turn.action}]")
                     try:
                         body = {"content": utext} if utext else {"action": _action_payload(turn.action or "", turns)}
@@ -305,6 +309,9 @@ async def main() -> int:
     logging.getLogger().setLevel(logging.WARNING)  # app.main configured INFO on import
     install_output_redaction()  # no DB URL password or API key in logs or tracebacks
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    # A stale cassette is reported once per scenario (STALE) and in the closing banner; the
+    # agent's own per-turn warning would add the whole request diff for each one.
+    logging.getLogger("app.agent").addFilter(lambda r: staleness.STALE_PREFIX not in r.getMessage())
     logging.getLogger("app.llm").setLevel(logging.INFO if args.mode != "replay" else logging.WARNING)
 
     s = get_settings()
@@ -399,7 +406,9 @@ async def main() -> int:
     if stale:  # a stale run says nothing about the agent: keep the last real report
         await providers.print_budget("after")
         await main_engine.dispose()
-        print(staleness.banner(stale), flush=True)
+        missing = [r["key"] for r in results if any(f.startswith("CassetteMissing") for f in r["failures"])
+                   or r["failures"] == ["not recorded: other cassettes are stale"]]  # fmt: skip
+        print(staleness.banner(stale, missing), flush=True)
         return 4
     position = {sc.key: i for i, sc in enumerate(scenarios)}
     results.sort(key=lambda r: position[r["key"]])  # report in file order, not run order

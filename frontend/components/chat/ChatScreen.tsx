@@ -406,7 +406,8 @@ export function ChatScreen({ me, routeConversationId, mode = "customer" }: { me:
 
         {!isAdminChat && (
           <aside className="hidden w-80 shrink-0 border-l border-rule min-[1100px]:block">
-            <MyItemsPanel vertical={org.vertical} data={panel} onRetry={() => setPanelVersion((v) => v + 1)} onAsk={send} />
+            <MyItemsPanel vertical={org.vertical} data={panel} onRetry={() => setPanelVersion((v) => v + 1)} onAsk={send}
+              memory={org.features?.memory ?? false} version={panelVersion} />
           </aside>
         )}
       </div>
@@ -416,6 +417,8 @@ export function ChatScreen({ me, routeConversationId, mode = "customer" }: { me:
           <MyItemsPanel
             vertical={org.vertical}
             data={panel}
+            memory={org.features?.memory ?? false}
+            version={panelVersion}
             onRetry={() => setPanelVersion((v) => v + 1)}
             onAsk={(t) => {
               setPanelOpen(false);

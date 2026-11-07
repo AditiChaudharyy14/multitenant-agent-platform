@@ -81,4 +81,5 @@ def test_store_tools_registered() -> None:
     assert set(tools_for("store")) == {
         "search_knowledge", "search_products", "create_order", "update_order", "cancel_order",
         "get_order_status", "list_my_orders", "reorder", "confirm_proposal",
+        "remember_preference", "forget_preference", "get_my_preferences",  # features.memory (on by default)
     }  # fmt: skip

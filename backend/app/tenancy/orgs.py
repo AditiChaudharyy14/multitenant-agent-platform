@@ -8,7 +8,7 @@ adding an org is a new seed folder plus `make sync-orgs`.
 
 import json
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 from uuid import UUID
@@ -42,6 +42,15 @@ class Branding(BaseModel):
         return v
 
 
+class Features(BaseModel):
+    """Optional capabilities, switched per org in org.yaml. Each defaults on; which tools a
+    feature adds is still decided by the org's vertical (app/agents/tools/registry.py)."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    memory: bool = True  # long-term customer memory: tools, prompt block, panel section
+
+
 class OrgConfig(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -57,6 +66,7 @@ class OrgConfig(BaseModel):
     booking_prefix: str | None = None
     currency: str = "NPR"  # ISO 4217 code, shown in front of every amount
     branding: Branding
+    features: Features = Features()
 
     @field_validator("order_prefix", "booking_prefix")
     @classmethod
@@ -123,13 +133,14 @@ async def sync_orgs(owner_url: str, configs: list[OrgConfig]) -> None:
                 await conn.execute(
                     text(
                         "INSERT INTO orgs (slug, name, vertical, timezone, business_type, order_prefix, "
-                        "booking_prefix, currency, branding) VALUES (:slug, :name, :vertical, :tz, "
-                        ":business_type, :prefix, :booking_prefix, :currency, CAST(:branding AS jsonb)) "
+                        "booking_prefix, currency, branding, features) VALUES (:slug, :name, :vertical, :tz, "
+                        ":business_type, :prefix, :booking_prefix, :currency, CAST(:branding AS jsonb), "
+                        "CAST(:features AS jsonb)) "
                         "ON CONFLICT (slug) DO UPDATE SET name = EXCLUDED.name, "
                         "vertical = EXCLUDED.vertical, timezone = EXCLUDED.timezone, "
                         "business_type = EXCLUDED.business_type, order_prefix = EXCLUDED.order_prefix, "
                         "booking_prefix = EXCLUDED.booking_prefix, "
-                        "currency = EXCLUDED.currency, branding = EXCLUDED.branding"
+                        "currency = EXCLUDED.currency, branding = EXCLUDED.branding, features = EXCLUDED.features"
                     ),
                     {
                         "slug": cfg.slug,
@@ -141,6 +152,7 @@ async def sync_orgs(owner_url: str, configs: list[OrgConfig]) -> None:
                         "booking_prefix": cfg.booking_prefix,
                         "currency": cfg.currency,
                         "branding": json.dumps(cfg.branding.model_dump()),
+                        "features": json.dumps(cfg.features.model_dump()),
                     },
                 )
     finally:
@@ -169,6 +181,11 @@ class Org:
     order_prefix: str | None = None
     currency: str = "NPR"
     booking_prefix: str | None = None
+    features: dict[str, Any] = field(default_factory=dict)
+
+    def has(self, feature: str) -> bool:
+        """Whether a Features flag is on; a flag missing from the row takes its default."""
+        return bool(self.features.get(feature, Features.model_fields[feature].default))
 
     def public(self) -> dict[str, Any]:
         """What anyone may see: used for branding before and after login."""
@@ -177,10 +194,11 @@ class Org:
             "name": self.name,
             "vertical": self.vertical,
             "branding": self.branding,
+            "features": {name: self.has(name) for name in Features.model_fields},
         }
 
 
-_ORG_COLUMNS = "id, slug, name, vertical, timezone, branding, business_type, order_prefix, currency, booking_prefix"
+_ORG_COLUMNS = "id, slug, name, vertical, timezone, branding, business_type, order_prefix, currency, booking_prefix, features"
 
 
 async def get_org_by_slug(conn: AsyncConnection, slug: str) -> Org | None:

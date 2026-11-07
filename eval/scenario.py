@@ -55,6 +55,12 @@ class AddBooking(_Strict):
     start: str  # org-local "YYYY-MM-DDTHH:MM"
 
 
+class SetMemory(_Strict):
+    customer: str  # email: whose stated memory (customer_memory row) to add
+    key: str
+    value: str
+
+
 class SetupStep(_Strict):
     set_price: SetPrice | None = None
     set_stock: SetStock | None = None
@@ -63,12 +69,13 @@ class SetupStep(_Strict):
     sql: str | None = None  # runs as app_owner with app.org_id set and app.role = admin
     # Add seed/<slug>/analytics.yaml's history to this clone (the template leaves it out).
     analytics_history: bool | None = None
+    memory: SetMemory | None = None  # a customer's saved preference, as remember_preference writes it
 
     @model_validator(mode="after")
     def _one(self) -> SetupStep:
         if sum(v is not None for v in self.model_dump().values()) != 1:
             raise ValueError("each setup step has exactly one of set_price, set_stock, advance_order, add_booking, sql, "
-                             "analytics_history")
+                             "analytics_history, memory")
         return self
 
 
@@ -170,11 +177,16 @@ class Turn(_Strict):
     # An action turn marked optional is skipped when there is no card to press (e.g. the
     # agent rightly refused to prepare an order); otherwise a missing card is an error.
     optional: bool = False
+    # Start a brand-new conversation (no chat history) before this turn, e.g. to prove that
+    # long-term memory, not the transcript, carries a preference across conversations.
+    new_conversation: bool = False
 
     @model_validator(mode="after")
     def _one(self) -> Turn:
         if (self.user is None) == (self.action is None):
             raise ValueError("a turn is either `user: <text>` or `action: <button>`")
+        if self.new_conversation and self.user is None:
+            raise ValueError("new_conversation needs a typed `user` turn")
         return self
 
 
