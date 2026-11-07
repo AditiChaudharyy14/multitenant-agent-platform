@@ -1,7 +1,7 @@
 """Shared test setup.
 
-Every test runs against the separate `app_test` database (created by `make testdb`),
-never the dev database. The URLs are rewritten here, before anything from `app` is
+Every test runs against the separate `app_test` database on the throwaway db-ephemeral
+Postgres (tmpfs, durability off; `make test` starts it), never the dev `db` service. The URLs are rewritten here, before anything from `app` is
 imported, because app.config caches settings and app.db.session builds its engines
 at import time.
 """
@@ -11,6 +11,7 @@ import os
 from sqlalchemy.engine import make_url
 
 TEST_DATABASE = "app_test"
+TEST_DB_HOST = os.environ.get("TEST_DB_HOST", "db-ephemeral")
 _URL_VARS = ("DATABASE_URL_OWNER", "DATABASE_URL_APP", "DATABASE_URL_READONLY")
 
 for _var in _URL_VARS:
@@ -48,7 +49,12 @@ for _url in (
     get_settings().database_url_app,
     get_settings().database_url_readonly,
 ):
-    assert make_url(_url).database == TEST_DATABASE, "tests must only touch app_test"
+    # Only the database name and host are compared: pytest prints an assert's operands, and
+    # the URL itself holds a password.
+    _database, _host = make_url(_url).database, make_url(_url).host
+    assert _database == TEST_DATABASE, "tests must only touch app_test"
+    # Structural, not by convention: the dev `db` service is never reachable from tests.
+    assert _host == TEST_DB_HOST, f"tests must run against {TEST_DB_HOST} (use `make test`)"
 assert app_engine.url.database == TEST_DATABASE
 assert readonly_engine.url.database == TEST_DATABASE
 

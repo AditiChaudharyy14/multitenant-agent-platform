@@ -1,5 +1,6 @@
--- Eval databases (`make evaldb`, idempotent). Run as the bootstrap superuser, like
--- testdb.sql, because creating roles and installing pgvector need one.
+-- Eval databases on db-ephemeral only (never the dev `db`). Runs at db-ephemeral's init and
+-- again, idempotently, from `make evaldb`. Run as the bootstrap superuser, like testdb.sql,
+-- because creating roles and installing pgvector need one.
 --
 -- eval_template: migrated and seeded (frozen SEED_NOW) by the eval runner as app_owner.
 --   Marked IS_TEMPLATE, so any role with CREATEDB may clone it.

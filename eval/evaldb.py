@@ -136,8 +136,9 @@ async def create_clone(name: str, attempts: int = 5) -> None:
             await conn.execute(text(f'DROP DATABASE IF EXISTS "{name}"'))
             for attempt in range(attempts):
                 try:
-                    # FILE_COPY: copy the files after a checkpoint instead of WAL-logging every page
-                    # (WAL_LOG wrote ~5 MB of WAL per clone and coincided with backend crashes on WSL).
+                    # FILE_COPY: copy the files after a checkpoint instead of WAL-logging every page.
+                    # On db-ephemeral (tmpfs, fsync off) that is ~20 ms per clone against 50-190 ms
+                    # for WAL_LOG; WAL_LOG also coincided with backend crashes on the dev db.
                     await conn.execute(text(f'CREATE DATABASE "{name}" TEMPLATE {TEMPLATE} STRATEGY FILE_COPY'))
                     return
                 except DBAPIError as exc:

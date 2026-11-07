@@ -1,5 +1,5 @@
 # Everything runs inside the containers, so the host needs only Docker and make.
-.PHONY: up build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin evaldb eval eval-live e2e e2e-setup advance logs
+.PHONY: up build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live e2e e2e-setup advance logs
 
 # Owner-only commands run in the one-shot `ops` container, which is the only place
 # DATABASE_URL_OWNER exists. The running backend never holds app_owner credentials.
@@ -43,15 +43,22 @@ chat:  ## make chat ORG=<slug> EMAIL=<email> PASSWORD=<pw> Q="question" [CONV=<i
 	@test -n "$(ORG)" -a -n "$(EMAIL)" -a -n "$(PASSWORD)" -a -n "$(Q)" || (echo 'usage: make chat ORG=<slug> EMAIL=<email> PASSWORD=<pw> Q="..." [CONV=<id>]' && exit 1)
 	docker compose exec backend python -m scripts.chat --org "$(ORG)" --email "$(EMAIL)" --password "$(PASSWORD)" $(if $(CONV),--conversation "$(CONV)") "$(Q)"
 
-# app_owner has no CREATEDB, so the superuser creates app_test. The pytest session then
-# rebuilds its schema with alembic (downgrade base, upgrade head) on every run.
-testdb:  ## Create the separate app_test database if it is missing (idempotent)
-	docker compose exec -T db sh -c 'psql -q -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"' < docker/db/testdb.sql
+# Tests and evals use db-ephemeral (compose profile "ephemeral"): tmpfs data, durability
+# off, never the dev `db`. Its init scripts create the roles, app_test and eval_template on
+# every fresh start; testdb/evaldb re-apply them idempotently to a running instance.
+EPHEMERAL = docker compose --profile ephemeral
+PSQL_EPHEMERAL = $(EPHEMERAL) exec -T db-ephemeral sh -c 'psql -q -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
 
-# Runs in ops: the suite rebuilds app_test with alembic and writes fixtures as app_owner.
+ephemeral-db:  ## Start the throwaway Postgres for tests and evals (idempotent)
+	$(EPHEMERAL) up -d --wait db-ephemeral
+
+testdb: ephemeral-db  ## Ensure app_test exists on db-ephemeral (idempotent)
+	$(PSQL_EPHEMERAL) < docker/db/testdb.sql
+
+# The suite rebuilds app_test with alembic (downgrade base, upgrade head) on every run.
 # Isolation tests still connect through the app_user engine.
-test: testdb  ## pytest against app_test (deterministic, no LLM)
-	$(OPS) pytest
+test: testdb  ## pytest against app_test on db-ephemeral (deterministic, no LLM)
+	$(EPHEMERAL) run --rm test pytest
 
 # Real LLM calls, one request per test, in the backend container (which holds the keys).
 # Never part of `make test`; a provider whose key is missing is skipped.
@@ -86,12 +93,10 @@ e2e:  ## Playwright smoke tests + screenshots in docs/screenshots (fake LLM)
 	cd e2e && BASE_URL=http://localhost:3000 SCREENSHOT_DIR=../docs/screenshots .venv/bin/python -m pytest -q $(ARGS); \
 	  status=$$?; cd .. && docker compose up -d --wait backend; exit $$status
 
-# The superuser creates the clone-only app_eval role and the eval_template database (with
-# pgvector), as testdb does for app_test. `up -d db` first so the db container has
-# APP_EVAL_PASSWORD in its environment (it is recreated only if its config changed).
-evaldb:  ## Create the app_eval role and the eval_template database (idempotent)
-	docker compose up -d --wait db
-	docker compose exec -T db sh -c 'psql -q -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"' < docker/db/evaldb.sql
+# The superuser creates the clone-only app_eval role and eval_template (with pgvector) on
+# db-ephemeral, as testdb does for app_test.
+evaldb: ephemeral-db  ## Ensure app_eval and eval_template exist on db-ephemeral (idempotent)
+	$(PSQL_EPHEMERAL) < docker/db/evaldb.sql
 
 # LLM scenario suite (eval/scenarios) → eval/results.md and results.json. Prints the LLM
 # budget (as make llm-budget) before and after. Each scenario runs
@@ -100,7 +105,7 @@ evaldb:  ## Create the app_eval role and the eval_template database (idempotent)
 #   make eval-live   record live, overwriting cassettes; ONLY=store/edit_shipped,booking/*
 #                    limits it to some scenarios (never re-record the whole suite casually)
 #   ARGS=--judge     add LLM-as-judge scores for KB-answer scenarios (reported separately)
-EVAL = docker compose --profile eval run --rm eval
+EVAL = docker compose --profile ephemeral --profile eval run --rm eval
 eval: evaldb  ## Run the LLM eval suite (replay where recorded, else record)
 	$(EVAL) python /eval/runner.py --mode auto $(if $(ONLY),--only "$(ONLY)") $(ARGS)
 

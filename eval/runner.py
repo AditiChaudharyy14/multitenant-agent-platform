@@ -33,6 +33,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))  # scenario, checks, ev
 
 import httpx  # noqa: E402
 from sqlalchemy import text  # noqa: E402
+from sqlalchemy.engine import make_url  # noqa: E402
 
 import checks  # noqa: E402
 import evaldb  # noqa: E402
@@ -187,6 +188,9 @@ async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider,
                     await _fill_run(owner, org, rec)
                     if rec.run_error and rec.run_error.startswith(("CassetteMissing", "CassetteMismatch")):
                         raise ScenarioError(rec.run_error)
+                    if rec.run_error:  # the provider failed (after its retries): not a valid sample
+                        raise ScenarioError(f"provider failed during turn {len(turns)}: {rec.run_error}; "
+                                            f"re-record: make eval-live ONLY={sc.key}")  # fmt: skip
             async with evaldb.owner_tx(owner, org.org_id) as conn:
                 fails = await checks.check_all(conn, org, sc, me, turns, before)
                 if sc.judge:  # what the agent actually retrieved, for the judge's groundedness score
@@ -266,12 +270,20 @@ async def main() -> int:
     logging.getLogger("app.llm").setLevel(logging.INFO if args.mode != "replay" else logging.WARNING)
 
     s = get_settings()
+    # Template and clones live on db-ephemeral only; the dev db holds just the quota ledger.
+    ephemeral = os.environ.get("EVAL_DB_HOST", "db-ephemeral")
+    for var in ("DATABASE_URL_OWNER", "DATABASE_URL_APP", "DATABASE_URL_READONLY", "DATABASE_URL_EVAL"):
+        if make_url(os.environ.get(var, "")).host != ephemeral:
+            raise SystemExit(f"{var} must point at {ephemeral}; run evals through `make eval`")
     seed_now = os.environ.get("EVAL_SEED_NOW", "2026-11-12T10:00")
     min_left = int(os.environ.get("EVAL_MIN_BUDGET_LEFT", "100"))
     everything = load_scenarios()
     scenarios = _selected(everything, args.only)
     orgs = _orgs()
-    main_engine = db.app_engine  # the main database: llm_usage is counted here
+    # The quota ledger (llm_usage) lives in the dev database, shared with the running
+    # backend; everything else this run touches is on db-ephemeral.
+    budget_url = os.environ.get("DATABASE_URL_BUDGET") or s.database_url_app
+    main_engine = evaldb.engine(budget_url)
     providers = Providers(main_engine)
 
     await providers.print_budget("before")

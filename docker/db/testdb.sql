@@ -1,5 +1,6 @@
--- Creates the app_test database used by `make test`, so tests never touch dev or seed
--- data. Idempotent. Run as the bootstrap superuser (`make testdb`), because app_owner
+-- Creates the app_test database used by `make test`, on db-ephemeral only, so tests never
+-- touch the dev `db`. Runs at db-ephemeral's init and again (idempotently) from
+-- `make testdb`. Run as the bootstrap superuser, because app_owner
 -- has no CREATEDB and pgvector can only be installed by a superuser.
 -- The roles are cluster-wide, so they are the same ones init.sql created.
 
