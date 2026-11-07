@@ -99,10 +99,12 @@ def refuse_not_pending(org: Org, order: Order, action: str) -> Reply:
 
 
 async def stock_issue(
-    conn: AsyncConnection, org: Org, short: list[tuple[Product, int, int]], *, intro: str,
+    conn: AsyncConnection, ctx: ToolContext, org: Org, short: list[tuple[Product, int, int]], *, intro: str,
 ) -> Reply:  # fmt: skip
     """No proposal: say what is available and offer 1-2 in-stock alternatives per line.
-    `short` holds (product, requested qty, available qty)."""
+    `short` holds (product, requested qty, available qty). Each line is also recorded as a
+    stock_events row for the admin's most_out_of_stock metric."""
+    await repo.record_shortages(conn, ctx, [(p.sku, requested, available) for p, requested, available in short])
     lines, text_parts = [], []
     for product, requested, available in short:
         alts = await repo.alternatives(conn, product, min_stock=requested)
@@ -188,7 +190,7 @@ async def propose_new_order(
         return _unknown(missing)
     short = [(products[s], q, products[s].stock) for s, q in wanted.items() if q > products[s].stock]
     if short:
-        return await stock_issue(conn, org, short, intro=intro or "Not enough stock.")
+        return await stock_issue(conn, ctx, org, short, intro=intro or "Not enough stock.")
     address = (address or "").strip() or await repo.last_address(conn, ctx)
     if not address:
         return Reply("NEED ADDRESS: this customer has no previous order, so ask for their delivery address, "
@@ -222,11 +224,14 @@ async def propose_reorder(conn: AsyncConnection, ctx: ToolContext, org: Org, raw
     old = await repo.items(conn, source.id)
     live = await repo.products_by_sku(conn, [i.sku for i in old])
     lines, changes, unavailable = [], [], []
+    shortages: list[tuple[str, int, int]] = []  # (sku, wanted, in stock) for stock_events
     for item in old:
         p = live[item.sku]  # order_items.product_id is a FK, so the product still exists
         if p.price != item.unit_price:
             changes.append(f"{p.name}: price changed from {format_money(item.unit_price, org.currency)} "
                            f"to {format_money(p.price, org.currency)}.")  # fmt: skip
+        if p.stock < item.qty:
+            shortages.append((p.sku, item.qty, p.stock))
         if p.stock == 0:
             alts = await repo.alternatives(conn, p, min_stock=item.qty)
             unavailable.append({"sku": p.sku, "name": p.name, "requested": item.qty, "available": 0,
@@ -239,6 +244,7 @@ async def propose_reorder(conn: AsyncConnection, ctx: ToolContext, org: Org, raw
             qty = p.stock
             changes.append(f"{p.name}: only {p.stock} in stock (you had {item.qty}), so the quantity is {qty}.")
         lines.append(payload_line(p.id, p.sku, p.name, qty, p.price))
+    await repo.record_shortages(conn, ctx, shortages)
     if not lines:
         return Reply(
             f"NOTHING TO REORDER from {source_number}: every item is out of stock. " + " ".join(changes)
@@ -294,7 +300,7 @@ async def propose_update(
         if q - (current[s].qty if s in current else 0) > products[s].stock
     ]
     if short:
-        return await stock_issue(conn, org, short, intro=intro or f"Not enough stock to change {number}.")
+        return await stock_issue(conn, ctx, org, short, intro=intro or f"Not enough stock to change {number}.")
 
     # Lines already on the order keep their snapshot price; new SKUs take today's price.
     lines = [

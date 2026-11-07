@@ -111,6 +111,22 @@ async def alternatives(conn: AsyncConnection, of: Product, min_stock: int, limit
     return [Product(*r) for r in rows]
 
 
+async def record_shortages(conn: AsyncConnection, ctx: ToolContext, short: list[tuple[str, int, int]]) -> None:
+    """One stock_events row per (sku, requested, available) line a customer couldn't get:
+    the admin metric most_out_of_stock counts them. Written in the tool's own transaction."""
+    rows = [
+        {"o": ctx.org_id, "u": ctx.user_id, "s": sku, "r": requested, "a": available,
+         "c": ctx.conversation_id, "t": clock.now()}
+        for sku, requested, available in short if requested > available
+    ]  # fmt: skip
+    if rows:
+        await conn.execute(
+            text("INSERT INTO stock_events (org_id, user_id, sku, requested_qty, available_qty, conversation_id, created_at) "
+                 "VALUES (:o, :u, :s, :r, :a, :c, :t)"),
+            rows,
+        )  # fmt: skip
+
+
 async def take_stock(conn: AsyncConnection, product_id: uuid.UUID, qty: int) -> None:
     """Atomic, guarded decrement. Zero rows means not enough stock: abort everything."""
     res = await conn.execute(

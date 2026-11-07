@@ -25,13 +25,13 @@ TENANT_TABLES = (
     "users", "products", "orders", "order_items", "order_status_history",
     "services", "practitioners", "practitioner_services", "opening_hours", "holidays",
     "bookings", "conversations", "messages", "proposals", "agent_runs", "kb_chunks",
-    "order_counters", "booking_counters",
+    "order_counters", "booking_counters", "stock_events",
 )  # fmt: skip
 
 # Customer-owned tables: also carry user_id and a RESTRICTIVE own-rows policy.
 CUSTOMER_TABLES = (
     "orders", "order_items", "order_status_history", "bookings",
-    "conversations", "messages", "proposals",
+    "conversations", "messages", "proposals", "stock_events",
 )  # fmt: skip
 
 # Far enough ahead that no fixture booking ever lands near "now".
@@ -243,6 +243,13 @@ async def seed_tenant(owner: AsyncEngine, vertical: str) -> Tenant:
                 ),
                 {"o": org_id, "u": user, "c": conv},
             )
+            await conn.execute(
+                text(
+                    "INSERT INTO stock_events (org_id, user_id, sku, requested_qty, available_qty, "
+                    "conversation_id) VALUES (:o, :u, 'SKU-1', 20, 10, :c)"
+                ),
+                {"o": org_id, "u": user, "c": conv},
+            )
             t.orders[user] = order
             t.conversations[user] = conv
             t.bookings[user] = await insert_booking(conn, t, user, practitioner, BASE_TIME)
@@ -327,6 +334,11 @@ def valid_row_sql(table: str, t: Tenant) -> tuple[str, dict]:
             "INSERT INTO kb_chunks (org_id, doc_id, doc_title, section, content, embedding) "
             "VALUES (:o, 'd', 't', :sec, 'c', CAST(:v AS vector))",
             {"sec": new_id().hex, "v": ZERO_VECTOR},
+        ),
+        "stock_events": (
+            "INSERT INTO stock_events (org_id, user_id, sku, requested_qty, available_qty) "
+            "VALUES (:o, :x, 'SKU-1', 5, 1)",
+            {},
         ),
         # The org already has a counter (its fixture orders created it), hence the upsert.
         "order_counters": (
