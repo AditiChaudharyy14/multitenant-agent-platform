@@ -30,13 +30,14 @@ def test_admin_sees_analytics_and_a_metric_card(page: Page) -> None:
     link.click()
     page.wait_for_url("**/a/himali-tea/admin")
     expect(page.get_by_text("I'm read-only")).to_be_visible()
-    expect(page.get_by_role("button", name="How did we do today?")).to_be_visible()
+    # The starter in the empty chat (earlier analytics chats with that title sit in the sidebar).
+    starter = page.get_by_role("main").get_by_role("button", name="How did we do today?")
+    expect(starter).to_be_visible()
     shot(page, "admin-empty")
 
-    page.get_by_role("button", name="How did we do today?").click()
-    card = page.get_by_test_id("metric-card").last
+    starter.click()
+    card = page.get_by_test_id("metric-card").filter(has_text="Orders by status").last
     expect(card).to_be_visible()
-    expect(card).to_contain_text("Orders by status")
     footnote = card.get_by_test_id("metric-footnote")
     expect(footnote).to_contain_text(re.compile(r"today, \w{3} \d+ \w{3} \d{4}"))
     expect(footnote).to_contain_text("Asia/Kathmandu")
