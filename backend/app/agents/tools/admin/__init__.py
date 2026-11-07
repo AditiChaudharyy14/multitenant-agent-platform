@@ -16,7 +16,15 @@ from app import clock
 from app.agents.tools.base import Tool, ToolResult, error_result
 from app.agents.tools.common.args import Args, org_of
 from app.db.session import readonly_tx
-from app.domain.analytics.metrics import DEFAULT_LIMIT, METRICS, Metric, compute
+from app.domain.analytics.metrics import (
+    DEFAULT_LIMIT,
+    METRICS,
+    SUMMARY_DEFINITION,
+    SUMMARY_SECTIONS,
+    Metric,
+    activity_summary,
+    compute,
+)
 from app.domain.analytics.windows import WindowError, WindowName, resolve_window
 from app.tenancy.context import ToolContext
 
@@ -68,9 +76,38 @@ def _tool(metric: Metric) -> Tool:
     )
 
 
-# One tool per metric, grouped by the verticals that have it (the registry keys on vertical).
-ADMIN_TOOLS: dict[str, Tool] = {name: _tool(m) for name, m in METRICS.items()}
+async def _summary(ctx: ToolContext, args: MetricArgs) -> ToolResult:
+    # Same guarantees as each metric tool: readonly_tx from the session-built ctx.
+    async with readonly_tx(ctx.tenant) as conn:
+        org = await org_of(conn, ctx)
+        try:
+            window = resolve_window(args.window, org.timezone, clock.now(), args.start_date, args.end_date)
+        except WindowError as exc:
+            return error_result(f"{exc}. Fix the window and call activity_summary again.")
+        result = await activity_summary(conn, org, window)
+    # One standard metric card per section: the frontend needs no new component.
+    cards = [{"type": "metric", **section} for section in result["sections"]]
+    return ToolResult(json.dumps(result, ensure_ascii=False), cards=cards, activity_label=f"Activity summary: {window.label}")
+
+
+SUMMARY_TOOL = Tool(
+    name="activity_summary",
+    description=(
+        "Activity summary (read-only): every headline metric for one window in a single call "
+        f"(orders or bookings by status, revenue or cancellations, active customers, new sign-ups, "
+        f"conversion rate), each with its own definition. Use it for broad questions like "
+        f"'how did we do today?'. Definition: {SUMMARY_DEFINITION}"
+    ),
+    args_model=MetricArgs,
+    handler=_summary,
+    activity_label=ACTIVITY,
+)
+
+# One tool per metric, grouped by the verticals that have it (the registry keys on vertical),
+# plus the summary, which every vertical with summary sections gets.
+ADMIN_TOOLS: dict[str, Tool] = {name: _tool(m) for name, m in METRICS.items()} | {SUMMARY_TOOL.name: SUMMARY_TOOL}
 
 
 def admin_tools_for_vertical(vertical: str) -> list[Tool]:
-    return [ADMIN_TOOLS[name] for name, m in METRICS.items() if vertical in m.verticals]
+    summary = [SUMMARY_TOOL] if vertical in SUMMARY_SECTIONS else []
+    return summary + [ADMIN_TOOLS[name] for name, m in METRICS.items() if vertical in m.verticals]

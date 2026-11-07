@@ -38,9 +38,10 @@ IDENTITY = {"org_id", "user_id", "customer_id", "role"}
 @pytest.mark.parametrize("vertical", list(REGISTRY))
 def test_admin_registry_holds_only_metric_tools(vertical: str) -> None:
     names = set(admin_tools_for(vertical))
-    assert names and names <= set(METRICS)
+    # One tool per metric of the vertical, plus activity_summary (which only composes them).
+    assert names and names <= set(METRICS) | {"activity_summary"}
     assert not names & MUTATING and "search_knowledge" not in names
-    assert names == {n for n, m in METRICS.items() if vertical in m.verticals}  # keyed on vertical
+    assert names == {n for n, m in METRICS.items() if vertical in m.verticals} | {"activity_summary"}  # keyed on vertical
 
 
 @pytest.mark.parametrize("vertical", list(REGISTRY))
@@ -123,6 +124,13 @@ async def test_store_admin_sees_zero_rows_of_another_org(shop: Shop, other_shop:
     assert (await _tool_values(shop.org_id, shop.admin, "ai_usage"))["runs"] == 0
     # Control: the other org's own admin sees its numbers through the same tools.
     assert (await _tool_values(other_shop.org_id, other_shop.admin, "orders_by_status"))["total"] == 6
+    # The summary composes the same RLS-scoped queries: nothing of the other org leaks in.
+    ctx = ToolContext(shop.org_id, shop.admin, "admin", uuid.uuid4(), uuid.uuid4())
+    with clock.freeze(NOW):
+        result = await call(ADMIN_TOOLS["activity_summary"], ctx, window="this_month")
+    by = {s["metric"]: s["values"] for s in json.loads(result.content_for_model)["sections"]}
+    assert by["orders_by_status"]["total"] == 0 and by["revenue"]["revenue"]["amount"] == "0.00"
+    assert by["new_signups"]["new_signups"] == 0
 
 
 async def test_booking_admin_sees_zero_rows_of_another_org(studio: Studio, other_studio: Studio, owner_engine: AsyncEngine) -> None:

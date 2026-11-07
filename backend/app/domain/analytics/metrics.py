@@ -281,3 +281,26 @@ async def compute(conn: AsyncConnection, org: Org, name: str, window: Window, li
     values = await metric.compute(conn, org, window, limit)
     return {"metric": name, "title": metric.title, "values": values, "window": window.as_dict(),
             "definition": metric.definition}  # fmt: skip
+
+
+# ───────────── "How did we do?" ─────────────
+
+# The sections of activity_summary per vertical (keyed on vertical, never on a slug). Each
+# is an existing metric, computed by compute() above: the summary adds no numbers of its own.
+SUMMARY_SECTIONS: dict[str, list[str]] = {
+    "store": ["orders_by_status", "revenue", "average_order_value", "active_customers", "new_signups", "conversion_rate"],
+    "booking": ["bookings_by_status", "cancellations", "active_customers", "new_signups", "conversion_rate"],
+}
+
+SUMMARY_DEFINITION = (
+    "The headline metrics for the window, one section each; every section carries its own "
+    "definition, exactly as when that metric is asked for on its own."
+)
+
+
+async def activity_summary(conn: AsyncConnection, org: Org, window: Window) -> dict[str, Any]:
+    """Every headline metric of the org's vertical for one window, on one (read-only)
+    connection. A section is byte-for-byte what compute() returns for that metric."""
+    sections = [await compute(conn, org, name, window) for name in SUMMARY_SECTIONS[org.vertical]]
+    return {"metric": "activity_summary", "title": "Activity summary", "window": window.as_dict(),
+            "definition": SUMMARY_DEFINITION, "sections": sections}  # fmt: skip

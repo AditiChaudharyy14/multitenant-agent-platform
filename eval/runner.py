@@ -38,6 +38,7 @@ from sqlalchemy.engine import make_url  # noqa: E402
 import checks  # noqa: E402
 import evaldb  # noqa: E402
 import report  # noqa: E402
+import staleness  # noqa: E402
 from app import clock  # noqa: E402
 from app.agents.ids import deterministic_ids  # noqa: E402
 from app.agents.providers import _live  # noqa: E402
@@ -195,7 +196,9 @@ async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider,
                             rec.citations = [x["id"] for x in data.get("citations", [])]
                     turns.append(rec)
                     await _fill_run(owner, org, rec)
-                    if rec.run_error and rec.run_error.startswith(("CassetteMissing", "CassetteMismatch")):
+                    if staleness.is_stale(rec.run_error):  # recorded against an older request
+                        raise StaleCassette(rec.run_error)
+                    if rec.run_error and rec.run_error.startswith("CassetteMissing"):
                         raise ScenarioError(rec.run_error)
                     if rec.run_error:  # the provider failed (after its retries): not a valid sample
                         raise ScenarioError(f"provider failed during turn {len(turns)}: {rec.run_error}; "
@@ -205,6 +208,8 @@ async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider,
                 if sc.judge:  # what the agent actually retrieved, for the judge's groundedness score
                     result["kb_passages"] = await _kb_passages(conn, cid)
         result.update(status="pass" if not fails else "fail", failures=fails)
+    except StaleCassette as exc:
+        result.update(status="stale", failures=["cassette stale: the request changed since it was recorded"], detail=str(exc))
     except ScenarioError as exc:
         result.update(status="error", failures=[str(exc).splitlines()[0]], detail=str(exc))
     except Exception as exc:  # a harness bug: report it on this scenario, keep going
@@ -276,6 +281,18 @@ def _selected(all_: list[Scenario], only: str | None) -> list[Scenario]:
 KEEP = False
 
 
+class StaleCassette(ScenarioError):
+    """The cassette was recorded against a different request (see eval/staleness.py)."""
+
+
+def _mode(sc: Scenario, requested: str) -> str:
+    if sc.expect_http is not None:
+        return "replay"  # refused before any model call: needs no cassette, key or budget
+    if requested != "auto":
+        return requested
+    return "replay" if (CASSETTES / f"{sc.key}.json").exists() else "record"
+
+
 async def main() -> int:
     global KEEP
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
@@ -331,11 +348,17 @@ async def main() -> int:
 
     results = []
     stopped: str | None = None
-    for sc in scenarios:
-        has_cassette = (CASSETTES / f"{sc.key}.json").exists()
-        mode = args.mode if args.mode != "auto" else ("replay" if has_cassette else "record")
-        if sc.expect_http is not None:
-            mode = "replay"  # refused before any model call: needs no cassette, key or budget
+    stale: list[str] = []
+    modes = {sc.key: _mode(sc, args.mode) for sc in scenarios}
+    by_key = {sc.key: sc for sc in scenarios}
+    for key in staleness.order_for_run(modes):  # replays first: see staleness before recording
+        sc, mode = by_key[key], modes[key]
+        if mode == "record" and args.mode == "auto" and not staleness.may_record(stale):
+            results.append({"key": sc.key, "id": sc.id, "vertical": sc.vertical, "title": sc.title, "rule": sc.rule,
+                            "status": "skipped", "failures": ["not recorded: other cassettes are stale"],
+                            "turns": [], "mode": mode})  # fmt: skip
+            print(f"SKIP {sc.key:45s} not recorded: other cassettes are stale", flush=True)
+            continue
         if stopped:
             results.append({"key": sc.key, "id": sc.id, "vertical": sc.vertical, "title": sc.title, "rule": sc.rule,
                             "status": "skipped", "failures": [stopped], "turns": [], "mode": mode})  # fmt: skip
@@ -360,7 +383,9 @@ async def main() -> int:
             jmode = args.mode if args.mode != "auto" else ("replay" if judged else "record")
             r["judge_scores"] = await judge.score(sc, r, providers, jmode)
         results.append(r)
-        mark = {"pass": "PASS", "fail": "FAIL", "error": "ERR "}[r["status"]]
+        if r["status"] == "stale":
+            stale.append(sc.key)
+        mark = {"pass": "PASS", "fail": "FAIL", "error": "ERR ", "stale": "STALE"}[r["status"]]
         print(redact(f"{mark} {sc.key:45s} {mode:6s} {r['wall_ms']:>6d} ms  {'; '.join(r['failures'])[:160]}"), flush=True)
 
     if not KEEP:  # the first drop's checkpoint flushes everything, so the rest are quick
@@ -371,6 +396,13 @@ async def main() -> int:
                 print(f"warning: could not drop {evaldb.clone_name(sc.key)}: {type(exc).__name__}", flush=True)
                 break
     elapsed = time.monotonic() - t0
+    if stale:  # a stale run says nothing about the agent: keep the last real report
+        await providers.print_budget("after")
+        await main_engine.dispose()
+        print(staleness.banner(stale), flush=True)
+        return 4
+    position = {sc.key: i for i, sc in enumerate(scenarios)}
+    results.sort(key=lambda r: position[r["key"]])  # report in file order, not run order
     if args.only:  # a partial run updates those scenarios in the last full report
         results = report.merge_previous(EVAL_DIR / "results.json", results)
     results = redact_obj(results)  # results.json/.md are committed: no credentials in them

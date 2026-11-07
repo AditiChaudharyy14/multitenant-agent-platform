@@ -12,5 +12,5 @@ assertions:
   reply_contains_sql:
     - SELECT count(*) FROM bookings WHERE starts_at >= {{today}} AND starts_at < {{tomorrow}}
   reply_matches: ['today|12 Nov', 'appointment|booking|scheduled']
-  tools_called: {includes: [bookings_by_status]}
+  tools_called: {includes: [activity_summary]}
   no_new_rows: [bookings, proposals]

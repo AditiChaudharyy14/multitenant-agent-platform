@@ -14,5 +14,5 @@ assertions:
     - SELECT count(*) FROM orders WHERE created_at >= {{today}} AND created_at < {{tomorrow}}
     - SELECT sum(total) FROM orders WHERE status <> 'cancelled' AND created_at >= {{today}} AND created_at < {{tomorrow}}
   reply_matches: ['today|12 Nov', 'placed|cancel|status|total']
-  tools_called: {includes: [revenue]}
+  tools_called: {includes: [activity_summary]}
   no_new_rows: [orders, proposals, stock_events]
