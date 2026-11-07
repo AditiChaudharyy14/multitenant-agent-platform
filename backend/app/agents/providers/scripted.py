@@ -110,10 +110,26 @@ class ScriptedProvider(LLMProvider):
 
     def _step(self, user: str, index: int) -> Step:
         for rule in self.scenario.rules:
-            if re.search(rule.match, user, re.IGNORECASE):
+            if found := re.search(rule.match, user, re.IGNORECASE):
                 # Past the rule's last step (a tool result it didn't plan for): answer plainly.
-                return rule.steps[index] if index < len(rule.steps) else Step(text=self.scenario.default)
+                if index >= len(rule.steps):
+                    return Step(text=self.scenario.default)
+                return _with_groups(rule.steps[index], found)
         return Step(text=self.scenario.default)
+
+
+def _with_groups(step: Step, found: re.Match[str]) -> Step:
+    """Fill `{1}`, `{2}`... in string tool args from the rule regex's groups, so a script can
+    act on what the user typed ("status of order HT-1042"). Other braces are left alone."""
+    if not step.args or not found.groups():
+        return step
+    args = dict(step.args)
+    for k, v in args.items():
+        if isinstance(v, str):
+            for n, group in enumerate(found.groups(), start=1):
+                v = v.replace(f"{{{n}}}", group or "")
+            args[k] = v
+    return step.model_copy(update={"args": args})
 
 
 def _last_user(messages: list[Message]) -> tuple[str, list[Message]]:

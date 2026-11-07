@@ -22,3 +22,56 @@ rules:
     steps:
       - text: "Once upon a time, high in the hills above Ilam, a tea picker named Maya walked the terraces every morning before the mist lifted. She knew each bush by the shape of its leaves and the way the dew sat on them. One spring the first flush came early, and the whole valley smelled of fresh green leaves. Maya carried her basket down to the factory, where the leaves were withered, rolled, oxidised and dried. The tea that year was the best anyone could remember, bright and floral with a long sweet finish. People still talk about it."
         chunk_delay_ms: 150
+
+  # ───── Cards: the real tools run, so the cards, prices and proposals are real. ─────
+  # Store.
+  - match: "what teas"
+    steps:
+      - tool: search_products
+        args: {category: green}
+      - text: "Here are our green teas, with today's price and what is on the shelf."
+  - match: "order two sencha"
+    steps:
+      - tool: create_order
+        args: {items: [{sku: HT-GRN-003, qty: 2}], delivery_address: "House 7, Baluwatar, Kathmandu"}
+      - text: "Here is your order summary. Press Confirm to place it."
+  - match: "my orders"
+    steps:
+      - tool: list_my_orders
+      - text: "Here are your orders, newest first."
+  - match: "status of order (HT-\\d+)"
+    steps:
+      - tool: get_order_status
+        args: {order_number: "{1}"}
+      - text: "Here is where that order stands."
+  - match: "cancel order (HT-\\d+)"
+    steps:
+      - tool: cancel_order
+        args: {order_number: "{1}"}
+      - text: "Here is the cancellation summary. Press Confirm to cancel it."
+  # Booking.
+  - match: "what services"
+    steps:
+      - tool: list_services
+      - text: "These are our services, with live prices."
+  - match: "times are free"
+    steps:
+      - tool: find_available_slots
+        args: {service: Swedish Relaxation Massage}
+      - text: "Here are the free times for the next week. Pick one and I'll prepare the booking."
+  - match: "^book swedish"            # the slot chip: the server already made the proposal
+    steps:
+      - text: "That time is free. Here is the booking summary; press Confirm to book it."
+  - match: "my bookings"
+    steps:
+      - tool: list_my_bookings
+      - text: "Here are your bookings."
+  - match: "cancel booking (LW-\\d+)"
+    steps:
+      - tool: cancel_booking
+        args: {booking_number: "{1}"}
+      - text: "Here is the cancellation summary, with the fee. Press Confirm to cancel."
+  # The Confirm button: the server commits before the model speaks; it only acknowledges.
+  - match: "^confirm$"
+    steps:
+      - text: "Done, it's all set."

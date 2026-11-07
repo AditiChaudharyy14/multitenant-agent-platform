@@ -82,3 +82,14 @@ def test_the_e2e_scenario_file_is_valid_and_selected_by_settings() -> None:
     assert any(s.tool == "search_knowledge" for r in scenario.rules for s in r.steps)
     s = get_settings().model_copy(update={"llm_provider": "fake", "fake_scenario_file": str(E2E_SCENARIO)})
     assert isinstance(get_provider(s), ScriptedProvider)
+
+
+async def test_capture_groups_from_the_user_message_fill_tool_args() -> None:
+    """`{1}` in a tool arg is the rule regex's first group, so a script can say 'track order HT-1042'."""
+    scenario = Scenario.model_validate({
+        "default": "-",
+        "rules": [{"match": r"status of order (HT-\d+)", "steps": [{"tool": "get_order_status", "args": {"order_number": "{1}"}}]}],
+    })  # fmt: skip
+    history = [Message("user", "What's the status of order HT-1042?")]
+    events = [e async for e in ScriptedProvider(scenario).stream(ChatRequest("sys", history))]
+    assert events[0].call.arguments == {"order_number": "HT-1042"}
