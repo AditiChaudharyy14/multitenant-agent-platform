@@ -4,6 +4,10 @@ RLS already limits a customer to their own rows. Every query here also filters o
 user_id = ctx.user_id explicitly: an admin (whom RLS lets see the whole org) still gets
 only their own chats through this API, and a policy mistake would not be enough to leak.
 A miss (foreign, deleted or nonexistent) returns None, and the API turns it into one 404.
+
+`kind` separates the customer chat from the admin analytics chat: every lookup matches
+it, so an admin conversation id sent to a customer route (or the reverse) is a 404. The
+admin_kind RLS policy also hides admin conversations from any non-admin context.
 """
 
 import json
@@ -20,10 +24,17 @@ from app.tenancy.context import ToolContext
 TITLE_WORDS = 6
 TITLE_MAX = 120
 _CONV_COLUMNS = "id, title, created_at, updated_at"
-_OWN = "user_id = :u AND deleted_at IS NULL"
+_OWN = "user_id = :u AND kind = :k AND deleted_at IS NULL"
+KINDS = ("customer", "admin")
 
 # messages.status for each agent_runs.status.
 MESSAGE_STATUS = {"ok": "complete", "stopped": "stopped", "error": "error", "rate_limited": "error"}
+
+
+def _kind(kind: str) -> str:
+    if kind not in KINDS:
+        raise ValueError(f"unknown conversation kind {kind!r}")
+    return kind
 
 
 def auto_title(content: str) -> str:
@@ -31,48 +42,48 @@ def auto_title(content: str) -> str:
     return " ".join(content.split()[:TITLE_WORDS])[:TITLE_MAX] or "New chat"
 
 
-async def create(conn: AsyncConnection, ctx: ToolContext) -> dict[str, Any]:
+async def create(conn: AsyncConnection, ctx: ToolContext, kind: str = "customer") -> dict[str, Any]:
     row = (
         await conn.execute(
-            text(f"INSERT INTO conversations (org_id, user_id) VALUES (:o, :u) RETURNING {_CONV_COLUMNS}"),
-            {"o": ctx.org_id, "u": ctx.user_id},
+            text(f"INSERT INTO conversations (org_id, user_id, kind) VALUES (:o, :u, :k) RETURNING {_CONV_COLUMNS}"),
+            {"o": ctx.org_id, "u": ctx.user_id, "k": _kind(kind)},
         )
     ).one()
     return dict(row._mapping)
 
 
-async def list_own(conn: AsyncConnection, ctx: ToolContext) -> list[dict[str, Any]]:
+async def list_own(conn: AsyncConnection, ctx: ToolContext, kind: str = "customer") -> list[dict[str, Any]]:
     rows = await conn.execute(
         text(f"SELECT {_CONV_COLUMNS} FROM conversations WHERE {_OWN} ORDER BY updated_at DESC, id"),
-        {"u": ctx.user_id},
+        {"u": ctx.user_id, "k": _kind(kind)},
     )
     return [dict(r._mapping) for r in rows]
 
 
-async def rename(conn: AsyncConnection, ctx: ToolContext, cid: UUID, title: str) -> dict[str, Any] | None:
+async def rename(conn: AsyncConnection, ctx: ToolContext, cid: UUID, title: str, kind: str = "customer") -> dict[str, Any] | None:
     row = (
         await conn.execute(
             text(
                 f"UPDATE conversations SET title = :t, updated_at = now() WHERE id = :c AND {_OWN} "
                 f"RETURNING {_CONV_COLUMNS}"
             ),
-            {"t": title, "c": cid, "u": ctx.user_id},
+            {"t": title, "c": cid, "u": ctx.user_id, "k": _kind(kind)},
         )
     ).one_or_none()
     return dict(row._mapping) if row else None
 
 
-async def soft_delete(conn: AsyncConnection, ctx: ToolContext, cid: UUID) -> bool:
+async def soft_delete(conn: AsyncConnection, ctx: ToolContext, cid: UUID, kind: str = "customer") -> bool:
     res = await conn.execute(
         text(f"UPDATE conversations SET deleted_at = now() WHERE id = :c AND {_OWN}"),
-        {"c": cid, "u": ctx.user_id},
+        {"c": cid, "u": ctx.user_id, "k": _kind(kind)},
     )
     return res.rowcount == 1
 
 
-async def exists(conn: AsyncConnection, ctx: ToolContext, cid: UUID) -> bool:
+async def exists(conn: AsyncConnection, ctx: ToolContext, cid: UUID, kind: str = "customer") -> bool:
     found = await conn.scalar(
-        text(f"SELECT 1 FROM conversations WHERE id = :c AND {_OWN}"), {"c": cid, "u": ctx.user_id}
+        text(f"SELECT 1 FROM conversations WHERE id = :c AND {_OWN}"), {"c": cid, "u": ctx.user_id, "k": _kind(kind)}
     )
     return found is not None
 
@@ -88,8 +99,8 @@ def _public_tool_calls(steps: list[dict] | None) -> list[dict] | None:
     ]
 
 
-async def list_messages(conn: AsyncConnection, ctx: ToolContext, cid: UUID) -> list[dict[str, Any]] | None:
-    if not await exists(conn, ctx, cid):
+async def list_messages(conn: AsyncConnection, ctx: ToolContext, cid: UUID, kind: str = "customer") -> list[dict[str, Any]] | None:
+    if not await exists(conn, ctx, cid, kind):
         return None
     rows = await conn.execute(
         text(
@@ -120,11 +131,14 @@ async def recent_messages(conn: AsyncConnection, ctx: ToolContext, cid: UUID, li
     return list(rows)
 
 
-async def add_user_message(conn: AsyncConnection, ctx: ToolContext, cid: UUID, content: str) -> UUID | None:
+async def add_user_message(
+    conn: AsyncConnection, ctx: ToolContext, cid: UUID, content: str, kind: str = "customer"
+) -> UUID | None:
     """Store the user's message (its id is the turn id) and auto-title a new conversation."""
     # FOR UPDATE: two first messages sent at once can't both decide they're first.
     found = await conn.scalar(
-        text(f"SELECT 1 FROM conversations WHERE id = :c AND {_OWN} FOR UPDATE"), {"c": cid, "u": ctx.user_id}
+        text(f"SELECT 1 FROM conversations WHERE id = :c AND {_OWN} FOR UPDATE"),
+        {"c": cid, "u": ctx.user_id, "k": _kind(kind)},
     )
     if found is None:
         return None

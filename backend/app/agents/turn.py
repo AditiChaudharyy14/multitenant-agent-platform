@@ -16,11 +16,12 @@ from pydantic import ValidationError
 
 from app import clock
 from app.agents.loop import run_turn
+from app.agents.prompts.admin import build_admin_prompt
 from app.agents.prompts.system import build_system_prompt
 from app.agents.providers.base import LLMProvider, Message
 from app.agents.state import AgentEvent, TurnState
 from app.agents.tools.base import Tool, ToolResult, error_result
-from app.agents.tools.registry import tools_for
+from app.agents.tools.registry import admin_tools_for, tools_for
 from app.db.session import tenant_tx
 from app.domain.conversations import repo
 from app.tenancy.context import ToolContext
@@ -53,6 +54,15 @@ class TurnInput:
     history: list[Message]
     user_text: str
     action: ServerAction | None = None
+    # 'admin': the analytics chat. Its own prompt and the read-only admin registry; never
+    # a server action (the admin API accepts typed messages only).
+    agent: str = "customer"
+
+    def __post_init__(self) -> None:
+        if self.agent not in ("customer", "admin"):
+            raise ValueError(f"unknown agent {self.agent!r}")
+        if self.agent == "admin" and (self.action is not None or self.ctx.role != "admin"):
+            raise ValueError("an admin turn needs an admin session and takes no button action")
 
 
 ACTION_NOTE = """
@@ -69,7 +79,8 @@ to the customer as yourself; don't mention "the server".
 
 def start_turn(provider: LLMProvider, inp: TurnInput, *, tools: dict[str, Tool] | None = None) -> tuple[asyncio.Task[None], Queue]:
     queue: Queue = asyncio.Queue()
-    chosen = tools if tools is not None else tools_for(inp.org.vertical)  # keyed on vertical only
+    registry = admin_tools_for if inp.agent == "admin" else tools_for  # both keyed on vertical only
+    chosen = tools if tools is not None else registry(inp.org.vertical)
     task = asyncio.create_task(_run(provider, inp, chosen, queue))
     _running.add(task)
     task.add_done_callback(_running.discard)
@@ -81,7 +92,8 @@ async def _run(provider: LLMProvider, inp: TurnInput, tools: dict[str, Tool], qu
     started = time.monotonic()
     cancelled = False
     try:
-        system = build_system_prompt(inp.org, clock.now())
+        build = build_admin_prompt if inp.agent == "admin" else build_system_prompt
+        system = build(inp.org, clock.now())
         if inp.action is not None:
             # Deterministic: the action runs here, before (and regardless of) any model call.
             result = await _server_action(inp, tools, state, queue)

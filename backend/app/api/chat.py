@@ -149,6 +149,11 @@ async def post_message(
 
     turn_ctx = ToolContext(ctx.org_id, ctx.user_id, ctx.role, conversation_id, turn_id)
     inp = TurnInput(org=org, ctx=turn_ctx, history=history, user_text=user_text, action=action)
+    return stream_turn(provider, inp)
+
+
+def stream_turn(provider: LLMProvider, inp: TurnInput) -> StreamingResponse:
+    """The SSE response for one turn (customer or admin chat)."""
     return StreamingResponse(
         _stream(provider, inp),
         media_type="text/event-stream",
