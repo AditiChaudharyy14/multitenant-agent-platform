@@ -8,6 +8,6 @@ setup:
 turns:
   - user: Book a Swedish Relaxation Massage with Sunita Rai on Tuesday 17 November at 14:00.
 assertions:
-  reply_matches: ["(not|isn't|is not|no longer) (free|available)|already (booked|taken)|unavailable|taken|busy|booked (at|then)", '(\d{1,2}[:.]\d{2}|\d{1,2} ?[ap]m)']
+  reply_matches: ["(not|isn't|is not|no longer) (free|available)|already (booked|taken)|unavailable|taken|busy", '(\d{1,2}[:.]\d{2}|\d{1,2} ?[ap]m)']
   any_reply_not_matches: ['Suman']
   no_new_rows: [bookings, proposals]
