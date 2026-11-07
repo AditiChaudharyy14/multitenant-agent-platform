@@ -207,3 +207,17 @@ async def test_ai_usage_today(built_shop: Shop) -> None:
     assert by["unknown-model"]["estimated_cost_usd"] is None
     assert v["estimated_cost_usd"] == "0.000700" and v["unpriced_models"] == ["unknown-model"]
     assert "free tier actual cost $0" in v["pricing_note"]
+
+
+async def test_utilisation_on_a_closed_day_says_so_instead_of_a_rate(built_studio: Studio) -> None:
+    """Saturday is closed: no open minutes, so no rate (null, never 0%), and the result says why."""
+    v = (await metric(built_studio.org_id, built_studio.admin, "practitioner_utilisation", "custom",
+                      start_date=date(2026, 11, 14), end_date=date(2026, 11, 14)))["values"]  # fmt: skip
+    assert v["open_minutes"] == 0
+    assert all(p["utilisation_pct"] is None for p in v["practitioners"])
+    assert "closed" in v["note"] and "not 0%" in v["note"]
+
+
+async def test_utilisation_has_no_note_when_open(built_studio: Studio) -> None:
+    v = (await metric(built_studio.org_id, built_studio.admin, "practitioner_utilisation", "this_week"))["values"]
+    assert "note" not in v

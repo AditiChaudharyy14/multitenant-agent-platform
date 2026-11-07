@@ -30,7 +30,7 @@ function show(key: string, v: unknown): string {
 }
 
 // Keys that are context, not headline numbers.
-const QUIET = new Set(["pricing_note", "unpriced_models"]);
+const QUIET = new Set(["pricing_note", "unpriced_models", "note"]);
 
 export function MetricCard({ card }: { card: Card }) {
   const values = (card.values ?? {}) as Row;
@@ -74,6 +74,7 @@ export function MetricCard({ card }: { card: Card }) {
           {window.timezone ? ` (${window.timezone})` : ""}
         </p>
         <p className="mt-0.5">{String(card.definition ?? "")}</p>
+        {typeof values.note === "string" && <p className="mt-0.5 text-ink">{values.note}</p>}
         {typeof values.pricing_note === "string" && <p className="mt-0.5">Cost {values.pricing_note}.</p>}
         {unpriced.length > 0 && <p className="mt-0.5">No price on file for: {unpriced.join(", ")}.</p>}
       </footer>

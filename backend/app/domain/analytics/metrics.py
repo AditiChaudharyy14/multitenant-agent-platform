@@ -155,11 +155,16 @@ async def _practitioner_utilisation(conn: AsyncConnection, org: Org, w: Window, 
         "FROM practitioners p LEFT JOIN bookings b ON b.practitioner_id = p.id AND b.org_id = p.org_id "
         "AND b.status IN ('confirmed', 'completed') AND b.starts_at < :end AND b.ends_at > :start "
         "WHERE p.org_id = app_org() GROUP BY p.id, p.name ORDER BY booked DESC, p.name"), _w(w))).all()  # fmt: skip
-    return {
+    values: Values = {
         "open_minutes": open_min,
         "practitioners": [{"practitioner": r.name, "booked_minutes": int(r.booked), "open_minutes": open_min,
                            "utilisation_pct": _pct(int(r.booked), open_min)} for r in rows],
     }  # fmt: skip
+    if open_min == 0:
+        # Said in words, so a model doesn't turn the null rate into "0%" or a ranking.
+        values["note"] = ("The studio was closed for the whole window (no open minutes: closed day or holiday), "
+                          "so utilisation is not defined (not 0%). Say so, and offer a longer window such as this_week.")  # fmt: skip
+    return values
 
 
 async def _top_services(conn: AsyncConnection, org: Org, w: Window, limit: int) -> Values:
