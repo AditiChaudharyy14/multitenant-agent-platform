@@ -4,7 +4,7 @@ import type { BookingRow, Card, OrderRow } from "@/lib/types";
 // ───────────── order_status ─────────────
 
 interface Step { from_status: string | null; to_status: string; at: string }
-interface Line { sku: string; name: string; qty: number; line_total: string }
+interface Line { sku: string; name: string; qty: number; line_total_display: string }
 
 const STEP_WORDS: Record<string, string> = {
   pending: "Order placed", confirmed: "Confirmed by the shop", shipped: "On its way", delivered: "Delivered", cancelled: "Cancelled",
@@ -32,7 +32,7 @@ export function OrderStatus({ card }: { card: Card }) {
           {arr<Line>(card.items).map((l) => (
             <li key={l.sku} className="flex justify-between gap-3 py-1.5">
               <span className="min-w-0 [overflow-wrap:anywhere]">{l.qty} × {l.name}</span>
-              <span className="shrink-0 text-muted">{l.line_total}</span>
+              <span className="shrink-0 text-muted">{l.line_total_display}</span>
             </li>
           ))}
         </ul>

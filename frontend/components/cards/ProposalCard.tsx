@@ -6,7 +6,7 @@ import { useCardEnv } from "@/components/cards/CardEnv";
 import { arr, str } from "@/components/cards/ui";
 import type { Card, ProposalState } from "@/lib/types";
 
-interface Line { sku: string; name: string; qty: number; unit_price: string; line_total: string }
+interface Line { sku: string; name: string; qty: number; line_total_display: string }
 interface Diff { sku: string; name: string; old_qty: number; new_qty: number }
 
 const TITLES: Record<string, string> = {
@@ -105,7 +105,7 @@ function OrderBody({ card }: { card: Card }) {
             <span className="min-w-0 [overflow-wrap:anywhere]">
               {l.qty} × {l.name}
             </span>
-            <span className="shrink-0 text-muted">{l.line_total}</span>
+            <span className="shrink-0 text-muted">{l.line_total_display}</span>
           </li>
         ))}
       </ul>
