@@ -2,7 +2,8 @@
 
 Talks to the running backend over HTTP exactly like the browser: logs in (the slug only
 picks the org), creates a conversation (or continues CONV), posts the question and prints
-the SSE stream. Q="!confirm <proposal_id>" presses a card's Confirm button instead, and
+the SSE stream. --admin (make chat ADMIN=1) uses the admin analytics chat instead, which
+needs an admin account. Q="!confirm <proposal_id>" presses a card's Confirm button instead, and
 Q="!select <service>|<start>[|<practitioner>[|<booking number>]]" presses a slot button.
 Runs inside the backend container. DEMO ONLY: a password on the command line is visible
 in the process list and shell history; use the seeded demo accounts.
@@ -25,6 +26,7 @@ def main() -> int:
     p.add_argument("--email", required=True)
     p.add_argument("--password", required=True)
     p.add_argument("--conversation", help="continue this conversation instead of starting one")
+    p.add_argument("--admin", action="store_true", help="the admin analytics chat (/api/admin/conversations)")
     p.add_argument("question")
     a = p.parse_args()
 
@@ -35,8 +37,16 @@ def main() -> int:
         if r.status_code != 200:
             print(f"login failed: {r.status_code} {r.text}", file=sys.stderr)
             return 1
-        cid = a.conversation or c.post("/api/conversations").json()["id"]
-        print(f"org={a.org} conversation={cid}\n> {a.question}\n")
+        chat_api = "/api/admin/conversations" if a.admin else "/api/conversations"
+        if a.conversation:
+            cid = a.conversation
+        else:
+            r = c.post(chat_api)
+            if r.status_code != 201:
+                print(f"could not start a chat: {r.status_code} {r.text}", file=sys.stderr)
+                return 1
+            cid = r.json()["id"]
+        print(f"org={a.org} {'admin ' if a.admin else ''}conversation={cid}\n> {a.question}\n")
         status = "?"
         body: dict = {"content": a.question}
         if a.question.startswith("!confirm "):  # the Confirm button: no model decides the commit
@@ -45,7 +55,7 @@ def main() -> int:
             parts = [x.strip() or None for x in a.question.split(maxsplit=1)[1].split("|")] + [None, None]
             body = {"action": {"type": "select_slot", "service": parts[0], "start": parts[1],
                                "practitioner": parts[2], "booking_number": parts[3]}}  # fmt: skip
-        with c.stream("POST", f"/api/conversations/{cid}/messages", json=body) as resp:
+        with c.stream("POST", f"{chat_api}/{cid}/messages", json=body) as resp:
             if resp.status_code != 200:
                 print(f"error {resp.status_code}: {resp.read().decode()}", file=sys.stderr)
                 return 1
@@ -119,6 +129,11 @@ def _card(card: dict) -> str:
         if card.get("actions"):
             out.append(f"    [button] {card['actions'][0]['label']}  proposal_id={card['proposal_id']}")
         return "\n".join(out)
+    if kind == "metric":
+        w = card["window"]
+        return (f"metric {card['metric']}: {json.dumps(card['values'], ensure_ascii=False)}\n"
+                f"    window: {w['label']} [{w['start']} .. {w['end']}) {w['timezone']}\n"
+                f"    definition: {card['definition']}")
     if kind == "booking_list":
         out = ["booking_list"]
         for group in ("upcoming", "past"):

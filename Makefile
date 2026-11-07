@@ -38,10 +38,11 @@ kb-search:  ## make kb-search ORG=<slug> Q="question"
 
 # One real chat turn through the running backend's HTTP API (spends LLM requests).
 # DEMO ONLY: the password is on the command line; use a seeded demo account.
-# CONV=<id> continues a conversation (its id is printed on the first line).
-chat:  ## make chat ORG=<slug> EMAIL=<email> PASSWORD=<pw> Q="question" [CONV=<id>]
+# CONV=<id> continues a conversation (its id is printed on the first line). ADMIN=1 uses the
+# admin analytics chat (an admin account, e.g. admin@himali.test).
+chat:  ## make chat ORG=<slug> EMAIL=<email> PASSWORD=<pw> Q="question" [CONV=<id>] [ADMIN=1]
 	@test -n "$(ORG)" -a -n "$(EMAIL)" -a -n "$(PASSWORD)" -a -n "$(Q)" || (echo 'usage: make chat ORG=<slug> EMAIL=<email> PASSWORD=<pw> Q="..." [CONV=<id>]' && exit 1)
-	docker compose exec backend python -m scripts.chat --org "$(ORG)" --email "$(EMAIL)" --password "$(PASSWORD)" $(if $(CONV),--conversation "$(CONV)") "$(Q)"
+	docker compose exec backend python -m scripts.chat --org "$(ORG)" --email "$(EMAIL)" --password "$(PASSWORD)" $(if $(CONV),--conversation "$(CONV)") $(if $(ADMIN),--admin) "$(Q)"
 
 # Tests and evals use db-ephemeral (compose profile "ephemeral"): tmpfs data, durability
 # off, never the dev `db`. Its init scripts create the roles, app_test and eval_template on
