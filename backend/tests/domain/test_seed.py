@@ -62,6 +62,8 @@ def test_seed_now_parsing() -> None:
 
 
 async def test_reseeding_is_idempotent(seeded: dict[str, uuid.UUID], owner_engine: AsyncEngine) -> None:
+    # Reseed first: earlier tests may have added rows (e.g. sign-ups) to the seeded orgs.
+    await seed_all(require_owner_url(), get_settings().seed_dir, SEED_NOW, analytics=False)
     before = {v: await snapshot(owner_engine, o) for v, o in seeded.items()}
     await seed_all(require_owner_url(), get_settings().seed_dir, SEED_NOW, analytics=False)
     after = {v: await snapshot(owner_engine, o) for v, o in seeded.items()}

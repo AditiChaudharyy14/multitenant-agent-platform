@@ -13,8 +13,11 @@ from app.tenancy.orgs import OrgConfig, check_orgs_present, load_org_configs
 APP_DIR = Path(__file__).resolve().parents[2] / "app"
 
 
-def test_seed_configs_load_one_per_vertical(org_configs: list[OrgConfig]) -> None:
-    assert sorted(c.vertical for c in org_configs) == ["booking", "store"]
+def test_seed_configs_cover_every_vertical(org_configs: list[OrgConfig]) -> None:
+    # Several orgs may share a vertical (a new org is config + seed only); each vertical
+    # still needs at least one org so its behaviour is exercised.
+    assert {c.vertical for c in org_configs} == {"booking", "store"}
+    assert len({c.slug for c in org_configs}) == len(org_configs)
     for c in org_configs:
         assert c.timezone == "Asia/Kathmandu"
         assert re.fullmatch(r"#[0-9A-Fa-f]{6}", c.branding.primary_color)

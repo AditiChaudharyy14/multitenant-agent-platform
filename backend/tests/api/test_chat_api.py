@@ -44,15 +44,15 @@ async def _store_kb(cfg: OrgConfig) -> PreparedKB:
 
 
 @pytest.fixture
-async def chat_orgs(org_configs: list[OrgConfig], owner_engine: AsyncEngine) -> dict[str, str]:
+async def chat_orgs(demo_org_configs: list[OrgConfig], owner_engine: AsyncEngine) -> dict[str, str]:
     """vertical → slug of a fresh org for this test; the store one has the real KB."""
     # Fresh order and booking prefixes too: both are unique in orgs, like the slug.
     copies = {c.vertical: c.model_copy(update={"slug": f"chat-{c.vertical}-{uuid.uuid4().hex[:10]}",
                                                "order_prefix": unique_prefix() if c.order_prefix else None,
                                                "booking_prefix": unique_prefix() if c.booking_prefix else None})
-              for c in org_configs}  # fmt: skip
+              for c in demo_org_configs}  # fmt: skip
     await sync_orgs(require_owner_url(), list(copies.values()))
-    kb = await _store_kb(next(c for c in org_configs if c.vertical == "store"))
+    kb = await _store_kb(next(c for c in demo_org_configs if c.vertical == "store"))
     async with owner_engine.begin() as conn:
         org_id = await conn.scalar(text("SELECT id FROM orgs WHERE slug = :s"), {"s": copies["store"].slug})
         await set_owner_tenant(conn, org_id)

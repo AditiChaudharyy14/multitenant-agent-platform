@@ -151,16 +151,36 @@ async def as_app_user() -> None:
     assert owned == 0, "app_user must own no tables"
 
 
+def first_per_vertical(items: list, vertical_of=lambda x: x.vertical, slug_of=lambda x: x.slug) -> dict:
+    """vertical → the org with the alphabetically first slug of that vertical.
+
+    seed/ may hold several orgs of one vertical (adding one takes config + seed only).
+    Tests that assert on one org's demo rows use this pick, so they stay deterministic
+    without naming a slug; tests/isolation/test_all_seed_orgs.py covers every org.
+    """
+    picked: dict = {}
+    for item in sorted(items, key=slug_of):
+        picked.setdefault(vertical_of(item), item)
+    return picked
+
+
 @pytest.fixture
 async def org_configs() -> list[OrgConfig]:
+    """Every org in seed/, in slug order."""
     return load_org_configs(get_settings().seed_dir)
 
 
 @pytest.fixture
+async def demo_org_configs(org_configs: list[OrgConfig]) -> list[OrgConfig]:
+    """One org per vertical (first_per_vertical), for tests that copy a vertical's config."""
+    return list(first_per_vertical(org_configs).values())
+
+
+@pytest.fixture
 async def synced_orgs(org_configs: list[OrgConfig]) -> dict[str, OrgConfig]:
-    """The seed orgs upserted into app_test, keyed by vertical so tests never name a slug."""
+    """All seed orgs upserted into app_test; one per vertical returned, so tests never name a slug."""
     await sync_orgs(require_owner_url(), org_configs)
-    return {c.vertical: c for c in org_configs}
+    return first_per_vertical(org_configs)
 
 
 # Fixed seed "now" for tests: Monday 9 Nov 2026, 10:00 in the orgs' timezone. Two days
@@ -169,8 +189,8 @@ SEED_NOW = "2026-11-09T10:00"
 
 
 @pytest.fixture(scope="session")
-def seeded(migrated_test_db: None) -> dict[str, uuid.UUID]:
-    """Run the real `make seed` code once against app_test; org ids keyed by vertical.
+def seeded_all(migrated_test_db: None) -> dict[str, uuid.UUID]:
+    """Run the real `make seed` code once against app_test; org ids of EVERY seed org, by slug.
 
     Base data.yaml only (analytics=False), like the eval template: the tests below assert
     on exactly the demo rows. tests/domain/test_seed_analytics.py covers analytics.yaml.
@@ -183,4 +203,15 @@ def seeded(migrated_test_db: None) -> dict[str, uuid.UUID]:
     from app.seed.run import seed_all
 
     result = asyncio.run(seed_all(require_owner_url(), get_settings().seed_dir, SEED_NOW, analytics=False))
-    return {r.vertical: r.org_id for r in result}
+    return {r.slug: r.org_id for r in result}
+
+
+@pytest.fixture(scope="session")
+def seeded(seeded_all: dict[str, uuid.UUID]) -> dict[str, uuid.UUID]:
+    """Seeded org ids keyed by vertical (first_per_vertical's pick)."""
+    picked = first_per_vertical(list(seeded_all), vertical_of=_vertical_of_slug, slug_of=lambda s: s)
+    return {v: seeded_all[slug] for v, slug in picked.items()}
+
+
+def _vertical_of_slug(slug: str) -> str:
+    return next(c.vertical for c in load_org_configs(get_settings().seed_dir) if c.slug == slug)

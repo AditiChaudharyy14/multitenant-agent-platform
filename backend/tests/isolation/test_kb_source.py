@@ -33,14 +33,14 @@ BOOKING_REF = "faq#do-i-need-to-book-in-advance"
 
 
 @pytest.fixture
-async def kb_orgs(org_configs: list[OrgConfig], owner_engine: AsyncEngine) -> dict[str, str]:
+async def kb_orgs(demo_org_configs: list[OrgConfig], owner_engine: AsyncEngine) -> dict[str, str]:
     """vertical → slug of a fresh org holding that vertical's real seed KB."""
     copies = {c.vertical: c.model_copy(update={"slug": f"kbsrc-{c.vertical}-{uuid.uuid4().hex[:10]}",
                                                "order_prefix": unique_prefix() if c.order_prefix else None,
                                                "booking_prefix": unique_prefix() if c.booking_prefix else None})
-              for c in org_configs}  # fmt: skip
+              for c in demo_org_configs}  # fmt: skip
     await sync_orgs(require_owner_url(), list(copies.values()))
-    for original in org_configs:
+    for original in demo_org_configs:
         org_dir = Path(get_settings().seed_dir) / original.slug
         data = load_seed_data(org_dir / "data.yaml", original.vertical)
         catalogs = {"products": {p.name: p.sku for p in data.products},
