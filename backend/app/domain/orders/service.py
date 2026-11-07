@@ -44,9 +44,11 @@ EDITABLE = "pending"
 # ───────────── small builders ─────────────
 
 
-def line_card(sku: str, name: str, qty: int, unit_price: Decimal) -> dict[str, Any]:
+def line_card(sku: str, name: str, qty: int, unit_price: Decimal, currency: str) -> dict[str, Any]:
+    """One order line for a card. The *_display fields use format_money, like every total."""
     return {"sku": sku, "name": name, "qty": qty, "unit_price": money_str(unit_price),
-            "line_total": money_str(unit_price * qty)}  # fmt: skip
+            "line_total": money_str(unit_price * qty), "unit_price_display": format_money(unit_price, currency),
+            "line_total_display": format_money(unit_price * qty, currency)}  # fmt: skip
 
 
 def payload_line(product_id: uuid.UUID, sku: str, name: str, qty: int, unit_price: Decimal, **extra: Any) -> dict[str, Any]:
@@ -194,7 +196,7 @@ async def propose_new_order(
     total = total_of(lines)
     payload = {"lines": lines, "delivery_address": address, "total": money_str(total), **(extra or {})}
     card = {
-        "lines": [line_card(x["sku"], x["name"], x["qty"], Decimal(x["unit_price"])) for x in lines],
+        "lines": [line_card(x["sku"], x["name"], x["qty"], Decimal(x["unit_price"]), org.currency) for x in lines],
         "total": money_str(total), "total_display": format_money(total, org.currency),
         "delivery_address": address, "changes": changes or [], "unavailable": [], **(extra or {}),
     }  # fmt: skip
@@ -246,7 +248,7 @@ async def propose_reorder(conn: AsyncConnection, ctx: ToolContext, org: Org, raw
     payload = {"lines": lines, "delivery_address": source.delivery_address, "total": money_str(total),
                "source_order_number": source_number}  # fmt: skip
     card = {
-        "lines": [line_card(x["sku"], x["name"], x["qty"], Decimal(x["unit_price"])) for x in lines],
+        "lines": [line_card(x["sku"], x["name"], x["qty"], Decimal(x["unit_price"]), org.currency) for x in lines],
         "total": money_str(total), "total_display": format_money(total, org.currency),
         "delivery_address": source.delivery_address, "source_order_number": source_number,
         "changes": changes, "unavailable": unavailable,
@@ -315,7 +317,7 @@ async def propose_update(
     }  # fmt: skip
     card = {
         "order_number": number,
-        "lines": [line_card(x["sku"], x["name"], x["qty"], Decimal(x["unit_price"])) for x in lines],
+        "lines": [line_card(x["sku"], x["name"], x["qty"], Decimal(x["unit_price"]), org.currency) for x in lines],
         "diff": diff, "old_total": money_str(order.total), "total": money_str(total),
         "total_display": format_money(total, org.currency),
         "old_delivery_address": order.delivery_address, "delivery_address": new_address,
@@ -339,7 +341,7 @@ async def propose_cancel(conn: AsyncConnection, ctx: ToolContext, org: Org, raw_
     current = await repo.items(conn, order.id)
     payload = {"order_id": str(order.id), "order_number": number}
     card = {
-        "order_number": number, "lines": [line_card(i.sku, i.name, i.qty, i.unit_price) for i in current],
+        "order_number": number, "lines": [line_card(i.sku, i.name, i.qty, i.unit_price, org.currency) for i in current],
         "total": money_str(order.total), "total_display": format_money(order.total, org.currency),
         "delivery_address": order.delivery_address, "changes": [], "unavailable": [],
     }  # fmt: skip
@@ -360,7 +362,7 @@ async def order_status(conn: AsyncConnection, ctx: ToolContext, org: Org, raw_nu
     card = {
         "type": "order_status", "order_number": number, "status": order.status,
         "placed_at": local_display(order.created_at, org.timezone),
-        "items": [line_card(i.sku, i.name, i.qty, i.unit_price) for i in lines],
+        "items": [line_card(i.sku, i.name, i.qty, i.unit_price, org.currency) for i in lines],
         "total": money_str(order.total), "total_display": format_money(order.total, org.currency),
         "delivery_address": order.delivery_address, "payment_method": PAYMENT_METHOD,
         "can_edit": order.status == EDITABLE,

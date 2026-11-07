@@ -78,7 +78,7 @@ async def commit_new_order(conn: AsyncConnection, ctx: ToolContext, proposal: Pr
     shown = display_number(org.order_prefix, number)
     card = {
         "type": "order_confirmed", "order_number": shown, "status": "pending",
-        "lines": [service.line_card(i.sku, i.name, i.qty, i.unit_price) for i in lines],
+        "lines": [service.line_card(i.sku, i.name, i.qty, i.unit_price, org.currency) for i in lines],
         "total": money_str(total), "total_display": format_money(total, org.currency),
         "delivery_address": p["delivery_address"], "payment_method": service.PAYMENT_METHOD,
     }  # fmt: skip
@@ -150,7 +150,7 @@ async def commit_update(conn: AsyncConnection, ctx: ToolContext, proposal: Propo
     await repo.update_order(conn, order.id, address=p["delivery_address"], total=total)
     card = {
         "type": "order_updated", "order_number": number, "status": order.status,
-        "lines": [service.line_card(i.sku, i.name, i.qty, i.unit_price) for i in lines],
+        "lines": [service.line_card(i.sku, i.name, i.qty, i.unit_price, org.currency) for i in lines],
         "total": money_str(total), "total_display": format_money(total, org.currency),
         "delivery_address": p["delivery_address"],
     }  # fmt: skip

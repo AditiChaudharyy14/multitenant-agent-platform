@@ -173,7 +173,8 @@ async def test_get_order_status_shows_history_in_org_time(shop: Shop, owner_engi
     assert [h["to_status"] for h in status["history"]] == ["pending", "confirmed", "shipped"]
     assert status["history"][0]["at"] == "Sun 1 Nov 2026, 10:00"
     assert status["items"] == [{"sku": "GRN-1", "name": "Green Alpha", "qty": 2, "unit_price": "800.00",
-                                "line_total": "1600.00"}]  # fmt: skip
+                                "line_total": "1600.00", "unit_price_display": "NPR 800.00",
+                                "line_total_display": "NPR 1,600.00"}]  # fmt: skip
     assert "id" not in status and str(shop.org_id) not in result.content_for_model
 
 
