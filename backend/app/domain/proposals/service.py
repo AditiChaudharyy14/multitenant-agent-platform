@@ -24,13 +24,16 @@ from app.domain.proposals.repo import PROPOSAL_TTL, Proposal
 from app.domain.reply import Reply
 from app.tenancy.context import ToolContext
 
-__all__ = ["PROPOSAL_TTL", "CommitAborted", "Committer", "confirm"]
+__all__ = ["PROPOSAL_TTL", "CommitAborted", "Committer", "Describer", "confirm"]
 
 log = logging.getLogger("app.proposals")
 
 # A committer gets the locked proposal inside the confirm transaction. Its Reply.status
 # is 'committed', 'refused' or 'changed'. A commit failure must raise, rolling back all.
 Committer = Callable[[AsyncConnection, ToolContext, Proposal], Awaitable[Reply]]
+# A describer names what a confirmed proposal produced, with its status read now, e.g.
+# "order HT-1005 (status: pending)". None if it can't be found (it never raises).
+Describer = Callable[[AsyncConnection, ToolContext, Proposal], Awaitable[str | None]]
 
 NOT_FOUND = Reply(
     "NOT FOUND: there is no such proposal for this customer in this conversation. "
@@ -47,6 +50,27 @@ SAME_TURN = (
     "REFUSED: the customer has not confirmed yet. Show them the summary and wait for "
     "their reply in a new message; never confirm in the turn that made the proposal."
 )
+
+
+def _describers() -> dict[str, Describer]:
+    from app.domain.bookings.commit import DESCRIBERS as BOOKING_DESCRIBERS
+    from app.domain.orders.commit import DESCRIBERS as ORDER_DESCRIBERS
+
+    return {**ORDER_DESCRIBERS, **BOOKING_DESCRIBERS}
+
+
+async def _already_confirmed(conn: AsyncConnection, ctx: ToolContext, proposal: Proposal) -> Reply:
+    """The refusal for a second confirm. It names the order or booking and its CURRENT
+    status: told only "already confirmed", a model once said a pending order was "on its way"."""
+    describe = _describers().get(proposal.kind)
+    what = await describe(conn, ctx, proposal) if describe else None
+    if what is None:
+        return Reply(f"REFUSED: {_NOT_OPEN['confirmed']}.", status="refused")
+    return Reply(
+        f"REFUSED: this proposal was already confirmed as {what}; nothing new was placed. Tell the "
+        "customer exactly that status; say nothing else about where it is or when it arrives.",
+        status="refused",
+    )
 
 
 def _committers() -> dict[str, Committer]:
@@ -80,6 +104,8 @@ async def _confirm(conn: AsyncConnection, ctx: ToolContext, proposal_id: uuid.UU
     proposal = await repo.lock(conn, ctx, proposal_id)
     if proposal is None:
         return NOT_FOUND
+    if proposal.status == "confirmed":
+        return await _already_confirmed(conn, ctx, proposal)
     if proposal.status != "open":
         return Reply(f"REFUSED: {_NOT_OPEN[proposal.status]}.", status="refused")
     if proposal.expires_at <= clock.now():

@@ -150,6 +150,15 @@ async def test_cancel_pending_restores_stock(shop: Shop, owner_engine: AsyncEngi
     assert (await history(owner_engine, shop, n))[-1] == ("pending", "cancelled", "customer")
 
 
+async def test_confirming_a_cancellation_again_names_the_order_as_cancelled(shop: Shop, owner_engine: AsyncEngine) -> None:
+    n = await pending_order(owner_engine, shop)
+    result = await call(cancel_order, turn_ctx(shop, shop.x), order_number=shop.number(n))
+    await confirm_next_turn(shop, result)
+    again = await confirm_next_turn(shop, result)
+    assert "already confirmed" in again.content_for_model
+    assert shop.number(n) in again.content_for_model and "status: cancelled" in again.content_for_model
+
+
 @pytest.mark.parametrize("status", ["confirmed", "shipped", "delivered", "cancelled"])
 async def test_cancel_non_pending_refused_with_status(shop: Shop, owner_engine: AsyncEngine, status: str) -> None:
     n = await insert_shop_order(owner_engine, shop, shop.x, [("GRN-1", 1)], status=status)

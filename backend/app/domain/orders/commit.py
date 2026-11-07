@@ -14,6 +14,7 @@ import uuid
 from decimal import Decimal
 from typing import Any
 
+from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.domain.money import format_money, money_str
@@ -21,7 +22,7 @@ from app.domain.orders import repo, service
 from app.domain.orders.numbers import display_number
 from app.domain.orders.repo import Item, OutOfStock
 from app.domain.proposals.repo import Proposal
-from app.domain.proposals.service import CommitAborted, Committer
+from app.domain.proposals.service import CommitAborted, Committer, Describer
 from app.domain.reply import Reply
 from app.tenancy.context import ToolContext
 from app.tenancy.orgs import Org, get_org_by_id
@@ -180,3 +181,21 @@ COMMITTERS: dict[str, Committer] = {
     "update_order": commit_update,
     "cancel_order": commit_cancel,
 }
+
+
+async def describe(conn: AsyncConnection, ctx: ToolContext, proposal: Proposal) -> str | None:
+    """The order this confirmed proposal created (create/reorder: orders.proposal_id) or
+    changed (update/cancel: payload order_id), with its status as it is NOW."""
+    order_id = proposal.payload.get("order_id")
+    row = (await conn.execute(
+        text("SELECT order_number, status FROM orders WHERE user_id = :u AND "
+             + ("id = :i" if order_id else "proposal_id = :p")),
+        {"u": ctx.user_id, "i": uuid.UUID(order_id) if order_id else None, "p": proposal.id},
+    )).one_or_none()  # fmt: skip
+    if row is None:
+        return None
+    org = await _org(conn, ctx)
+    return f"order {display_number(org.order_prefix, row.order_number)} (status: {row.status})"
+
+
+DESCRIBERS: dict[str, Describer] = dict.fromkeys(COMMITTERS, describe)

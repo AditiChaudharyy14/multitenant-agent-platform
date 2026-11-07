@@ -105,6 +105,25 @@ async def test_double_confirm_creates_one_order(shop: Shop, owner_engine: AsyncE
     assert await stock(owner_engine, shop, "GRN-1") == 8
 
 
+async def test_already_confirmed_refusal_names_the_order_and_its_current_status(shop: Shop, owner_engine: AsyncEngine) -> None:
+    """Seen in a live eval: told only "already confirmed", the model said a pending order was
+    "on its way". The refusal must carry the order number and its live status."""
+    _, result = await propose(shop)
+    pid = str(proposal_id(result))
+    first = await call(confirm_proposal, turn_ctx(shop, shop.x), proposal_id=pid)
+    number = card(first, "order_confirmed")["order_number"]
+
+    again = await call(confirm_proposal, turn_ctx(shop, shop.x), proposal_id=pid)
+    assert "already confirmed" in again.content_for_model
+    assert number in again.content_for_model and "status: pending" in again.content_for_model
+
+    # The status is read at refusal time, not copied from when it was confirmed.
+    await scalar(owner_engine, shop, "UPDATE orders SET status = 'shipped' WHERE proposal_id = :p RETURNING 1", p=pid)
+    later = await call(confirm_proposal, turn_ctx(shop, shop.x), proposal_id=pid)
+    assert number in later.content_for_model and "status: shipped" in later.content_for_model
+    assert await order_count(owner_engine, shop) == 1
+
+
 async def test_price_change_supersedes_and_commits_nothing(shop: Shop, owner_engine: AsyncEngine) -> None:
     _, result = await propose(shop)
     old = proposal_id(result)

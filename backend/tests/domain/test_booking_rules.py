@@ -279,6 +279,22 @@ async def test_double_confirm_books_once(studio: Studio, owner_engine: AsyncEngi
     assert await booking_count(owner_engine, studio) == 1
 
 
+async def test_already_confirmed_booking_refusal_names_the_booking_and_its_status(studio: Studio, owner_engine: AsyncEngine) -> None:
+    """The refusal carries the booking number and its live status, so the model never guesses."""
+    with clock.freeze(NOW):
+        proposed, _ = await propose_and_confirm(studio, studio.x, create_booking, service="swedish", start=iso(TUE_14))
+        again = await call(confirm_proposal, turn_ctx(studio, studio.x), proposal_id=proposal_id(proposed))
+    assert studio.number(1001) in again.content_for_model and "status: confirmed" in again.content_for_model
+
+    # Cancelled later (in another conversation, say): a re-press now reports that, live.
+    with clock.freeze(NOW):
+        cancel, _ = await propose_and_confirm(studio, studio.x, cancel_booking, booking_number=studio.number(1001))
+        late = await call(confirm_proposal, turn_ctx(studio, studio.x), proposal_id=proposal_id(proposed))
+        cancel_again = await call(confirm_proposal, turn_ctx(studio, studio.x), proposal_id=proposal_id(cancel))
+    assert studio.number(1001) in late.content_for_model and "status: cancelled" in late.content_for_model
+    assert studio.number(1001) in cancel_again.content_for_model and "status: cancelled" in cancel_again.content_for_model
+
+
 async def test_price_change_before_confirm_issues_a_fresh_proposal(studio: Studio, owner_engine: AsyncEngine) -> None:
     with clock.freeze(NOW):
         proposed = await call(create_booking, turn_ctx(studio, studio.x), service="swedish", start=iso(TUE_14))

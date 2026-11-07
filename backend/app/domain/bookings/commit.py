@@ -23,6 +23,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TypeVar
 
+from sqlalchemy import text
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection
 
@@ -31,7 +32,7 @@ from app.domain.bookings import repo, service
 from app.domain.bookings.service import booking_number, provider_for
 from app.domain.money import format_money, money_str
 from app.domain.proposals.repo import Proposal
-from app.domain.proposals.service import Committer
+from app.domain.proposals.service import Committer, Describer
 from app.domain.reply import Reply
 from app.domain.slots import engine
 from app.domain.slots.dates import local_iso
@@ -232,3 +233,21 @@ COMMITTERS: dict[str, Committer] = {
     "reschedule_booking": commit_reschedule,
     "cancel_booking": commit_cancel,
 }
+
+
+async def describe(conn: AsyncConnection, ctx: ToolContext, proposal: Proposal) -> str | None:
+    """The booking this confirmed proposal created (bookings.proposal_id) or changed
+    (reschedule/cancel: payload booking_id), with its status as it is NOW."""
+    booking_id = proposal.payload.get("booking_id")
+    row = (await conn.execute(
+        text("SELECT booking_number, status FROM bookings WHERE user_id = :u AND "
+             + ("id = :i" if booking_id else "proposal_id = :p")),
+        {"u": ctx.user_id, "i": uuid.UUID(booking_id) if booking_id else None, "p": proposal.id},
+    )).one_or_none()  # fmt: skip
+    if row is None:
+        return None
+    org = await _org(conn, ctx)
+    return f"booking {booking_number(org, row.booking_number)} (status: {row.status})"
+
+
+DESCRIBERS: dict[str, Describer] = dict.fromkeys(COMMITTERS, describe)
