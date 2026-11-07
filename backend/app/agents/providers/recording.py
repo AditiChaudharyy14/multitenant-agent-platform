@@ -135,9 +135,11 @@ class RecordReplayProvider(LLMProvider):
         hint = f"re-record just this scenario: make eval-live ONLY={scenario} (EVAL_MODE=record)"
         path = self._path(scenario)
         calls = json.loads(path.read_text(encoding="utf-8"))["calls"] if path.exists() else []
-        if index >= len(calls):
+        # Looked up by the call's own index, never its position: a call that failed while
+        # recording leaves a gap, and must not shift later calls into its slot.
+        call = next((c for c in calls if c["index"] == index), None)
+        if call is None:
             raise CassetteMissing(f"no recording for {scenario} call {index}; {hint}")
-        call = calls[index]
         if call["fingerprint"] != request_fingerprint(req):
             recorded = json.dumps(call["request"], indent=1, sort_keys=True, ensure_ascii=False).splitlines()
             current = json.dumps(request_to_dict(req), indent=1, sort_keys=True, ensure_ascii=False).splitlines()
@@ -149,7 +151,8 @@ class RecordReplayProvider(LLMProvider):
         path = self._path(scenario)
         path.parent.mkdir(parents=True, exist_ok=True)
         # Call 0 starts the scenario afresh, so a re-recording never keeps stale later calls.
-        calls = [] if index == 0 or not path.exists() else json.loads(path.read_text(encoding="utf-8"))["calls"][:index]
+        previous = [] if index == 0 or not path.exists() else json.loads(path.read_text(encoding="utf-8"))["calls"]
+        calls = [c for c in previous if c["index"] < index]  # stale later calls are dropped
         calls.append({
             "index": index,
             "fingerprint": request_fingerprint(req),

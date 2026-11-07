@@ -86,3 +86,40 @@ async def test_scopes_are_independent(tmp_path: Path) -> None:
         with cassette_scope(name):
             await collect(rec, req())
             assert json.loads((tmp_path / f"{name}.json").read_text())["calls"][0]["index"] == 0
+
+
+class _FailsOnce(FakeProvider):
+    """Fails its second call (like a mid-turn HTTP 503), then answers normally."""
+
+    def __init__(self, script: list) -> None:
+        super().__init__(script)
+        self.calls = 0
+
+    async def stream(self, r: ChatRequest):  # noqa: ANN201
+        self.calls += 1
+        if self.calls == 2:
+            from app.agents.providers.base import ProviderError
+
+            raise ProviderError("gemini HTTP 503: high demand")
+        async for e in super().stream(r):
+            yield e
+
+
+async def test_a_failed_call_never_shifts_later_calls(tmp_path: Path) -> None:
+    """Seen in a live eval: a call that raised was not saved but used up its index, so the
+    next call was stored in its slot and replay compared it against the wrong request."""
+    rec = RecordReplayProvider("record", tmp_path, _FailsOnce(["a", "c"]))
+    with cassette_scope("s"):
+        await collect(rec, req("one"))
+        with pytest.raises(Exception, match="503"):
+            await collect(rec, req("two"))
+        third = await collect(rec, req("three"))
+    calls = json.loads((tmp_path / "s.json").read_text())["calls"]
+    assert [c["index"] for c in calls] == [0, 2]
+
+    replay = RecordReplayProvider("replay", tmp_path)
+    with cassette_scope("s"):
+        await collect(replay, req("one"))
+        with pytest.raises(CassetteMissing, match="call 1"):  # the failed call: clearly missing
+            await collect(replay, req("two"))
+        assert await collect(replay, req("three")) == third  # not shifted onto call 1's slot
