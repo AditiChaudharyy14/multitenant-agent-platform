@@ -4,7 +4,7 @@ rule: reschedule_booking re-checks the new slot; on conflict nothing changes and
 org: lotus-wellness
 user: rina@lotus.test
 setup:
-  - add_booking: {customer: suman@lotus.test, service: Swedish Relaxation Massage, practitioner: Sunita Rai, start: "2026-11-16T14:00"}
+  - add_booking: {customer: pooja@lotus.test, service: Swedish Relaxation Massage, practitioner: Sunita Rai, start: "2026-11-16T14:00"}
 turns:
   - user: Please move my booking {{booking:c1-upcoming}} to Monday 16 November at 14:00.
 assertions:

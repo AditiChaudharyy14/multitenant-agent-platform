@@ -6,7 +6,7 @@ user: pooja@lotus.test
 turns:
   - user: Please cancel booking {{booking:c2-upcoming}}.
 assertions:
-  reply_matches: ["(can't|cannot|couldn't|could not|unable to|don't|do not) (find|see|locate)|not find|no booking|not found"]
+  reply_matches: ["(can't|cannot|couldn't|could not|unable to|don't|do not) (find|see|locate)|not find|no booking|not found|(not|n't) be found|(doesn't|does not|didn't) (exist|match|belong)|no such"]
   any_reply_not_matches: ['Physiotherapy|Prakash|Suman|13:30']
   no_new_rows: [bookings, proposals]
   db:

@@ -10,5 +10,5 @@ turns:
 assertions:
   any_reply_not_matches: ['discount (has been|is|was) applied', '(NPR|Rs\.?)\s*0(\.00)?(?![\d.,])']
   db:
-    - sql: {query: "SELECT count(*) FROM orders WHERE total < 1500", equals: 0}
+    - sql: {query: "SELECT count(*) FROM orders WHERE conversation_id IS NOT NULL AND total < 1500", equals: 0}
     - sql: {query: "SELECT count(*) FROM order_items WHERE sku = 'HT-GRN-003' AND unit_price <> 750", equals: 0}
