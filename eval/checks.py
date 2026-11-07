@@ -21,7 +21,8 @@ from app import clock
 from scenario import Assertions, BookingCheck, DbCheck, OrderCheck, ReplyChecks, Scenario, SetupStep
 
 # Tables no_new_rows / new_rows may name (all org-scoped).
-COUNTED_TABLES = ("orders", "order_items", "order_status_history", "bookings", "proposals", "products")
+COUNTED_TABLES = ("orders", "order_items", "order_status_history", "bookings", "proposals", "products",
+                  "conversations", "stock_events")
 
 NEXT_STATUS = {"pending": "confirmed", "confirmed": "shipped", "shipped": "delivered"}
 
@@ -90,6 +91,49 @@ async def render(conn: AsyncConnection, org: OrgInfo, s: str) -> str:
     return "".join(out) + s[pos:]
 
 
+_WINDOW = re.compile(r"\{\{(today|tomorrow|yesterday|week_start|next_week|month_start|next_month)\}\}")
+
+
+def window_bounds(org: OrgInfo) -> dict[str, str]:
+    """Local midnights around the frozen clock, worked out here independently of the app's
+    window code (it is what's under test), as timestamptz literals for SQL."""
+    tz = ZoneInfo(org.timezone)
+    today = clock.now().astimezone(tz).date()
+    week = today - timedelta(days=today.weekday())
+    month = today.replace(day=1)
+    days = {
+        "today": today, "tomorrow": today + timedelta(days=1), "yesterday": today - timedelta(days=1),
+        "week_start": week, "next_week": week + timedelta(days=7),
+        "month_start": month, "next_month": (month + timedelta(days=32)).replace(day=1),
+    }  # fmt: skip
+    return {k: "TIMESTAMPTZ '" + datetime(d.year, d.month, d.day, tzinfo=tz).isoformat() + "'" for k, d in days.items()}
+
+
+def render_sql(org: OrgInfo, sql: str) -> str:
+    bounds = window_bounds(org)
+    return _WINDOW.sub(lambda m: bounds[m.group(1)], sql)
+
+
+def _number_forms(value: Any) -> list[str]:
+    """How a ground-truth value may appear in a reply: 4450.00 → 4450, 4450.00, 4450.0."""
+    if isinstance(value, bool) or value is None:
+        return [str(value)]
+    if isinstance(value, (int, float, Decimal)):
+        d = Decimal(str(value))
+        forms = {f"{d:.2f}", f"{d:.1f}"}
+        if d == d.to_integral_value():
+            forms.add(str(int(d)))
+        return sorted(forms, key=len, reverse=True)
+    return [str(value)]
+
+
+def reply_has_value(reply: str, value: Any) -> bool:
+    flat = re.sub(r"(?<=\d),(?=\d{3})", "", reply)  # 4,450.00 → 4450.00
+    if not isinstance(value, (int, float, Decimal)):
+        return str(value).lower() in flat.lower()
+    return any(re.search(rf"(?<![\d.]){re.escape(f)}(?!\d|\.\d)", flat) for f in _number_forms(value))
+
+
 def _local(org: OrgInfo, raw: str) -> datetime:
     return datetime.fromisoformat(raw).replace(tzinfo=ZoneInfo(org.timezone))
 
@@ -131,7 +175,12 @@ async def apply_setup(conn: AsyncConnection, org: OrgInfo, step: SetupStep) -> N
              "e": starts + timedelta(minutes=svc.duration_min), "price": svc.price, "now": clock.now()},
         )  # fmt: skip
     elif step.sql:
-        await conn.execute(text(step.sql))
+        await conn.execute(text(render_sql(org, step.sql)))
+    elif step.analytics_history:
+        from app.config import get_settings
+        from app.seed.run import apply_analytics
+
+        await apply_analytics(conn, get_settings().seed_dir, org.slug, org.org_id)
 
 
 def _one(rowcount: int, what: str) -> None:
@@ -172,6 +221,8 @@ async def check_all(conn: AsyncConnection, org: OrgInfo, sc: Scenario, me: uuid.
                     turns: list[TurnRecord], before: dict[str, int]) -> list[str]:  # fmt: skip
     a: Assertions = sc.assertions
     fails: list[str] = []
+    if not turns:  # an expect_http scenario: nothing was said, only the state checks apply
+        return await _state_checks(conn, org, me, a, "", before)
     for i, (turn, t) in enumerate(zip(sc.turns, turns, strict=True)):
         if turn.expect:
             fails += check_reply(await _render_checks(conn, org, turn.expect), t.reply, t.tools, f"turn {i + 1}")
@@ -189,7 +240,12 @@ async def check_all(conn: AsyncConnection, org: OrgInfo, sc: Scenario, me: uuid.
             fails.append(f"no citation from {doc} (cited: {cited or 'none'})")
     if a.no_citations and cited:
         fails.append(f"expected no citations, got {cited}")
+    return fails + await _state_checks(conn, org, me, a, final, before)
 
+
+async def _state_checks(conn: AsyncConnection, org: OrgInfo, me: uuid.UUID, a: Assertions, final: str,
+                        before: dict[str, int]) -> list[str]:  # fmt: skip
+    fails: list[str] = []
     after = await table_counts(conn)
     for table in a.no_new_rows:
         if after[table] > before[table]:
@@ -199,6 +255,10 @@ async def check_all(conn: AsyncConnection, org: OrgInfo, sc: Scenario, me: uuid.
             fails.append(f"{table}: {after[table] - before[table]} new row(s), expected {n}")
     for check in a.db:
         fails += await _db_check(conn, org, me, check)
+    for query in a.reply_contains_sql:
+        want = await conn.scalar(text(render_sql(org, query)))
+        if not reply_has_value(final, want):
+            fails.append(f"final: reply lacks the DB value {want!r} of {query!r}")
     return fails
 
 
@@ -229,7 +289,7 @@ async def _db_check(conn: AsyncConnection, org: OrgInfo, me: uuid.UUID, check: D
         got = await conn.scalar(text(f"SELECT count(*) FROM proposals {where}"), params)  # noqa: S608
         return [] if got == p.count else [f"proposals{f' ({p.status})' if p.status else ''}: {got}, expected {p.count}"]
     if check.sql is not None:
-        got = await conn.scalar(text(check.sql.query))
+        got = await conn.scalar(text(render_sql(org, check.sql.query)))
         got = str(got) if isinstance(got, (Decimal, uuid.UUID, datetime)) else got
         return [] if got == check.sql.equals else [f"sql {check.sql.query!r}: {got!r}, expected {check.sql.equals!r}"]
     if check.order is not None:

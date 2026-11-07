@@ -1,0 +1,11 @@
+id: customer_forbidden
+title: A customer account calling the admin chat API → 403, nothing created, no model call
+rule: Admin routes require role admin from the server-side session (and admin_kind RLS backs it).
+org: himali-tea
+user: kiran@himali.test
+chat: admin
+expect_http: 403
+turns:
+  - user: How did we do today?
+assertions:
+  no_new_rows: [conversations, orders, proposals]

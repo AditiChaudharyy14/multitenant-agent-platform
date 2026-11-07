@@ -1,0 +1,18 @@
+id: store_today
+title: '"How did we do today?" → orders and revenue match the database, with window and definition'
+rule: Every number comes from a read-only metric tool and states its window and definition.
+org: himali-tea
+user: admin@himali.test
+chat: admin
+setup:
+  - analytics_history: true
+turns:
+  - user: How did we do today?
+assertions:
+  reply_contains_sql:
+    # Orders placed today (local midnight to midnight); none of today's were cancelled.
+    - SELECT count(*) FROM orders WHERE created_at >= {{today}} AND created_at < {{tomorrow}}
+    - SELECT sum(total) FROM orders WHERE status <> 'cancelled' AND created_at >= {{today}} AND created_at < {{tomorrow}}
+  reply_matches: ['today|12 Nov', 'placed|cancel|status|total']
+  tools_called: {includes: [revenue]}
+  no_new_rows: [orders, proposals, stock_events]

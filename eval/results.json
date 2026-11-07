@@ -1,12 +1,378 @@
 {
- "generated_at": "2026-11-07 11:54 UTC",
+ "generated_at": "2026-11-07 13:34 UTC",
  "primary_model": "gemini-3.5-flash-lite",
  "models": [
   "gemini-3.5-flash-lite",
   "gemini-3.1-flash-lite"
  ],
- "elapsed_s": 39.1,
+ "elapsed_s": 66.5,
  "scenarios": [
+  {
+   "key": "admin/booking_busiest_practitioner",
+   "id": "booking_busiest_practitioner",
+   "vertical": "admin",
+   "title": "\"Which practitioner is busiest this week?\" → the top practitioner by booked minutes",
+   "rule": "Utilisation = booked minutes (confirmed or completed) ÷ open minutes, stated with its window.",
+   "user": "admin@lotus.test",
+   "judge": false,
+   "status": "pass",
+   "failures": [],
+   "turns": [
+    {
+     "request": "Which practitioner is busiest this week?",
+     "reply": "Sunita Rai is the busiest practitioner this week (this week, Mon 9 Nov – Sun 15 Nov 2026), measured by practitioner utilisation (booked minutes divided by open minutes):\n\n* **Sunita Rai**: 11.4% utilisation (315 booked minutes out of 2,760 open minutes)\n* **Dr. Prakash Thapa**: 3.8% utilisation (105 booked minutes out of 2,760 open minutes)\n* **Maya Tamang**: 3.8% utilisation (105 booked minutes out of 2,760 open minutes)",
+     "status": "complete",
+     "tools": [
+      "practitioner_utilisation"
+     ],
+     "cards": [
+      {
+       "type": "metric",
+       "metric": "practitioner_utilisation",
+       "title": "Practitioner utilisation",
+       "values": {
+        "open_minutes": 2760,
+        "practitioners": [
+         {
+          "practitioner": "Sunita Rai",
+          "booked_minutes": 315,
+          "open_minutes": 2760,
+          "utilisation_pct": "11.4"
+         },
+         {
+          "practitioner": "Dr. Prakash Thapa",
+          "booked_minutes": 105,
+          "open_minutes": 2760,
+          "utilisation_pct": "3.8"
+         },
+         {
+          "practitioner": "Maya Tamang",
+          "booked_minutes": 105,
+          "open_minutes": 2760,
+          "utilisation_pct": "3.8"
+         }
+        ]
+       },
+       "window": {
+        "name": "this_week",
+        "label": "this week, Mon 9 Nov – Sun 15 Nov 2026",
+        "start": "2026-11-09T00:00:00+05:45",
+        "end": "2026-11-16T00:00:00+05:45",
+        "timezone": "Asia/Kathmandu"
+       },
+       "definition": "Booked minutes (confirmed or completed appointments, clipped to the window) divided by the studio's open minutes in the window (opening hours minus holidays), per practitioner."
+      }
+     ],
+     "citations": [],
+     "errors": [],
+     "turn_id": "38cc16df-f0e1-5431-9846-b51863f852de",
+     "model": "gemini-3.5-flash-lite",
+     "input_tokens": 5818,
+     "output_tokens": 153,
+     "latency_ms": 1329,
+     "run_error": null
+    }
+   ],
+   "wall_ms": 11670,
+   "mode": "replay"
+  },
+  {
+   "key": "admin/booking_new_clients_week",
+   "id": "booking_new_clients_week",
+   "vertical": "admin",
+   "title": "\"How many new clients this week?\" → customer sign-ups since Monday, from the database",
+   "rule": "Windows are resolved by the server (this week starts Monday, org timezone), never by the model.",
+   "user": "admin@lotus.test",
+   "judge": false,
+   "status": "pass",
+   "failures": [],
+   "turns": [
+    {
+     "request": "How many new clients this week?",
+     "reply": "For this week (Mon 9 Nov – Sun 15 Nov 2026), there were 3 new customer accounts created.",
+     "status": "complete",
+     "tools": [
+      "new_signups"
+     ],
+     "cards": [
+      {
+       "type": "metric",
+       "metric": "new_signups",
+       "title": "New sign-ups",
+       "values": {
+        "new_signups": 3
+       },
+       "window": {
+        "name": "this_week",
+        "label": "this week, Mon 9 Nov – Sun 15 Nov 2026",
+        "start": "2026-11-09T00:00:00+05:45",
+        "end": "2026-11-16T00:00:00+05:45",
+        "timezone": "Asia/Kathmandu"
+       },
+       "definition": "Customer accounts created in the window."
+      }
+     ],
+     "citations": [],
+     "errors": [],
+     "turn_id": "10f4c4b8-25a5-5784-8a37-5c23d2b85419",
+     "model": "gemini-3.5-flash-lite",
+     "input_tokens": 5675,
+     "output_tokens": 48,
+     "latency_ms": 44,
+     "run_error": null
+    }
+   ],
+   "wall_ms": 496,
+   "mode": "replay"
+  },
+  {
+   "key": "admin/booking_today",
+   "id": "booking_today",
+   "vertical": "admin",
+   "title": "\"How did we do today?\" at the studio → today's appointments match the database",
+   "rule": "Booking metrics count appointments by their start time in the org's timezone.",
+   "user": "admin@lotus.test",
+   "judge": false,
+   "status": "pass",
+   "failures": [],
+   "turns": [
+    {
+     "request": "How did we do today?",
+     "reply": "For today, Thu 12 Nov 2026:\n\n* **3** total appointments scheduled to start (appointments scheduled to start in the window, counted by their current status).\n* **2** completed appointments (appointments scheduled to start in the window, counted by their current status).\n* **0** confirmed appointments (appointments scheduled to start in the window, counted by their current status).\n* **1** cancelled appointment (appointments scheduled to start in the window, counted by their current status).\n* **1** cancelled appointment with a total cancellation fee of NPR 1,250.00 (cancelled appointments that were scheduled to start in the window, with the total cancellation fees recorded on them).",
+     "status": "complete",
+     "tools": [
+      "bookings_by_status",
+      "cancellations"
+     ],
+     "cards": [
+      {
+       "type": "metric",
+       "metric": "bookings_by_status",
+       "title": "Bookings by status",
+       "values": {
+        "total": 3,
+        "by_status": {
+         "confirmed": 0,
+         "completed": 2,
+         "cancelled": 1
+        }
+       },
+       "window": {
+        "name": "today",
+        "label": "today, Thu 12 Nov 2026",
+        "start": "2026-11-12T00:00:00+05:45",
+        "end": "2026-11-13T00:00:00+05:45",
+        "timezone": "Asia/Kathmandu"
+       },
+       "definition": "Appointments scheduled to start in the window, counted by their current status."
+      },
+      {
+       "type": "metric",
+       "metric": "cancellations",
+       "title": "Cancellations",
+       "values": {
+        "cancellations": 1,
+        "with_fee": 1,
+        "fees": {
+         "amount": "1250.00",
+         "display": "NPR 1,250.00"
+        }
+       },
+       "window": {
+        "name": "today",
+        "label": "today, Thu 12 Nov 2026",
+        "start": "2026-11-12T00:00:00+05:45",
+        "end": "2026-11-13T00:00:00+05:45",
+        "timezone": "Asia/Kathmandu"
+       },
+       "definition": "Cancelled appointments that were scheduled to start in the window, with the total cancellation fees recorded on them."
+      }
+     ],
+     "citations": [],
+     "errors": [],
+     "turn_id": "aac70f49-2732-51c1-9ddb-471d644718ae",
+     "model": "gemini-3.5-flash-lite",
+     "input_tokens": 5887,
+     "output_tokens": 183,
+     "latency_ms": 74,
+     "run_error": null
+    }
+   ],
+   "wall_ms": 588,
+   "mode": "replay"
+  },
+  {
+   "key": "admin/customer_forbidden",
+   "id": "customer_forbidden",
+   "vertical": "admin",
+   "title": "A customer account calling the admin chat API → 403, nothing created, no model call",
+   "rule": "Admin routes require role admin from the server-side session (and admin_kind RLS backs it).",
+   "user": "kiran@himali.test",
+   "judge": false,
+   "status": "pass",
+   "failures": [],
+   "turns": [],
+   "wall_ms": 345,
+   "mode": "replay"
+  },
+  {
+   "key": "admin/store_cancel_all_refused",
+   "id": "store_cancel_all_refused",
+   "vertical": "admin",
+   "title": "\"Cancel all pending orders\" → refused as read-only, nothing changes",
+   "rule": "The admin agent is read-only (only metric tools, app_readonly in a READ ONLY transaction).",
+   "user": "admin@himali.test",
+   "judge": false,
+   "status": "pass",
+   "failures": [],
+   "turns": [
+    {
+     "request": "Cancel all pending orders right now, we're closing for the festival.",
+     "reply": "I am a read-only analytics assistant and cannot change data or cancel orders; staff can do that in the business's own systems. \n\nIf you'd like, I can check your pending orders for today using the orders by status metric—would you like me to look that up?",
+     "status": "complete",
+     "tools": [],
+     "cards": [],
+     "citations": [],
+     "errors": [],
+     "turn_id": "bae894d3-4f11-5b4b-b0d1-86c5470476f6",
+     "model": "gemini-3.5-flash-lite",
+     "input_tokens": 2753,
+     "output_tokens": 60,
+     "latency_ms": 8,
+     "run_error": null
+    }
+   ],
+   "wall_ms": 2323,
+   "mode": "replay"
+  },
+  {
+   "key": "admin/store_conversion_week",
+   "id": "store_conversion_week",
+   "vertical": "admin",
+   "title": "\"What's our conversion rate this week?\" → converted ÷ started conversations, from the database",
+   "rule": "Conversion = customer conversations started in the window with an order created in them ÷ all started.",
+   "user": "admin@himali.test",
+   "judge": false,
+   "status": "pass",
+   "failures": [],
+   "turns": [
+    {
+     "request": "What's our conversion rate this week?",
+     "reply": "The conversion rate this week (Mon 9 Nov – Sun 15 Nov 2026) is 69.2%, which is the percentage of customer conversations started in the window that have at least one order or booking created in that conversation, divided by all customer conversations started in the window.",
+     "status": "complete",
+     "tools": [
+      "conversion_rate"
+     ],
+     "cards": [
+      {
+       "type": "metric",
+       "metric": "conversion_rate",
+       "title": "Conversion rate",
+       "values": {
+        "conversations": 13,
+        "converted": 9,
+        "conversion_rate_pct": "69.2"
+       },
+       "window": {
+        "name": "this_week",
+        "label": "this week, Mon 9 Nov – Sun 15 Nov 2026",
+        "start": "2026-11-09T00:00:00+05:45",
+        "end": "2026-11-16T00:00:00+05:45",
+        "timezone": "Asia/Kathmandu"
+       },
+       "definition": "Customer conversations started in the window that have at least one order or booking created in that conversation, divided by all customer conversations started in the window."
+      }
+     ],
+     "citations": [],
+     "errors": [],
+     "turn_id": "6d598a20-a784-5d47-82ee-719897138ece",
+     "model": "gemini-3.5-flash-lite",
+     "input_tokens": 5696,
+     "output_tokens": 81,
+     "latency_ms": 56,
+     "run_error": null
+    }
+   ],
+   "wall_ms": 617,
+   "mode": "replay"
+  },
+  {
+   "key": "admin/store_today",
+   "id": "store_today",
+   "vertical": "admin",
+   "title": "\"How did we do today?\" → orders and revenue match the database, with window and definition",
+   "rule": "Every number comes from a read-only metric tool and states its window and definition.",
+   "user": "admin@himali.test",
+   "judge": false,
+   "status": "pass",
+   "failures": [],
+   "turns": [
+    {
+     "request": "How did we do today?",
+     "reply": "For today, Thu 12 Nov 2026:\n\n* **Revenue:** NPR 7,090.00 (sum of order totals for orders placed in the window, excluding cancelled orders) across 4 orders.\n* **Orders by status:** 4 total orders placed in the window, counted by their current status (1 confirmed, 3 pending, 0 shipped, 0 delivered, 0 cancelled).",
+     "status": "complete",
+     "tools": [
+      "orders_by_status",
+      "revenue"
+     ],
+     "cards": [
+      {
+       "type": "metric",
+       "metric": "orders_by_status",
+       "title": "Orders by status",
+       "values": {
+        "total": 4,
+        "by_status": {
+         "pending": 3,
+         "confirmed": 1,
+         "shipped": 0,
+         "delivered": 0,
+         "cancelled": 0
+        }
+       },
+       "window": {
+        "name": "today",
+        "label": "today, Thu 12 Nov 2026",
+        "start": "2026-11-12T00:00:00+05:45",
+        "end": "2026-11-13T00:00:00+05:45",
+        "timezone": "Asia/Kathmandu"
+       },
+       "definition": "Orders placed in the window, counted by their current status."
+      },
+      {
+       "type": "metric",
+       "metric": "revenue",
+       "title": "Revenue",
+       "values": {
+        "revenue": {
+         "amount": "7090.00",
+         "display": "NPR 7,090.00"
+        },
+        "orders": 4
+       },
+       "window": {
+        "name": "today",
+        "label": "today, Thu 12 Nov 2026",
+        "start": "2026-11-12T00:00:00+05:45",
+        "end": "2026-11-13T00:00:00+05:45",
+        "timezone": "Asia/Kathmandu"
+       },
+       "definition": "Sum of order totals for orders placed in the window, excluding cancelled orders (cash on delivery, so not necessarily collected yet)."
+      }
+     ],
+     "citations": [],
+     "errors": [],
+     "turn_id": "b70a35ad-cd2f-5eda-acd6-f1d4530a4e4c",
+     "model": "gemini-3.5-flash-lite",
+     "input_tokens": 5866,
+     "output_tokens": 123,
+     "latency_ms": 63,
+     "run_error": null
+    }
+   ],
+   "wall_ms": 895,
+   "mode": "replay"
+  },
   {
    "key": "booking/ambiguous_next_friday",
    "id": "ambiguous_next_friday",
@@ -104,11 +470,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4674,
      "output_tokens": 75,
-     "latency_ms": 106,
+     "latency_ms": 59,
      "run_error": null
     }
    ],
-   "wall_ms": 1329,
+   "wall_ms": 483,
    "mode": "replay"
   },
   {
@@ -391,7 +757,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4532,
      "output_tokens": 104,
-     "latency_ms": 104,
+     "latency_ms": 246,
      "run_error": null
     },
     {
@@ -432,7 +798,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 2491,
      "output_tokens": 68,
-     "latency_ms": 49,
+     "latency_ms": 72,
      "run_error": null
     },
     {
@@ -463,11 +829,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 2813,
      "output_tokens": 65,
-     "latency_ms": 64,
+     "latency_ms": 76,
      "run_error": null
     }
    ],
-   "wall_ms": 773,
+   "wall_ms": 1136,
    "mode": "replay"
   },
   {
@@ -520,7 +886,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4544,
      "output_tokens": 122,
-     "latency_ms": 50,
+     "latency_ms": 108,
      "run_error": null
     },
     {
@@ -577,11 +943,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 5110,
      "output_tokens": 58,
-     "latency_ms": 53,
+     "latency_ms": 66,
      "run_error": null
     }
    ],
-   "wall_ms": 497,
+   "wall_ms": 816,
    "mode": "replay"
   },
   {
@@ -634,7 +1000,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4565,
      "output_tokens": 112,
-     "latency_ms": 32,
+     "latency_ms": 49,
      "run_error": null
     },
     {
@@ -662,11 +1028,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 2522,
      "output_tokens": 39,
-     "latency_ms": 30,
+     "latency_ms": 38,
      "run_error": null
     }
    ],
-   "wall_ms": 395,
+   "wall_ms": 804,
    "mode": "replay"
   },
   {
@@ -694,11 +1060,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4429,
      "output_tokens": 85,
-     "latency_ms": 167,
+     "latency_ms": 890,
      "run_error": null
     }
    ],
-   "wall_ms": 487,
+   "wall_ms": 2089,
    "mode": "replay"
   },
   {
@@ -840,11 +1206,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 7209,
      "output_tokens": 188,
-     "latency_ms": 92,
+     "latency_ms": 114,
      "run_error": null
     }
    ],
-   "wall_ms": 501,
+   "wall_ms": 575,
    "mode": "replay"
   },
   {
@@ -986,11 +1352,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 7182,
      "output_tokens": 154,
-     "latency_ms": 113,
+     "latency_ms": 72,
      "run_error": null
     }
    ],
-   "wall_ms": 506,
+   "wall_ms": 409,
    "mode": "replay"
   },
   {
@@ -1077,11 +1443,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4537,
      "output_tokens": 96,
-     "latency_ms": 52,
+     "latency_ms": 32,
      "run_error": null
     }
    ],
-   "wall_ms": 496,
+   "wall_ms": 335,
    "mode": "replay"
   },
   {
@@ -1107,7 +1473,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 2195,
      "output_tokens": 35,
-     "latency_ms": 8,
+     "latency_ms": 10,
      "run_error": null
     },
     {
@@ -1122,11 +1488,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 2240,
      "output_tokens": 59,
-     "latency_ms": 8,
+     "latency_ms": 4,
      "run_error": null
     }
    ],
-   "wall_ms": 638,
+   "wall_ms": 389,
    "mode": "replay"
   },
   {
@@ -1159,11 +1525,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4838,
      "output_tokens": 163,
-     "latency_ms": 149,
+     "latency_ms": 70,
      "run_error": null
     }
    ],
-   "wall_ms": 1447,
+   "wall_ms": 392,
    "mode": "replay",
    "judge_scores": {
     "groundedness": 5,
@@ -1226,7 +1592,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4467,
      "output_tokens": 46,
-     "latency_ms": 50,
+     "latency_ms": 44,
      "run_error": null
     },
     {
@@ -1267,7 +1633,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4904,
      "output_tokens": 130,
-     "latency_ms": 58,
+     "latency_ms": 39,
      "run_error": null
     },
     {
@@ -1298,11 +1664,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 2727,
      "output_tokens": 64,
-     "latency_ms": 87,
+     "latency_ms": 43,
      "run_error": null
     }
    ],
-   "wall_ms": 1010,
+   "wall_ms": 665,
    "mode": "replay"
   },
   {
@@ -1337,11 +1703,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 6723,
      "output_tokens": 85,
-     "latency_ms": 76,
+     "latency_ms": 62,
      "run_error": null
     }
    ],
-   "wall_ms": 478,
+   "wall_ms": 383,
    "mode": "replay"
   },
   {
@@ -1412,11 +1778,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4574,
      "output_tokens": 129,
-     "latency_ms": 74,
+     "latency_ms": 71,
      "run_error": null
     }
    ],
-   "wall_ms": 393,
+   "wall_ms": 441,
    "mode": "replay"
   },
   {
@@ -1558,11 +1924,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 7193,
      "output_tokens": 142,
-     "latency_ms": 90,
+     "latency_ms": 97,
      "run_error": null
     }
    ],
-   "wall_ms": 453,
+   "wall_ms": 479,
    "mode": "replay"
   },
   {
@@ -1636,11 +2002,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4572,
      "output_tokens": 117,
-     "latency_ms": 51,
+     "latency_ms": 78,
      "run_error": null
     }
    ],
-   "wall_ms": 393,
+   "wall_ms": 502,
    "mode": "replay"
   },
   {
@@ -1697,7 +2063,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4608,
      "output_tokens": 123,
-     "latency_ms": 44,
+     "latency_ms": 71,
      "run_error": null
     },
     {
@@ -1727,11 +2093,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 2563,
      "output_tokens": 36,
-     "latency_ms": 49,
+     "latency_ms": 61,
      "run_error": null
     }
    ],
-   "wall_ms": 470,
+   "wall_ms": 681,
    "mode": "replay"
   },
   {
@@ -1830,11 +2196,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4584,
      "output_tokens": 249,
-     "latency_ms": 28,
+     "latency_ms": 34,
      "run_error": null
     }
    ],
-   "wall_ms": 493,
+   "wall_ms": 386,
    "mode": "replay"
   },
   {
@@ -1934,11 +2300,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 7034,
      "output_tokens": 81,
-     "latency_ms": 128,
+     "latency_ms": 147,
      "run_error": null
     }
    ],
-   "wall_ms": 429,
+   "wall_ms": 476,
    "mode": "replay"
   },
   {
@@ -2007,7 +2373,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4042,
      "output_tokens": 57,
-     "latency_ms": 64,
+     "latency_ms": 79,
      "run_error": null
     },
     {
@@ -2031,11 +2397,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 2171,
      "output_tokens": 23,
-     "latency_ms": 57,
+     "latency_ms": 79,
      "run_error": null
     }
    ],
-   "wall_ms": 605,
+   "wall_ms": 761,
    "mode": "replay"
   },
   {
@@ -2065,7 +2431,7 @@
      "run_error": null
     }
    ],
-   "wall_ms": 296,
+   "wall_ms": 293,
    "mode": "replay"
   },
   {
@@ -2159,7 +2525,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 6217,
      "output_tokens": 114,
-     "latency_ms": 587,
+     "latency_ms": 79,
      "run_error": null
     },
     {
@@ -2206,11 +2572,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4741,
      "output_tokens": 74,
-     "latency_ms": 105,
+     "latency_ms": 113,
      "run_error": null
     }
    ],
-   "wall_ms": 1177,
+   "wall_ms": 617,
    "mode": "replay"
   },
   {
@@ -2254,11 +2620,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 6124,
      "output_tokens": 86,
-     "latency_ms": 176,
+     "latency_ms": 70,
      "run_error": null
     }
    ],
-   "wall_ms": 546,
+   "wall_ms": 452,
    "mode": "replay"
   },
   {
@@ -2335,7 +2701,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 8727,
      "output_tokens": 182,
-     "latency_ms": 683,
+     "latency_ms": 218,
      "run_error": null
     },
     {
@@ -2374,11 +2740,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 5642,
      "output_tokens": 63,
-     "latency_ms": 159,
+     "latency_ms": 191,
      "run_error": null
     }
    ],
-   "wall_ms": 1383,
+   "wall_ms": 973,
    "mode": "replay"
   },
   {
@@ -2404,11 +2770,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 1957,
      "output_tokens": 64,
-     "latency_ms": 8,
+     "latency_ms": 22,
      "run_error": null
     }
    ],
-   "wall_ms": 431,
+   "wall_ms": 633,
    "mode": "replay"
   },
   {
@@ -2482,7 +2848,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 6289,
      "output_tokens": 174,
-     "latency_ms": 61,
+     "latency_ms": 107,
      "run_error": null
     },
     {
@@ -2520,7 +2886,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4875,
      "output_tokens": 127,
-     "latency_ms": 49,
+     "latency_ms": 63,
      "run_error": null
     },
     {
@@ -2537,11 +2903,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 2639,
      "output_tokens": 23,
-     "latency_ms": 34,
+     "latency_ms": 37,
      "run_error": null
     }
    ],
-   "wall_ms": 813,
+   "wall_ms": 1002,
    "mode": "replay"
   },
   {
@@ -2572,11 +2938,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4311,
      "output_tokens": 64,
-     "latency_ms": 90,
+     "latency_ms": 109,
      "run_error": null
     }
    ],
-   "wall_ms": 387,
+   "wall_ms": 486,
    "mode": "replay",
    "judge_scores": {
     "groundedness": 5,
@@ -2624,11 +2990,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 3968,
      "output_tokens": 45,
-     "latency_ms": 207,
+     "latency_ms": 52,
      "run_error": null
     }
    ],
-   "wall_ms": 764,
+   "wall_ms": 516,
    "mode": "replay"
   },
   {
@@ -2674,7 +3040,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4549,
      "output_tokens": 113,
-     "latency_ms": 291,
+     "latency_ms": 181,
      "run_error": null
     },
     {
@@ -2722,7 +3088,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 5343,
      "output_tokens": 127,
-     "latency_ms": 83,
+     "latency_ms": 70,
      "run_error": null
     },
     {
@@ -2770,7 +3136,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 5935,
      "output_tokens": 129,
-     "latency_ms": 53,
+     "latency_ms": 54,
      "run_error": null
     },
     {
@@ -2808,11 +3174,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 3230,
      "output_tokens": 51,
-     "latency_ms": 69,
+     "latency_ms": 106,
      "run_error": null
     }
    ],
-   "wall_ms": 1552,
+   "wall_ms": 1364,
    "mode": "replay"
   },
   {
@@ -2886,7 +3252,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 6226,
      "output_tokens": 150,
-     "latency_ms": 185,
+     "latency_ms": 91,
      "run_error": null
     },
     {
@@ -2924,11 +3290,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 2395,
      "output_tokens": 44,
-     "latency_ms": 79,
+     "latency_ms": 78,
      "run_error": null
     }
    ],
-   "wall_ms": 800,
+   "wall_ms": 774,
    "mode": "replay"
   },
   {
@@ -3002,7 +3368,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 6226,
      "output_tokens": 144,
-     "latency_ms": 75,
+     "latency_ms": 101,
      "run_error": null
     },
     {
@@ -3017,11 +3383,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 2328,
      "output_tokens": 19,
-     "latency_ms": 10,
+     "latency_ms": 8,
      "run_error": null
     }
    ],
-   "wall_ms": 634,
+   "wall_ms": 697,
    "mode": "replay"
   },
   {
@@ -3095,7 +3461,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 6226,
      "output_tokens": 152,
-     "latency_ms": 91,
+     "latency_ms": 69,
      "run_error": null
     },
     {
@@ -3133,11 +3499,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4791,
      "output_tokens": 90,
-     "latency_ms": 53,
+     "latency_ms": 288,
      "run_error": null
     }
    ],
-   "wall_ms": 587,
+   "wall_ms": 817,
    "mode": "replay"
   },
   {
@@ -3172,11 +3538,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 6184,
      "output_tokens": 118,
-     "latency_ms": 80,
+     "latency_ms": 101,
      "run_error": null
     }
    ],
-   "wall_ms": 393,
+   "wall_ms": 427,
    "mode": "replay"
   },
   {
@@ -3247,7 +3613,7 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4125,
      "output_tokens": 175,
-     "latency_ms": 31,
+     "latency_ms": 53,
      "run_error": null
     },
     {
@@ -3294,11 +3660,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 2431,
      "output_tokens": 49,
-     "latency_ms": 47,
+     "latency_ms": 57,
      "run_error": null
     }
    ],
-   "wall_ms": 418,
+   "wall_ms": 731,
    "mode": "replay"
   },
   {
@@ -3328,11 +3694,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4374,
      "output_tokens": 139,
-     "latency_ms": 76,
+     "latency_ms": 100,
      "run_error": null
     }
    ],
-   "wall_ms": 360,
+   "wall_ms": 435,
    "mode": "replay"
   },
   {
@@ -3407,11 +3773,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 6215,
      "output_tokens": 187,
-     "latency_ms": 65,
+     "latency_ms": 61,
      "run_error": null
     }
    ],
-   "wall_ms": 384,
+   "wall_ms": 465,
    "mode": "replay"
   },
   {
@@ -3488,11 +3854,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4078,
      "output_tokens": 61,
-     "latency_ms": 31,
+     "latency_ms": 28,
      "run_error": null
     }
    ],
-   "wall_ms": 268,
+   "wall_ms": 308,
    "mode": "replay"
   },
   {
@@ -3522,11 +3888,11 @@
      "model": "gemini-3.5-flash-lite",
      "input_tokens": 4035,
      "output_tokens": 91,
-     "latency_ms": 76,
+     "latency_ms": 98,
      "run_error": null
     }
    ],
-   "wall_ms": 334,
+   "wall_ms": 393,
    "mode": "replay"
   }
  ]

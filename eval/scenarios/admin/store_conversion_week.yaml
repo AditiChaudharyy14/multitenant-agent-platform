@@ -1,0 +1,19 @@
+id: store_conversion_week
+title: '"What''s our conversion rate this week?" → converted ÷ started conversations, from the database'
+rule: Conversion = customer conversations started in the window with an order created in them ÷ all started.
+org: himali-tea
+user: admin@himali.test
+chat: admin
+setup:
+  - analytics_history: true
+turns:
+  - user: What's our conversion rate this week?
+assertions:
+  reply_contains_sql:
+    - >-
+      SELECT round(100.0 * count(*) FILTER (WHERE EXISTS (SELECT 1 FROM orders o WHERE o.conversation_id = c.id))
+      / count(*), 1) FROM conversations c
+      WHERE c.kind = 'customer' AND c.created_at >= {{week_start}} AND c.created_at < {{next_week}}
+  reply_matches: ['this week|9 Nov', 'conversation']
+  tools_called: {includes: [conversion_rate]}
+  no_new_rows: [orders, proposals]

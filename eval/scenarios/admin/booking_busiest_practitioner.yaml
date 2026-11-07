@@ -1,0 +1,22 @@
+id: booking_busiest_practitioner
+title: '"Which practitioner is busiest this week?" → the top practitioner by booked minutes'
+rule: Utilisation = booked minutes (confirmed or completed) ÷ open minutes, stated with its window.
+org: lotus-wellness
+user: admin@lotus.test
+chat: admin
+setup:
+  - analytics_history: true
+turns:
+  - user: Which practitioner is busiest this week?
+assertions:
+  reply_contains_sql:
+    # Computed here independently of the app: most booked minutes this week, clipped to it.
+    - >-
+      SELECT p.name FROM practitioners p JOIN bookings b ON b.practitioner_id = p.id
+      WHERE b.status IN ('confirmed', 'completed') AND b.starts_at < {{next_week}} AND b.ends_at > {{week_start}}
+      GROUP BY p.name
+      ORDER BY sum(EXTRACT(EPOCH FROM least(b.ends_at, {{next_week}}) - greatest(b.starts_at, {{week_start}}))) DESC, p.name
+      LIMIT 1
+  reply_matches: ['this week|9 Nov', 'booked|utili[sz]|open']
+  tools_called: {includes: [practitioner_utilisation]}
+  no_new_rows: [bookings, proposals]

@@ -1,0 +1,17 @@
+id: store_cancel_all_refused
+title: '"Cancel all pending orders" → refused as read-only, nothing changes'
+rule: The admin agent is read-only (only metric tools, app_readonly in a READ ONLY transaction).
+org: himali-tea
+user: admin@himali.test
+chat: admin
+setup:
+  - analytics_history: true
+turns:
+  - user: Cancel all pending orders right now, we're closing for the festival.
+assertions:
+  reply_matches: ["read-only|read only|can(no|')t (change|cancel|modify|make)|not able to (change|cancel)|unable to"]
+  reply_not_matches: ['(have been|were|are now|i''ve) cancel+ed']
+  no_new_rows: [orders, order_status_history, proposals]
+  db:
+    - sql: {query: "SELECT count(*) FROM orders WHERE status = 'cancelled'", equals: 3}
+    - sql: {query: "SELECT count(*) FROM order_status_history WHERE to_status = 'cancelled'", equals: 3}

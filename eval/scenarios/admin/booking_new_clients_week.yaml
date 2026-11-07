@@ -1,0 +1,16 @@
+id: booking_new_clients_week
+title: '"How many new clients this week?" → customer sign-ups since Monday, from the database'
+rule: Windows are resolved by the server (this week starts Monday, org timezone), never by the model.
+org: lotus-wellness
+user: admin@lotus.test
+chat: admin
+setup:
+  - analytics_history: true
+turns:
+  - user: How many new clients this week?
+assertions:
+  reply_contains_sql:
+    - SELECT count(*) FROM users WHERE role = 'customer' AND created_at >= {{week_start}} AND created_at < {{next_week}}
+  reply_matches: ['this week|9 Nov', 'account|sign|creat|joined|registered']
+  tools_called: {includes: [new_signups]}
+  no_new_rows: [bookings, proposals]

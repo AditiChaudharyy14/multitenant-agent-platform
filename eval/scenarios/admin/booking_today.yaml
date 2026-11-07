@@ -1,0 +1,16 @@
+id: booking_today
+title: '"How did we do today?" at the studio → today''s appointments match the database'
+rule: Booking metrics count appointments by their start time in the org's timezone.
+org: lotus-wellness
+user: admin@lotus.test
+chat: admin
+setup:
+  - analytics_history: true
+turns:
+  - user: How did we do today?
+assertions:
+  reply_contains_sql:
+    - SELECT count(*) FROM bookings WHERE starts_at >= {{today}} AND starts_at < {{tomorrow}}
+  reply_matches: ['today|12 Nov', 'appointment|booking|scheduled']
+  tools_called: {includes: [bookings_by_status]}
+  no_new_rows: [bookings, proposals]

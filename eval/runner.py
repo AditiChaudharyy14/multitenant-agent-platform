@@ -159,9 +159,17 @@ async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider,
                 before = await checks.table_counts(conn)
             async with db.app_engine.begin() as conn:  # a real server-side session, as login makes
                 token = await create_session(conn, org.org_id, me, role)
+            # The admin analytics chat has its own API; the server decides who may use it.
+            chat_api = "/api/admin/conversations" if sc.chat == "admin" else "/api/conversations"
             async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://eval.local",
                                          headers={"Origin": ORIGIN}, cookies={COOKIE_NAME: token}, timeout=300) as c:  # fmt: skip
-                r = await c.post("/api/conversations")
+                if sc.expect_http is not None:
+                    http_fails = await _expect_refused(c, chat_api, sc.expect_http, texts[0] or "")
+                    async with evaldb.owner_tx(owner, org.org_id) as conn:
+                        fails = http_fails + await checks.check_all(conn, org, sc, me, [], before)
+                    result.update(status="pass" if not fails else "fail", failures=fails)
+                    return result
+                r = await c.post(chat_api)
                 r.raise_for_status()
                 cid = r.json()["id"]
                 for turn, utext in zip(sc.turns, texts, strict=True):
@@ -174,7 +182,7 @@ async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider,
                         rec.status, rec.reply = "skipped", ""  # nothing to press; still one record per turn
                         turns.append(rec)
                         continue
-                    resp = await c.post(f"/api/conversations/{cid}/messages", json=body)
+                    resp = await c.post(f"{chat_api}/{cid}/messages", json=body)
                     if resp.status_code != 200:
                         raise ScenarioError(f"POST message: HTTP {resp.status_code} {resp.text[:200]}")
                     for kind, data in _parse_sse(resp.text):
@@ -211,6 +219,17 @@ async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider,
         result["turns"] = [t.__dict__ for t in turns]
         result["wall_ms"] = int((time.monotonic() - started) * 1000)
     return result
+
+
+async def _expect_refused(c: httpx.AsyncClient, chat_api: str, status: int, text_: str) -> list[str]:
+    """Starting the chat, listing it and posting into it must all be refused with `status`."""
+    fails = []
+    for method, path, body in (("POST", chat_api, None), ("GET", chat_api, None),
+                               ("POST", f"{chat_api}/{uuid.uuid4()}/messages", {"content": text_})):  # fmt: skip
+        r = await c.request(method, path, json=body)
+        if r.status_code != status:
+            fails.append(f"{method} {path.split('/messages')[0][:40]}…: HTTP {r.status_code}, expected {status}")
+    return fails
 
 
 async def _fill_run(owner: Any, org: checks.OrgInfo, rec: checks.TurnRecord) -> None:
@@ -315,6 +334,8 @@ async def main() -> int:
     for sc in scenarios:
         has_cassette = (CASSETTES / f"{sc.key}.json").exists()
         mode = args.mode if args.mode != "auto" else ("replay" if has_cassette else "record")
+        if sc.expect_http is not None:
+            mode = "replay"  # refused before any model call: needs no cassette, key or budget
         if stopped:
             results.append({"key": sc.key, "id": sc.id, "vertical": sc.vertical, "title": sc.title, "rule": sc.rule,
                             "status": "skipped", "failures": [stopped], "turns": [], "mode": mode})  # fmt: skip

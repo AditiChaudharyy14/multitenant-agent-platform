@@ -7,7 +7,13 @@ assertion name fails loudly instead of silently checking nothing.
 
 Placeholders in turn text and assertions: {{order:<seed key>}} and {{booking:<seed key>}}
 become the seeded row's number (HT-1004, LW-1003); "me" as a user means the scenario's
-own customer.
+own customer. In SQL (setup, db checks, reply_contains_sql), {{today}}, {{tomorrow}},
+{{yesterday}}, {{week_start}}, {{next_week}}, {{month_start}} and {{next_month}} become
+the frozen clock's local midnights (timestamptz literals), computed by the harness itself.
+
+Admin scenarios (eval/scenarios/admin/, `chat: admin`) talk to the analytics chat as the
+org's admin. `expect_http` instead asserts that the admin chat refuses the user outright
+(e.g. 403 for a customer) without any model call.
 """
 
 from __future__ import annotations
@@ -55,11 +61,14 @@ class SetupStep(_Strict):
     advance_order: AdvanceOrder | None = None
     add_booking: AddBooking | None = None
     sql: str | None = None  # runs as app_owner with app.org_id set and app.role = admin
+    # Add seed/<slug>/analytics.yaml's history to this clone (the template leaves it out).
+    analytics_history: bool | None = None
 
     @model_validator(mode="after")
     def _one(self) -> SetupStep:
         if sum(v is not None for v in self.model_dump().values()) != 1:
-            raise ValueError("each setup step has exactly one of set_price, set_stock, advance_order, add_booking, sql")
+            raise ValueError("each setup step has exactly one of set_price, set_stock, advance_order, add_booking, sql, "
+                             "analytics_history")
         return self
 
 
@@ -143,9 +152,12 @@ class Assertions(ReplyChecks):
     no_new_rows: list[str] = Field(default_factory=list)  # tables whose org row count must not grow
     new_rows: dict[str, int] = Field(default_factory=dict)  # table → exact number of new rows
     db: list[DbCheck] = Field(default_factory=list)
+    # Ground truth for numbers: each query returns one scalar, computed by the harness from
+    # the database, and the final reply must contain that value (commas and .00 ignored).
+    reply_contains_sql: list[str] = Field(default_factory=list)
 
     def checks_state(self) -> bool:
-        return bool(self.db or self.no_new_rows or self.new_rows)
+        return bool(self.db or self.no_new_rows or self.new_rows or self.reply_contains_sql)
 
 
 # ───────────── turns ─────────────
@@ -172,6 +184,8 @@ class Scenario(_Strict):
     org: str  # slug: selects the org at "login", exactly like the URL slug
     user: str  # seeded email
     seed_now: str | None = None  # agent clock; default EVAL_SEED_NOW (the template's)
+    chat: Literal["customer", "admin"] = "customer"  # admin: the analytics chat API
+    expect_http: int | None = None  # the admin chat must refuse with this status; no turns run
     judge: bool = False  # LLM-as-judge scores this KB answer (reported, never pass/fail)
     rule: str = ""  # the business rule this scenario exercises, for the report
     setup: list[SetupStep] = Field(default_factory=list)
@@ -179,6 +193,12 @@ class Scenario(_Strict):
     assertions: Assertions
 
     vertical: str = ""  # filled by the loader from the directory name
+
+    @model_validator(mode="after")
+    def _http(self) -> Scenario:
+        if self.expect_http is not None and self.chat != "admin":
+            raise ValueError("expect_http is for admin-chat scenarios")
+        return self
 
     @property
     def key(self) -> str:
