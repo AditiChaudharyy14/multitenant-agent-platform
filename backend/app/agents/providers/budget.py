@@ -39,7 +39,8 @@ _USED = text("SELECT requests FROM llm_usage WHERE provider = :p AND model = :m 
 
 
 def quota_day(now: datetime | None = None) -> date:
-    return (now or clock.now()).astimezone(QUOTA_TZ).date()
+    # The vendor's real day, not the business clock (which evals freeze at scenario dates).
+    return (now or clock.wall_now()).astimezone(QUOTA_TZ).date()
 
 
 def next_reset(now: datetime | None = None) -> datetime:

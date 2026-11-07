@@ -46,3 +46,14 @@ async def test_freeze_does_not_leak_into_concurrent_tasks() -> None:
     assert clock.now() != frozen_at  # this task never entered the freeze
     release.set()
     await task
+
+
+def test_freeze_without_wall_leaves_the_vendor_quota_day_real() -> None:
+    """An eval freezes the business clock at a scenario date; its live LLM requests must
+    still be counted on today's quota day."""
+    from app.agents.providers.budget import quota_day
+
+    real_day = quota_day()
+    with clock.freeze(datetime(2030, 1, 1, tzinfo=UTC), wall=False):
+        assert clock.now() == datetime(2030, 1, 1, tzinfo=UTC)
+        assert quota_day() == real_day
