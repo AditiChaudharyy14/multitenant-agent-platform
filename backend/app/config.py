@@ -55,6 +55,18 @@ class Settings(BaseSettings):
         return frozenset(o.strip() for o in self.allowed_origins.split(",") if o.strip())
 
 
+# Admin analytics (ai_usage): USD per 1M tokens, (input, output), per model. These are
+# ESTIMATES at paid-tier list prices; this deployment runs on free tiers, so the actual
+# cost is $0. A model missing here is reported as unpriced, never as free.
+LLM_PRICING_NOTE = "estimated at paid-tier prices; free tier actual cost $0"
+LLM_PRICES_USD_PER_1M: dict[str, tuple[str, str]] = {
+    "gemini-3.5-flash-lite": ("0.10", "0.40"),
+    "gemini-3.1-flash-lite": ("0.10", "0.40"),
+    "mistral-small-latest": ("0.10", "0.30"),
+    "fake-model": ("0", "0"),  # the offline scripted provider used by tests and e2e
+}
+
+
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
