@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 from app import clock
 from app.auth.passwords import hash_password
 from app.domain.kb.ingest import PreparedKB, insert_chunks, prepare_kb
+from app.seed.analytics import AnalyticsData, build_rows, load_analytics
 from app.seed.data import SeedData, SeedDataError, load_seed_data
 from app.tenancy.orgs import OrgConfig, load_org_configs, sync_orgs
 
@@ -35,7 +36,7 @@ from app.tenancy.orgs import OrgConfig, load_org_configs, sync_orgs
 # order_counters and booking_counters restarts the org's numbers at 1001, so reseeding is
 # deterministic.
 WIPE_ORDER = (
-    "kb_chunks", "agent_runs", "proposals", "messages", "conversations",
+    "kb_chunks", "stock_events", "agent_runs", "proposals", "messages", "conversations",
     "order_status_history", "order_items", "orders", "order_counters", "bookings", "booking_counters",
     "practitioner_services", "practitioners", "services", "opening_hours", "holidays",
     "products", "users",
@@ -58,7 +59,19 @@ class _Prepared:
     cfg: OrgConfig
     data: SeedData
     kb: PreparedKB
-    password_hashes: dict[str, str]  # user key → argon2id hash
+    password_hashes: dict[str, str]  # user key → argon2id hash (data.yaml and analytics.yaml)
+    analytics: AnalyticsData | None  # analytics.yaml, if the org has one
+
+
+# Argon2 is deliberately slow and every reseed hashes each demo password again; one hash
+# per password per process is enough (the salt is random either way).
+_HASHES: dict[str, str] = {}
+
+
+async def _hash(password: str) -> str:
+    if password not in _HASHES:
+        _HASHES[password] = await hash_password(password)
+    return _HASHES[password]
 
 
 def resolve_seed_now(value: str | None, timezone: str) -> datetime | None:
@@ -191,11 +204,15 @@ async def _prepare(cfg: OrgConfig, seed_dir: Path) -> _Prepared:
         "services": {s.name: None for s in data.services},
     }
     kb = await prepare_kb(org_dir / "kb", catalogs)
-    hashes = {u.key: await hash_password(u.password) for u in data.users}
-    return _Prepared(cfg, data, kb, hashes)
+    analytics = load_analytics(org_dir, data, cfg.vertical)
+    people = [*data.users, *(analytics.customers if analytics else [])]
+    hashes = {u.key: await _hash(u.password) for u in people}
+    return _Prepared(cfg, data, kb, hashes, analytics)
 
 
-async def _seed_org(conn: AsyncConnection, org_id: uuid.UUID, p: _Prepared, now: datetime) -> dict[str, int]:
+async def _seed_org(
+    conn: AsyncConnection, org_id: uuid.UUID, p: _Prepared, now: datetime, *, analytics: bool = True
+) -> dict[str, int]:
     tz = ZoneInfo(p.cfg.timezone)
     # The owner is subject to FORCE RLS like everyone else: act as this org's admin.
     await conn.execute(
@@ -212,13 +229,17 @@ async def _seed_org(conn: AsyncConnection, org_id: uuid.UUID, p: _Prepared, now:
     users = {u.key: _rid(org_id, "user", u.key) for u in p.data.users}
     await _insert(conn, "users", [
         {"id": users[u.key], "org_id": org_id, "email": u.email.lower(), "display_name": u.display_name,
-         "password_hash": p.password_hashes[u.key], "role": u.role}
+         "password_hash": p.password_hashes[u.key], "role": u.role,
+         "created_at": now - timedelta(days=u.joined_days_ago)}
         for u in p.data.users
     ])  # fmt: skip
     builder = _store_rows if p.cfg.vertical == "store" else _booking_rows
     for table, rows in builder(org_id, p.data, users, now, tz).items():  # dict order = FK order
         await _insert(conn, table, rows)
     await insert_chunks(conn, org_id, p.kb)
+    # After the base rows, so their order and booking numbers never change.
+    if analytics and p.analytics:
+        await seed_analytics(conn, org_id, p, users, now)
 
     return {
         t: await conn.scalar(text(f"SELECT count(*) FROM {t} WHERE org_id = :o"), {"o": org_id})  # noqa: S608
@@ -226,8 +247,36 @@ async def _seed_org(conn: AsyncConnection, org_id: uuid.UUID, p: _Prepared, now:
     }
 
 
-async def seed_all(owner_url: str, seed_dir: str | Path, seed_now: str | None = None) -> list[SeededOrg]:
-    """Rebuild every configured org. Idempotent: the same input gives the same rows."""
+async def seed_analytics(conn: AsyncConnection, org_id: uuid.UUID, p: _Prepared, users: dict[str, uuid.UUID], now: datetime) -> None:
+    """analytics.yaml's history rows for one org, on a connection already scoped to it."""
+    assert p.analytics is not None
+    rows = build_rows(org_id, p.analytics, p.data, users, p.password_hashes, now, ZoneInfo(p.cfg.timezone))
+    for table, table_rows in rows.tables.items():  # FK order
+        await _insert(conn, table, table_rows)
+
+
+async def apply_analytics(conn: AsyncConnection, seed_dir: str | Path, slug: str, org_id: uuid.UUID) -> int:
+    """Add analytics.yaml's history to an org that was seeded without it (the eval clones
+    of admin scenarios), at clock.now(). Returns the number of rows added."""
+    cfg = next(c for c in load_org_configs(seed_dir) if c.slug == slug)
+    org_dir = Path(seed_dir) / slug
+    data = load_seed_data(org_dir / "data.yaml", cfg.vertical)
+    analytics = load_analytics(org_dir, data, cfg.vertical)
+    if analytics is None:
+        return 0
+    hashes = {c.key: await _hash(c.password) for c in analytics.customers}
+    users = {u.key: _rid(org_id, "user", u.key) for u in data.users}
+    rows = build_rows(org_id, analytics, data, users, hashes, clock.now(), ZoneInfo(cfg.timezone))
+    for table, table_rows in rows.tables.items():
+        await _insert(conn, table, table_rows)
+    return sum(len(r) for r in rows.tables.values())
+
+
+async def seed_all(
+    owner_url: str, seed_dir: str | Path, seed_now: str | None = None, *, analytics: bool = True
+) -> list[SeededOrg]:
+    """Rebuild every configured org. Idempotent: the same input gives the same rows.
+    analytics=False leaves out analytics.yaml (the eval template does)."""
     seed_dir = Path(seed_dir)
     configs = load_org_configs(seed_dir)
     prepared = [await _prepare(cfg, seed_dir) for cfg in configs]  # 1. all checks, no writes
@@ -242,7 +291,7 @@ async def seed_all(owner_url: str, seed_dir: str | Path, seed_now: str | None = 
                 anchor = resolve_seed_now(seed_now, p.cfg.timezone)
                 # freeze() makes every clock.now() in this org's seeding return the anchor.
                 with clock.freeze(anchor) if anchor else nullcontext():
-                    counts = await _seed_org(conn, ids[p.cfg.slug], p, clock.now())
+                    counts = await _seed_org(conn, ids[p.cfg.slug], p, clock.now(), analytics=analytics)
                 results.append(SeededOrg(p.cfg.slug, p.cfg.vertical, ids[p.cfg.slug], counts))
     finally:
         await engine.dispose()

@@ -172,6 +172,9 @@ SEED_NOW = "2026-11-09T10:00"
 def seeded(migrated_test_db: None) -> dict[str, uuid.UUID]:
     """Run the real `make seed` code once against app_test; org ids keyed by vertical.
 
+    Base data.yaml only (analytics=False), like the eval template: the tests below assert
+    on exactly the demo rows. tests/domain/test_seed_analytics.py covers analytics.yaml.
+
     Sync with asyncio.run, like migrated_test_db: a session fixture can't share the
     per-test event loops. The seeder uses its own NullPool owner engine.
     """
@@ -179,5 +182,5 @@ def seeded(migrated_test_db: None) -> dict[str, uuid.UUID]:
 
     from app.seed.run import seed_all
 
-    result = asyncio.run(seed_all(require_owner_url(), get_settings().seed_dir, SEED_NOW))
+    result = asyncio.run(seed_all(require_owner_url(), get_settings().seed_dir, SEED_NOW, analytics=False))
     return {r.vertical: r.org_id for r in result}

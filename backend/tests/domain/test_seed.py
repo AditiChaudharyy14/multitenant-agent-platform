@@ -63,7 +63,7 @@ def test_seed_now_parsing() -> None:
 
 async def test_reseeding_is_idempotent(seeded: dict[str, uuid.UUID], owner_engine: AsyncEngine) -> None:
     before = {v: await snapshot(owner_engine, o) for v, o in seeded.items()}
-    await seed_all(require_owner_url(), get_settings().seed_dir, SEED_NOW)
+    await seed_all(require_owner_url(), get_settings().seed_dir, SEED_NOW, analytics=False)
     after = {v: await snapshot(owner_engine, o) for v, o in seeded.items()}
     assert after == before
     for v in seeded:
@@ -83,7 +83,7 @@ async def test_reseeding_kills_existing_sessions(seeded: dict[str, uuid.UUID], o
             ),
             {"h": uuid.uuid4().bytes, "u": uid, "o": org},
         )
-    await seed_all(require_owner_url(), get_settings().seed_dir, SEED_NOW)
+    await seed_all(require_owner_url(), get_settings().seed_dir, SEED_NOW, analytics=False)
     async with owner_engine.connect() as conn:
         assert await conn.scalar(text("SELECT count(*) FROM sessions WHERE org_id = :o"), {"o": org}) == 0
 

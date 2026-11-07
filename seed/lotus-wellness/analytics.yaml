@@ -1,0 +1,55 @@
+# Lotus Wellness Studio: three weeks of history for the admin analytics agent (fictional).
+# Loaded by `make seed` after data.yaml (app/seed/analytics.py). The eval template leaves
+# it out; admin eval scenarios add it to their clone (setup: analytics_history).
+#
+# Appointments are history only (completed or cancelled), `days_ago` back from today at
+# local time `at`. If the appointment doesn't fit that day (closed, a holiday, Friday's
+# early close) it moves back a day at a time until it does; one that hasn't ended by the
+# seed "now" is left out, so no future slot is ever taken. The chat that booked it started
+# `booked_days_before` days earlier (default 2). A cancellation records `fee_pct` of the
+# price (50 within 24 hours, else 0). These customers are separate from the demo accounts.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEMO ONLY: passwords exist only because every account needs one. Never reuse them.
+# ─────────────────────────────────────────────────────────────────────────────
+customers:
+  - {key: l1, email: anju@lotus.test, display_name: Anju Shakya, password: demo-anju-2026, joined: {days_ago: 60, at: "10:00"}}
+  - {key: l2, email: bishal@lotus.test, display_name: Bishal Ghimire, password: demo-bishal-2026, joined: {days_ago: 52, at: "13:00"}}
+  - {key: l3, email: chandra@lotus.test, display_name: Chandra Limbu, password: demo-chandra-2026, joined: {days_ago: 47, at: "09:30"}}
+  - {key: l4, email: deepa@lotus.test, display_name: Deepa Bhandari, password: demo-deepa-2026, joined: {days_ago: 40, at: "17:15"}}
+  - {key: l5, email: gita@lotus.test, display_name: Gita Poudel, password: demo-gita-2026, joined: {days_ago: 33, at: "11:45"}}
+  - {key: l6, email: hari@lotus.test, display_name: Hari Bista, password: demo-hari-2026, joined: {days_ago: 29, at: "15:00"}}
+  # New this week (sign-ups).
+  - {key: l7, email: ishita@lotus.test, display_name: Ishita Rana, password: demo-ishita-2026, joined: {days_ago: 2, at: "12:30"}}
+  - {key: l8, email: kamal@lotus.test, display_name: Kamal Dahal, password: demo-kamal-2026, joined: {days_ago: 0, at: "07:00"}}
+  - {key: l9, email: laxmi@lotus.test, display_name: Laxmi Oli, password: demo-laxmi-2026, joined: {days_ago: 1, at: "18:20"}}
+
+conversations:
+  # ── With a booking ──
+  - {key: l01, customer: l1, messages: ["A Swedish massage with Sunita please", "Yes, book it"], booking: {service: swedish, practitioner: sunita, days_ago: 0, at: "09:00", status: completed}}
+  - {key: l02, customer: l2, messages: ["Prenatal yoga with Maya?"], booking: {service: prenatal, practitioner: maya, days_ago: 0, at: "09:00", status: completed}}
+  - {key: l03, customer: l3, messages: ["Physio assessment please", "I need to cancel, sorry"], booking: {service: physio-assessment, practitioner: prakash, days_ago: 0, at: "09:00", status: cancelled, fee_pct: 50}}
+  - {key: l04, customer: l4, messages: ["Deep tissue, morning if possible"], booking: {service: deep-tissue, practitioner: sunita, days_ago: 1, at: "10:00", status: completed}}
+  - {key: l05, customer: l5, messages: ["Private hatha yoga in the afternoon"], booking: {service: hatha, practitioner: maya, days_ago: 1, at: "13:00", status: completed}}
+  - {key: l06, customer: l1, messages: ["Sports injury rehab with Dr. Prakash"], booking: {service: sports-rehab, practitioner: prakash, days_ago: 2, at: "11:00", status: completed}}
+  - {key: l07, customer: l6, messages: ["Hot stone therapy please"], booking: {service: hot-stone, practitioner: sunita, days_ago: 2, at: "12:00", status: completed}}
+  - {key: l08, customer: l6, messages: ["Hatha yoga?", "Please cancel it"], booking: {service: hatha, practitioner: maya, days_ago: 3, at: "09:00", status: cancelled, fee_pct: 0, booked_days_before: 4}}
+  - {key: l09, customer: l2, messages: ["Physio assessment for my knee"], booking: {service: physio-assessment, practitioner: prakash, days_ago: 3, at: "13:00", status: completed}}
+  - {key: l10, customer: l3, messages: ["Swedish massage with Maya"], booking: {service: swedish, practitioner: maya, days_ago: 4, at: "14:00", status: completed}}
+  - {key: l11, customer: l4, messages: ["Deep tissue with Dr. Prakash"], booking: {service: deep-tissue, practitioner: prakash, days_ago: 5, at: "10:00", status: completed}}
+  - {key: l12, customer: l5, messages: ["Hot stone, late morning"], booking: {service: hot-stone, practitioner: sunita, days_ago: 6, at: "11:00", status: completed}}
+  - {key: l13, customer: l6, messages: ["Prenatal yoga for my wife", "Something came up, cancel please"], booking: {service: prenatal, practitioner: maya, days_ago: 7, at: "09:30", status: cancelled, fee_pct: 50}}
+  - {key: l14, customer: l1, messages: ["Swedish massage at noon"], booking: {service: swedish, practitioner: sunita, days_ago: 8, at: "12:00", status: completed}}
+  - {key: l15, customer: l2, messages: ["Rehab session after football"], booking: {service: sports-rehab, practitioner: prakash, days_ago: 9, at: "13:00", status: completed}}
+  - {key: l16, customer: l3, messages: ["Hatha yoga please"], booking: {service: hatha, practitioner: maya, days_ago: 10, at: "10:00", status: completed}}
+  - {key: l17, customer: l4, messages: ["Deep tissue with Sunita", "Cancel it please, I'm travelling"], booking: {service: deep-tissue, practitioner: sunita, days_ago: 12, at: "13:00", status: cancelled, fee_pct: 0, booked_days_before: 5}}
+  - {key: l18, customer: l5, messages: ["Physio assessment, early"], booking: {service: physio-assessment, practitioner: prakash, days_ago: 14, at: "09:00", status: completed}}
+  - {key: l19, customer: l6, messages: ["Swedish massage with Maya"], booking: {service: swedish, practitioner: maya, days_ago: 16, at: "14:00", status: completed}}
+  - {key: l20, customer: l1, messages: ["Hot stone therapy"], booking: {service: hot-stone, practitioner: sunita, days_ago: 19, at: "12:00", status: completed}}
+  # ── Without a booking ──
+  - {key: l21, customer: l8, started: {days_ago: 0, at: "08:00"}, messages: ["Do you offer couples massage?"]}
+  - {key: l22, customer: l9, started: {days_ago: 1, at: "19:00"}, messages: ["What should I wear for yoga?"]}
+  - {key: l23, customer: l7, started: {days_ago: 1, at: "10:30"}, messages: ["Do you have parking?", "Thanks, I'll think about it"]}
+  - {key: l24, customer: l2, started: {days_ago: 3, at: "16:00"}, messages: ["Is there a student discount?"]}
+  - {key: l25, customer: l4, started: {days_ago: 6, at: "12:00"}, messages: ["Can I buy a gift voucher?"]}
+  - {key: l26, customer: l5, started: {days_ago: 11, at: "09:00"}, messages: ["Are you open on Saturdays?"]}

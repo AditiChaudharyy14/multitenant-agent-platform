@@ -1,0 +1,168 @@
+# Himali Tea House: three weeks of history for the admin analytics agent (fictional).
+# Loaded by `make seed` after data.yaml (app/seed/analytics.py). The eval template leaves
+# it out; admin eval scenarios add it to their clone (setup: analytics_history).
+#
+# Times are relative to the seed "now" in the org's timezone: `days_ago` back from today
+# at local time `at`. Rows that would fall after "now" are left out. Each conversation's
+# order is placed a minute after its last message; history steps count from then.
+# These customers are separate from the demo accounts in data.yaml.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEMO ONLY: passwords exist only because every account needs one. Never reuse them.
+# ─────────────────────────────────────────────────────────────────────────────
+customers:
+  - {key: a1, email: sabina@himali.test, display_name: Sabina Tamang, password: demo-sabina-2026, joined: {days_ago: 58, at: "10:00"}}
+  - {key: a2, email: rajesh@himali.test, display_name: Rajesh Thapa, password: demo-rajesh-2026, joined: {days_ago: 51, at: "14:20"}}
+  - {key: a3, email: nima@himali.test, display_name: Nima Sherpa, password: demo-nima-2026, joined: {days_ago: 44, at: "09:10"}}
+  - {key: a4, email: prerana@himali.test, display_name: Prerana Joshi, password: demo-prerana-2026, joined: {days_ago: 37, at: "18:45"}}
+  - {key: a5, email: dinesh@himali.test, display_name: Dinesh Rai, password: demo-dinesh-2026, joined: {days_ago: 30, at: "12:00"}}
+  - {key: a6, email: sunil@himali.test, display_name: Sunil Magar, password: demo-sunil-2026, joined: {days_ago: 26, at: "16:30"}}
+  # New this week (sign-ups).
+  - {key: a7, email: asmita@himali.test, display_name: Asmita KC, password: demo-asmita-2026, joined: {days_ago: 0, at: "07:30"}}
+  - {key: a8, email: bijay@himali.test, display_name: Bijay Basnet, password: demo-bijay-2026, joined: {days_ago: 1, at: "17:40"}}
+  - {key: a9, email: rojina@himali.test, display_name: Rojina Pun, password: demo-rojina-2026, joined: {days_ago: 3, at: "11:15"}}
+
+conversations:
+  # ── Today ──
+  - key: h01
+    customer: a1
+    started: {days_ago: 0, at: "08:10"}
+    messages: ["Do you have Ilam First Flush Green?", "Two packs please, same address as last time"]
+    order: {items: [{sku: HT-GRN-001, qty: 2}], delivery_address: "House 22, Sanepa, Lalitpur"}
+  - key: h02
+    customer: a2
+    started: {days_ago: 0, at: "08:40"}
+    messages: ["I'd like Golden Tips and a kulhad cup set", "Yes, place it"]
+    order: {items: [{sku: HT-BLK-002, qty: 1}, {sku: HT-TWR-001, qty: 1}], delivery_address: "Flat 3B, Baneshwor, Kathmandu"}
+  - key: h03
+    customer: a7
+    started: {days_ago: 0, at: "09:05"}
+    messages: ["Which chai do you recommend for a beginner?", "Three of the masala chai then", "Yes please"]
+    order: {items: [{sku: HT-CHA-001, qty: 3}], delivery_address: "Ward 4, Bhaktapur"}
+  - key: h04
+    customer: a3
+    started: {days_ago: 0, at: "07:20"}
+    messages: ["One Himalayan Amber Oolong please"]
+    order: {items: [{sku: HT-OOL-001, qty: 1}], delivery_address: "Boudha Stupa Road 12, Kathmandu", history: [{to: confirmed, after_hours: 1}]}
+  - key: h21
+    customer: a9
+    started: {days_ago: 0, at: "09:20"}
+    messages: ["Is Smoky Lapsang Hills back in stock?", "OK, I'll wait for it"]
+  - key: h22
+    customer: a5
+    started: {days_ago: 0, at: "08:00"}
+    messages: ["How long does delivery to Pokhara take?"]
+  # ── Yesterday ──
+  - key: h05
+    customer: a4
+    started: {days_ago: 1, at: "11:00"}
+    messages: ["Silver Needle White, one please"]
+    order: {items: [{sku: HT-WHT-001, qty: 1}], delivery_address: "Jawalakhel 5, Lalitpur", history: [{to: confirmed, after_hours: 2}]}
+  - key: h06
+    customer: a5
+    started: {days_ago: 1, at: "15:30"}
+    messages: ["Two Jasmine Pearl please", "Actually cancel that order"]
+    order: {items: [{sku: HT-GRN-002, qty: 2}], delivery_address: "Lakeside 9, Pokhara", history: [{to: cancelled, after_hours: 1}]}
+  - key: h07
+    customer: a8
+    started: {days_ago: 1, at: "18:00"}
+    messages: ["Something caffeine-free?", "Two Tulsi Lemongrass then"]
+    order: {items: [{sku: HT-HRB-001, qty: 2}], delivery_address: "Kirtipur 2, Kathmandu", history: [{to: confirmed, after_hours: 3}]}
+  - key: h23
+    customer: a6
+    started: {days_ago: 1, at: "12:00"}
+    messages: ["Do you sell gift wrapping?"]
+  - key: h24
+    customer: a8
+    started: {days_ago: 1, at: "19:00"}
+    messages: ["Can I change my address?"]
+  # ── Earlier ──
+  - key: h08
+    customer: a1
+    started: {days_ago: 2, at: "10:15"}
+    messages: ["Two Ilam Second Flush Black"]
+    order: {items: [{sku: HT-BLK-001, qty: 2}], delivery_address: "House 22, Sanepa, Lalitpur", history: [{to: confirmed, after_hours: 2}, {to: shipped, after_hours: 20}]}
+  - key: h09
+    customer: a6
+    started: {days_ago: 3, at: "12:00"}
+    messages: ["Four Kanchenjunga Mist please", "Fine, Saffron Royal Chai and a glass teapot instead"]
+    order: {items: [{sku: HT-CHA-003, qty: 1}, {sku: HT-TWR-002, qty: 1}], delivery_address: "Patan Durbar Square 3, Lalitpur", history: [{to: confirmed, after_hours: 1}, {to: shipped, after_hours: 24}]}
+  - key: h10
+    customer: a2
+    started: {days_ago: 4, at: "09:30"}
+    messages: ["Four Himalayan Sencha for the office"]
+    order: {items: [{sku: HT-GRN-003, qty: 4}], delivery_address: "Flat 3B, Baneshwor, Kathmandu", history: [{to: confirmed, after_hours: 2}, {to: shipped, after_hours: 26}, {to: delivered, after_hours: 70}]}
+  - key: h25
+    customer: a3
+    started: {days_ago: 4, at: "11:00"}
+    messages: ["What's the difference between white and green tea?"]
+  - key: h11
+    customer: a3
+    started: {days_ago: 5, at: "14:00"}
+    messages: ["One Pathivara Jade Oolong", "Please cancel it, I ordered by mistake"]
+    order: {items: [{sku: HT-OOL-002, qty: 1}], delivery_address: "Boudha Stupa Road 12, Kathmandu", history: [{to: cancelled, after_hours: 3}]}
+  - key: h12
+    customer: a4
+    started: {days_ago: 6, at: "16:00"}
+    messages: ["Five Everest Breakfast for a party"]
+    order: {items: [{sku: HT-BLK-003, qty: 5}], delivery_address: "Jawalakhel 5, Lalitpur", history: [{to: confirmed, after_hours: 2}, {to: shipped, after_hours: 24}, {to: delivered, after_hours: 72}]}
+  - key: h26
+    customer: a1
+    started: {days_ago: 7, at: "10:00"}
+    messages: ["Do you ship outside Nepal?"]
+  - key: h13
+    customer: a5
+    started: {days_ago: 8, at: "10:00"}
+    messages: ["Two Smoky Lapsang Hills", "Two White Peony then"]
+    order: {items: [{sku: HT-WHT-003, qty: 2}], delivery_address: "Lakeside 9, Pokhara", history: [{to: confirmed, after_hours: 2}, {to: shipped, after_hours: 24}, {to: delivered, after_hours: 72}]}
+  - key: h14
+    customer: a6
+    started: {days_ago: 9, at: "11:30"}
+    messages: ["Three Ginger Cardamom Chai"]
+    order: {items: [{sku: HT-CHA-002, qty: 3}], delivery_address: "Patan Durbar Square 3, Lalitpur", history: [{to: confirmed, after_hours: 2}, {to: shipped, after_hours: 24}, {to: delivered, after_hours: 72}]}
+  - key: h27
+    customer: a2
+    started: {days_ago: 10, at: "15:00"}
+    messages: ["Is the clay cup set microwave safe?"]
+  - key: h15
+    customer: a1
+    started: {days_ago: 11, at: "13:00"}
+    messages: ["One Ilam First Flush and one Chamomile Calm"]
+    order: {items: [{sku: HT-GRN-001, qty: 1}, {sku: HT-HRB-003, qty: 1}], delivery_address: "House 22, Sanepa, Lalitpur", history: [{to: confirmed, after_hours: 2}, {to: shipped, after_hours: 24}, {to: delivered, after_hours: 72}]}
+  - key: h16
+    customer: a2
+    started: {days_ago: 13, at: "17:00"}
+    messages: ["One Moonlight White please"]
+    order: {items: [{sku: HT-WHT-002, qty: 1}], delivery_address: "Flat 3B, Baneshwor, Kathmandu", history: [{to: confirmed, after_hours: 2}, {to: shipped, after_hours: 24}, {to: delivered, after_hours: 72}]}
+  - key: h28
+    customer: a4
+    started: {days_ago: 14, at: "09:00"}
+    messages: ["Do you have a shop I can visit?"]
+  - key: h17
+    customer: a3
+    started: {days_ago: 15, at: "09:45"}
+    messages: ["Two Himalayan Amber Oolong"]
+    order: {items: [{sku: HT-OOL-001, qty: 2}], delivery_address: "Boudha Stupa Road 12, Kathmandu", history: [{to: confirmed, after_hours: 2}, {to: shipped, after_hours: 24}, {to: delivered, after_hours: 72}]}
+  - key: h18
+    customer: a4
+    started: {days_ago: 17, at: "12:30"}
+    messages: ["One Golden Tips Black", "Cancel please, I found some at home"]
+    order: {items: [{sku: HT-BLK-002, qty: 1}], delivery_address: "Jawalakhel 5, Lalitpur", history: [{to: cancelled, after_hours: 2}]}
+  - key: h19
+    customer: a5
+    started: {days_ago: 19, at: "15:00"}
+    messages: ["Two kulhad cup sets as gifts"]
+    order: {items: [{sku: HT-TWR-001, qty: 2}], delivery_address: "Lakeside 9, Pokhara", history: [{to: confirmed, after_hours: 2}, {to: shipped, after_hours: 24}, {to: delivered, after_hours: 72}]}
+  - key: h20
+    customer: a6
+    started: {days_ago: 20, at: "10:00"}
+    messages: ["Four Kathmandu Masala Chai"]
+    order: {items: [{sku: HT-CHA-001, qty: 4}], delivery_address: "Patan Durbar Square 3, Lalitpur", history: [{to: confirmed, after_hours: 2}, {to: shipped, after_hours: 24}, {to: delivered, after_hours: 72}]}
+
+# Shortages: a customer asked for more than was on the shelf.
+stock_events:
+  - {customer: a9, sku: HT-BLK-004, requested: 2, available: 0, at: {days_ago: 0, at: "09:21"}, conversation: h21}
+  - {customer: a1, sku: HT-OOL-003, requested: 3, available: 1, at: {days_ago: 0, at: "08:12"}, conversation: h01}
+  - {customer: a5, sku: HT-BLK-004, requested: 1, available: 0, at: {days_ago: 1, at: "15:31"}, conversation: h06}
+  - {customer: a6, sku: HT-GRN-004, requested: 4, available: 2, at: {days_ago: 3, at: "12:01"}, conversation: h09}
+  - {customer: a5, sku: HT-BLK-004, requested: 2, available: 0, at: {days_ago: 8, at: "10:01"}, conversation: h13}

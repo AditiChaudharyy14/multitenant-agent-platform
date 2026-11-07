@@ -41,9 +41,17 @@ def _embed(texts: list[str]) -> list[str]:
     return [to_pgvector(v) for v in _get_model().embed(texts)]
 
 
+# Passage vectors by text, per process. The model is deterministic, so a reseed (the tests
+# reseed many times) never needs to embed an unchanged chunk again.
+_passages: dict[str, str] = {}
+
+
 async def embed_passages(texts: list[str]) -> list[str]:
     """Embed KB chunks. CPU-bound, so it runs in a worker thread."""
-    return await asyncio.to_thread(_embed, list(texts))
+    missing = list(dict.fromkeys(t for t in texts if t not in _passages))
+    if missing:
+        _passages.update(zip(missing, await asyncio.to_thread(_embed, missing), strict=True))
+    return [_passages[t] for t in texts]
 
 
 async def embed_query(text: str) -> str:

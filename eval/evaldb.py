@@ -91,7 +91,9 @@ async def ensure_template(seed_now: str) -> tuple[bool, str]:
                 await conn.execute(text("UPDATE orgs SET id = :id WHERE slug = :s"), {"id": org_id_for(cfg.slug), "s": cfg.slug})
     finally:
         await eng.dispose()
-    await seed_all(owner_url, seed_dir, seed_now)
+    # No analytics.yaml: its history would shift the order/booking numbers every recorded
+    # customer cassette expects. Admin scenarios add it to their clone (analytics_history).
+    await seed_all(owner_url, seed_dir, seed_now, analytics=False)
     eng = engine(owner_url)
     try:
         async with eng.begin() as conn:

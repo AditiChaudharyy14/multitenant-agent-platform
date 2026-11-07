@@ -33,6 +33,8 @@ class SeedUser(_Model):
     display_name: str
     role: Literal["customer", "admin"]
     password: str = Field(min_length=MIN_PASSWORD_LENGTH)  # DEMO ONLY, see data.yaml
+    # users.created_at, counted back from the seed "now": the admin's new_signups metric.
+    joined_days_ago: int = Field(default=45, ge=0)
 
     @model_validator(mode="after")
     def _email(self) -> "SeedUser":
