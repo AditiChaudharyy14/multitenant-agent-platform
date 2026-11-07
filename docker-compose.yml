@@ -8,6 +8,8 @@ services:
       APP_OWNER_PASSWORD: ${APP_OWNER_PASSWORD:?copy .env.example to .env}
       APP_USER_PASSWORD: ${APP_USER_PASSWORD:?copy .env.example to .env}
       APP_READONLY_PASSWORD: ${APP_READONLY_PASSWORD:?copy .env.example to .env}
+      # Read by docker/db/evaldb.sql (make evaldb) for the clone-only app_eval role.
+      APP_EVAL_PASSWORD: ${APP_EVAL_PASSWORD:-change-me-eval}
     volumes:
       - db_data:/var/lib/postgresql/data
       - ./docker/db/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
@@ -91,6 +93,43 @@ services:
     volumes:
       - ./backend:/app
       - ./seed:/seed:ro
+      # Read-only: tests/eval checks the scenario files and the committed cassettes.
+      - ./eval:/eval:ro
+      - fastembed_cache:/models
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # One-shot LLM eval runner (make eval / make eval-live). The only container holding both
+  # app_owner credentials (to seed the template and assert on database state) and an LLM
+  # key (to record cassettes). It never serves traffic. DATABASE_URL_EVAL is app_eval,
+  # which can only create and drop the per-scenario clone databases.
+  eval:
+    image: multitenant-agents-backend:dev
+    profiles: ["eval"]
+    working_dir: /eval
+    environment:
+      DATABASE_URL_OWNER: ${DATABASE_URL_OWNER:?copy .env.example to .env}
+      DATABASE_URL_APP: ${DATABASE_URL_APP:?copy .env.example to .env}
+      DATABASE_URL_READONLY: ${DATABASE_URL_READONLY:?copy .env.example to .env}
+      DATABASE_URL_EVAL: ${DATABASE_URL_EVAL:-postgresql+asyncpg://app_eval:change-me-eval@db:5432/postgres}
+      SEED_DIR: /seed
+      APP_ENV: local
+      EMBED_CACHE_DIR: ${EMBED_CACHE_DIR:-/models}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      LLM_MODEL_GEMINI: ${LLM_MODEL_GEMINI:-gemini-3.5-flash-lite}
+      LLM_FALLBACK_MODELS_GEMINI: ${LLM_FALLBACK_MODELS_GEMINI:-gemini-3.1-flash-lite}
+      LLM_RPM_GEMINI: ${LLM_RPM_GEMINI:-12}
+      LLM_DAILY_BUDGET_GEMINI: ${LLM_DAILY_BUDGET_GEMINI:-450}
+      EVAL_CASSETTE_DIR: /eval/cassettes
+      EVAL_SEED_NOW: ${EVAL_SEED_NOW:-2026-11-12T10:00}
+      EVAL_JUDGE_MODEL: ${EVAL_JUDGE_MODEL:-gemini-3.1-flash-lite}
+      EVAL_MIN_BUDGET_LEFT: ${EVAL_MIN_BUDGET_LEFT:-100}
+    volumes:
+      - ./backend:/app
+      - ./seed:/seed:ro
+      - ./eval:/eval
       - fastembed_cache:/models
     depends_on:
       db:

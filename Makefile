@@ -1,5 +1,5 @@
 # Everything runs inside the containers, so the host needs only Docker and make.
-.PHONY: up build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin eval e2e e2e-setup advance logs
+.PHONY: up build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin evaldb eval eval-live e2e e2e-setup advance logs
 
 # Owner-only commands run in the one-shot `ops` container, which is the only place
 # DATABASE_URL_OWNER exists. The running backend never holds app_owner credentials.
@@ -86,8 +86,29 @@ e2e:  ## Playwright smoke tests + screenshots in docs/screenshots (fake LLM)
 	cd e2e && BASE_URL=http://localhost:3000 SCREENSHOT_DIR=../docs/screenshots .venv/bin/python -m pytest -q $(ARGS); \
 	  status=$$?; cd .. && docker compose up -d --wait backend; exit $$status
 
-eval:  ## Stub until the eval suite exists
-	docker compose exec backend echo "eval: not implemented yet"
+# The superuser creates the clone-only app_eval role and the eval_template database (with
+# pgvector), as testdb does for app_test. `up -d db` first so the db container has
+# APP_EVAL_PASSWORD in its environment (it is recreated only if its config changed).
+evaldb:  ## Create the app_eval role and the eval_template database (idempotent)
+	docker compose up -d --wait db
+	docker compose exec -T db sh -c 'psql -q -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"' < docker/db/evaldb.sql
+
+# LLM scenario suite (eval/scenarios) → eval/results.md and results.json. Each scenario runs
+# on its own clone of a seeded template database, with the clock frozen.
+#   make eval        replay a scenario's cassette if it exists, else record it (live)
+#   make eval-live   record live, overwriting cassettes; ONLY=store/edit_shipped,booking/*
+#                    limits it to some scenarios (never re-record the whole suite casually)
+#   ARGS=--judge     add LLM-as-judge scores for KB-answer scenarios (reported separately)
+EVAL = docker compose --profile eval run --rm eval
+eval: evaldb  ## Run the LLM eval suite (replay where recorded, else record)
+	@$(EVAL) python -m scripts.llm_budget
+	$(EVAL) python /eval/runner.py --mode auto $(if $(ONLY),--only "$(ONLY)") $(ARGS)
+	@$(EVAL) python -m scripts.llm_budget
+
+eval-live: evaldb  ## Re-record eval scenarios live (ONLY=<vertical>/<id>[,...] strongly advised)
+	@$(EVAL) python -m scripts.llm_budget
+	$(EVAL) python /eval/runner.py --mode record $(if $(ONLY),--only "$(ONLY)") $(ARGS)
+	@$(EVAL) python -m scripts.llm_budget
 
 # Admin/demo: one status step (pending → confirmed → shipped → delivered). The prefix picks
 # the org; runs as app_user in an admin-scoped transaction, so no owner credentials.
