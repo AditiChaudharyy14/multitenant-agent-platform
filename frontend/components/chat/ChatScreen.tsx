@@ -3,17 +3,23 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import { CardEnvContext } from "@/components/cards/CardEnv";
 import { Composer } from "@/components/chat/Composer";
 import { ConversationList } from "@/components/chat/ConversationList";
 import { MessageView, type UiMessage } from "@/components/chat/MessageView";
+import { MyItemsPanel, PanelDrawer, panelTitle, type PanelData } from "@/components/chat/MyItemsPanel";
 import { SourceDrawer } from "@/components/chat/SourceDrawer";
 import { OrgSeal } from "@/components/OrgSeal";
 import { api, ApiError } from "@/lib/api";
-import { streamMessage } from "@/lib/sse";
+import { streamMessage, type MessageBody } from "@/lib/sse";
 import { SUGGESTIONS } from "@/lib/suggestions";
-import type { Citation, Conversation, Me, StoredMessage } from "@/lib/types";
+import type { CardAction, Citation, Conversation, Me, ProposalInfo, StoredMessage } from "@/lib/types";
 
 type Load = "ready" | "loading" | "error" | "notfound";
+
+// Tools that only look things up. Any other tool in a turn may have touched orders or bookings,
+// so the side panel reloads after it (and after every button press).
+const LOOKUP_ONLY = new Set(["search_knowledge", "search_products", "list_services", "get_opening_hours", "find_available_slots"]);
 
 const key = () => Math.random().toString(36).slice(2);
 
@@ -40,6 +46,10 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
   const [conversations, setConversations] = useState<Conversation[] | null>(null);
   const [listOpen, setListOpen] = useState(false);
   const [source, setSource] = useState<Citation | null>(null);
+  const [proposals, setProposals] = useState<Record<string, ProposalInfo>>({});
+  const [panel, setPanel] = useState<PanelData>({ state: "loading" });
+  const [panelVersion, setPanelVersion] = useState(0); // bump to reload the panel
+  const [panelOpen, setPanelOpen] = useState(false);
   const sourceOpener = useRef<HTMLElement | null>(null);
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -50,11 +60,33 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
 
   useEffect(refreshConversations, [refreshConversations]);
 
+  // My orders / My bookings: one fetch, shown inline on wide screens and in a drawer on narrow ones.
+  useEffect(() => {
+    let live = true;
+    const load = org.vertical === "store" ? api.myOrders().then((orders) => ({ orders })) : api.myBookings().then((bookings) => ({ bookings }));
+    load
+      .then((d) => live && setPanel({ state: "ready", ...d }))
+      .catch(() => live && setPanel((p) => ({ ...p, state: "error" })));
+    return () => {
+      live = false;
+    };
+  }, [org.vertical, panelVersion]);
+
+  /** Current status of every proposal in a chat, so each summary card shows the truth. */
+  const loadProposals = useCallback(async (id: string) => {
+    try {
+      const list = await api.proposals(id);
+      if (convRef.current === id) setProposals(Object.fromEntries(list.map((p) => [p.proposal_id, p])));
+    } catch {
+      // cards then show as open; the server still refuses a stale confirm
+    }
+  }, []);
+
   const loadMessages = useCallback(async (id: string) => {
     setLoad("loading");
     setMessages([]);
     try {
-      const stored = await api.messages(id);
+      const [stored] = await Promise.all([api.messages(id), loadProposals(id)]);
       if (convRef.current !== id) return; // the user moved on meanwhile
       setMessages(stored.map(fromStored));
       setLoad("ready");
@@ -62,7 +94,7 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
       if (convRef.current !== id) return;
       setLoad(err instanceof ApiError && err.status === 404 ? "notfound" : "error");
     }
-  }, []);
+  }, [loadProposals]);
 
   /** Switch conversation (null = a new one). `push` adds a history entry. */
   const open = useCallback(
@@ -71,6 +103,7 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
       convRef.current = id;
       setConversationId(id);
       setSource(null);
+      setProposals({});
       setListOpen(false);
       setActivity(null);
       if (id) void loadMessages(id);
@@ -110,12 +143,22 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
   const patch = (k: string, f: (m: UiMessage) => UiMessage) =>
     setMessages((ms) => ms.map((m) => (m.key === k ? f(m) : m)));
 
-  async function send(text: string) {
+  /** A typed message. */
+  function send(text: string) {
     text = text.trim();
-    if (!text || streaming || rateUntil !== null) return;
+    if (!text) return;
+    setDraft("");
+    void run({ content: text }, text);
+  }
+
+  /** A card button: just another message, with an action the server validates. */
+  const sendAction = (action: CardAction, label: string) => void run({ action }, label);
+
+  async function run(body: MessageBody, text: string) {
+    if (streaming || rateUntil !== null) return;
+    let touchedItems = "action" in body; // a button press always may change something
     const userKey = key();
     const asstKey = key();
-    setDraft("");
     setMessages((ms) => [
       ...ms,
       { key: userKey, role: "user", content: text, status: "complete", citations: [], cards: [] },
@@ -136,14 +179,17 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
       }
       await streamMessage(
         id,
-        { content: text },
+        body,
         {
           token: (t) => {
             setActivity(null);
             patch(asstKey, (m) => ({ ...m, content: m.content + t }));
           },
           toolStart: (e) => setActivity(e.label),
-          toolEnd: (e) => setActivity(e.label),
+          toolEnd: (e) => {
+            setActivity(e.label);
+            if (!LOOKUP_ONLY.has(e.name)) touchedItems = true;
+          },
           card: (card) => patch(asstKey, (m) => ({ ...m, cards: [...m.cards, card] })),
           citation: (c) => patch(asstKey, (m) => (m.citations.some((x) => x.id === c.id) ? m : { ...m, citations: [...m.citations, c] })),
           error: (e) => patch(asstKey, (m) => ({ ...m, error: e })),
@@ -164,7 +210,7 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
       } else if (err instanceof ApiError && err.status === 429) {
         // Rejected before anything was stored: take the message back and wait.
         setMessages((ms) => ms.filter((m) => m.key !== userKey && m.key !== asstKey));
-        setDraft(text);
+        if ("content" in body) setDraft(text);
         setRateUntil(Date.now() + (err.retryAfter ?? 60) * 1000);
         setNow(Date.now());
       } else if (err instanceof ApiError && err.status === 401) {
@@ -177,7 +223,20 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
       setStreaming(false);
       setActivity(null);
       refreshConversations();
+      if (convRef.current) void loadProposals(convRef.current); // older summaries may now be superseded
+      if (touchedItems) setPanelVersion((v) => v + 1);
     }
+  }
+
+  async function renameConversation(id: string, title: string) {
+    await api.renameConversation(id, title).catch(() => undefined);
+    refreshConversations();
+  }
+
+  async function deleteConversation(id: string) {
+    await api.deleteConversation(id).catch(() => undefined);
+    refreshConversations();
+    if (convRef.current === id) open(null, true);
   }
 
   async function logout() {
@@ -200,23 +259,25 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
 
   return (
     <div className="flex h-dvh flex-col bg-paper">
-      <header className="flex items-center gap-3 border-b border-rule px-4 py-3 sm:px-6">
+      <header className="flex items-center gap-2 border-b border-rule px-3 py-3 sm:gap-3 sm:px-6">
         <button
           type="button"
-          className="rounded-[var(--radius-control)] border border-rule px-2.5 py-1.5 text-sm md:hidden"
+          className="shrink-0 rounded-[var(--radius-control)] border border-rule px-2.5 py-1.5 text-sm min-[769px]:hidden"
           onClick={() => setListOpen(true)}
-          aria-label="Show chats"
         >
           Chats
         </button>
-        <OrgSeal emoji={org.branding.logo_emoji} size="sm" />
+        <span className="max-[420px]:hidden"><OrgSeal emoji={org.branding.logo_emoji} size="sm" /></span>
         <div className="min-w-0 flex-1">
           <p className="truncate font-display text-[17px] leading-tight text-brand">{org.name}</p>
-          <p className="truncate text-[13px] text-muted">Chatting with {org.branding.agent_name}</p>
+          <p className="hidden truncate text-[13px] text-muted sm:block">Chatting with {org.branding.agent_name}</p>
         </div>
-        <span className="hidden text-sm text-muted sm:inline">{me.user.display_name}</span>
-        <button type="button" onClick={logout} className="rounded-[var(--radius-control)] px-3 py-1.5 text-sm font-medium hover:bg-brand-soft">
-          Log out
+        <button
+          type="button"
+          className="shrink-0 rounded-[var(--radius-control)] border border-rule px-2.5 py-1.5 text-sm min-[1100px]:hidden"
+          onClick={() => setPanelOpen(true)}
+        >
+          {panelTitle(org.vertical)}
         </button>
       </header>
 
@@ -228,8 +289,13 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
           onClose={() => setListOpen(false)}
           onSelect={(id) => open(id, true)}
           onNew={() => open(null, true)}
+          onRename={renameConversation}
+          onDelete={deleteConversation}
+          onLogout={logout}
+          userName={me.user.display_name}
         />
 
+        <CardEnvContext.Provider value={{ busy: streaming || rateUntil !== null, send: sendAction, proposals }}>
         <main className="flex min-w-0 flex-1 flex-col">
           <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" aria-live="polite">
             <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
@@ -299,7 +365,26 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
             <p className="mt-1.5 hidden text-[12px] text-muted sm:block">Enter to send, Shift+Enter for a new line</p>
           </div>
         </main>
+        </CardEnvContext.Provider>
+
+        <aside className="hidden w-80 shrink-0 border-l border-rule min-[1100px]:block">
+          <MyItemsPanel vertical={org.vertical} data={panel} onRetry={() => setPanelVersion((v) => v + 1)} onAsk={send} />
+        </aside>
       </div>
+
+      {panelOpen && (
+        <PanelDrawer label={panelTitle(org.vertical)} onClose={() => setPanelOpen(false)}>
+          <MyItemsPanel
+            vertical={org.vertical}
+            data={panel}
+            onRetry={() => setPanelVersion((v) => v + 1)}
+            onAsk={(t) => {
+              setPanelOpen(false);
+              send(t);
+            }}
+          />
+        </PanelDrawer>
+      )}
 
       {source && <SourceDrawer citation={source} onClose={closeSource} />}
     </div>
