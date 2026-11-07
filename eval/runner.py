@@ -1,13 +1,14 @@
 """`make eval`: run every scenario against the agent and check the database afterwards.
 
 Per scenario:
-  1. clone the seeded template database (eval_s_<vertical>_<id>), apply `setup`;
+  1. use its own clone of the seeded template database (eval_s_<vertical>_<id>; all clones
+     are made before the first scenario and dropped after the last), apply `setup`;
   2. freeze the clock at seed_now, make server ids deterministic, open its cassette;
   3. drive the real FastAPI app in-process (httpx ASGITransport): a server-side session for
      the seeded customer, a conversation, then each turn through POST .../messages, card
      buttons included, exactly as the UI sends them. The app talks to the clone as app_user;
   4. assert on replies, tools, citations and, above all, database state (as app_owner);
-  5. drop the clone.
+  5. move on; the clones are dropped together at the end.
 
 Modes: auto (replay a scenario's cassette if it exists, else record it live), record
 (always live, overwrites), replay (never touches the network). Live calls go through the
@@ -40,7 +41,7 @@ from app import clock  # noqa: E402
 from app.agents.ids import deterministic_ids  # noqa: E402
 from app.agents.providers import _live  # noqa: E402
 from app.agents.providers.base import LLMProvider  # noqa: E402
-from app.agents.providers.budget import DailyBudget  # noqa: E402
+from app.agents.providers.budget import DailyBudget, quota_day  # noqa: E402
 from app.agents.providers.recording import RecordReplayProvider, cassette_scope  # noqa: E402
 from app.api.chat import chat_limiter, get_chat_provider  # noqa: E402
 from app.auth.sessions import COOKIE_NAME, create_session  # noqa: E402
@@ -85,6 +86,14 @@ class Providers:
     async def left(self) -> int:
         return self.budget.limit - await self.budget.used(self.primary)
 
+    async def print_budget(self, when: str) -> None:
+        """What `make llm-budget` shows, printed in-process (no extra container per run)."""
+        parts = []
+        for model in self.settings.llm_models(self.settings.llm_provider):
+            used = await self.budget.used(model)
+            parts.append(f"{model} {used}/{self.budget.limit} used ({self.budget.limit - used} left)")
+        print(f"llm budget {when} (quota day {quota_day()} Pacific): " + "; ".join(parts), flush=True)
+
 
 def _parse_sse(body: str) -> list[tuple[str, dict]]:
     events = []
@@ -120,13 +129,10 @@ class ScenarioError(Exception):
     """The scenario could not be carried out (harness or cassette problem, missing card)."""
 
 
-async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider, default_now: str,
-                       clone: asyncio.Task[None] | None = None) -> dict:  # fmt: skip
-    """`clone`: the clone's creation, started ahead of time (the runner overlaps it with the
-    previous scenario, because CREATE DATABASE can take seconds on a slow disk)."""
+async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider, default_now: str) -> dict:
+    """One scenario on its clone, which main() created beforehand and drops afterwards."""
     s = get_settings()
     name = evaldb.clone_name(sc.key)
-    await (clone if clone is not None else evaldb.create_clone(name))
     owner = evaldb.engine(evaldb.url_for(require_owner_url(), name))
     # The app's own engines now point at the clone (as app_user / app_readonly).
     saved = db.app_engine, db.readonly_engine
@@ -199,8 +205,6 @@ async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider,
         await owner.dispose()
         result["turns"] = [t.__dict__ for t in turns]
         result["wall_ms"] = int((time.monotonic() - started) * 1000)
-        if not KEEP:
-            await evaldb.drop_clone(name)
     return result
 
 
@@ -270,6 +274,7 @@ async def main() -> int:
     main_engine = db.app_engine  # the main database: llm_usage is counted here
     providers = Providers(main_engine)
 
+    await providers.print_budget("before")
     t0 = time.monotonic()
     rebuilt, fp = await evaldb.ensure_template(seed_now)
     print(f"template {evaldb.TEMPLATE}: {'rebuilt' if rebuilt else 'up to date'} ({fp}), seed now {seed_now}", flush=True)
@@ -282,31 +287,27 @@ async def main() -> int:
 
     await embed_query("warm up")
 
+    # Every clone up front, one at a time (Postgres allows one copy of a template at once).
+    # Each CREATE/DROP DATABASE forces a checkpoint; done back to back, before any scenario
+    # has written anything, those checkpoints have nothing to flush. Interleaved with the
+    # scenarios' writes they took seconds each on a slow disk.
+    t_clone = time.monotonic()
+    for sc in scenarios:
+        await evaldb.create_clone(evaldb.clone_name(sc.key))
+    print(f"{len(scenarios)} clones ready in {time.monotonic() - t_clone:.1f}s", flush=True)
+
     results = []
     stopped: str | None = None
-    pending = {sc.key: None for sc in scenarios}  # pre-started clone creations
-    if scenarios:
-        pending[scenarios[0].key] = asyncio.create_task(evaldb.create_clone(evaldb.clone_name(scenarios[0].key)))
-    for i, sc in enumerate(scenarios):
-        clone = pending.pop(sc.key)
-        if i + 1 < len(scenarios) and not stopped:
-            nxt = scenarios[i + 1].key
-            pending[nxt] = asyncio.create_task(evaldb.create_clone(evaldb.clone_name(nxt)))
+    for sc in scenarios:
         has_cassette = (CASSETTES / f"{sc.key}.json").exists()
         mode = args.mode if args.mode != "auto" else ("replay" if has_cassette else "record")
         if stopped:
-            if clone is not None:
-                await clone
-                await evaldb.drop_clone(evaldb.clone_name(sc.key))
             results.append({"key": sc.key, "id": sc.id, "vertical": sc.vertical, "title": sc.title, "rule": sc.rule,
                             "status": "skipped", "failures": [stopped], "turns": [], "mode": mode})  # fmt: skip
             continue
         if mode == "record":
             left = await providers.left()
             if left < min_left:
-                if clone is not None:
-                    await clone
-                    await evaldb.drop_clone(evaldb.clone_name(sc.key))
                 stopped = f"not run: {providers.primary} has {left} requests left today (< {min_left})"
                 print(f"STOP: {stopped}", flush=True)
                 results.append({"key": sc.key, "id": sc.id, "vertical": sc.vertical, "title": sc.title, "rule": sc.rule,
@@ -315,7 +316,7 @@ async def main() -> int:
             provider = providers.record()
         else:
             provider = providers.replay
-        r = await run_scenario(sc, orgs[sc.org], provider, seed_now, clone)
+        r = await run_scenario(sc, orgs[sc.org], provider, seed_now)
         r["mode"] = mode
         if args.judge and sc.judge and r["turns"]:
             import judge
@@ -327,11 +328,19 @@ async def main() -> int:
         mark = {"pass": "PASS", "fail": "FAIL", "error": "ERR "}[r["status"]]
         print(f"{mark} {sc.key:45s} {mode:6s} {r['wall_ms']:>6d} ms  {'; '.join(r['failures'])[:160]}", flush=True)
 
+    if not KEEP:  # the first drop's checkpoint flushes everything, so the rest are quick
+        for sc in scenarios:
+            try:
+                await evaldb.drop_clone(evaldb.clone_name(sc.key))
+            except Exception as exc:  # results are already in hand; the next run drops leftovers
+                print(f"warning: could not drop {evaldb.clone_name(sc.key)}: {type(exc).__name__}", flush=True)
+                break
     elapsed = time.monotonic() - t0
     if args.only:  # a partial run updates those scenarios in the last full report
         results = report.merge_previous(EVAL_DIR / "results.json", results)
     explained = report.explained_ids(EVAL_DIR / "FAILURES.md")
     report.write(EVAL_DIR, results, providers.primary, s.llm_models(s.llm_provider), elapsed, explained)
+    await providers.print_budget("after")
     await main_engine.dispose()
     bad = [r["key"] for r in results if r["status"] != "pass" and r["key"] not in explained]
     print(f"\n{sum(r['status'] == 'pass' for r in results)}/{len(results)} passed in {elapsed:.1f}s"

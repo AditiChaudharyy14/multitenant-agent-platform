@@ -13,6 +13,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import os
 import subprocess
@@ -23,6 +24,7 @@ from pathlib import Path
 
 from sqlalchemy import pool, text
 from sqlalchemy.engine import make_url
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncEngine, create_async_engine
 
 from app.config import get_settings, require_owner_url
@@ -127,12 +129,22 @@ async def drop_leftover_clones() -> list[str]:
         await eng.dispose()
 
 
-async def create_clone(name: str) -> None:
+async def create_clone(name: str, attempts: int = 5) -> None:
     eng = _admin_engine()
     try:
         async with eng.connect() as conn:
             await conn.execute(text(f'DROP DATABASE IF EXISTS "{name}"'))
-            await conn.execute(text(f'CREATE DATABASE "{name}" TEMPLATE {TEMPLATE}'))
+            for attempt in range(attempts):
+                try:
+                    # FILE_COPY: copy the files after a checkpoint instead of WAL-logging every page
+                    # (WAL_LOG wrote ~5 MB of WAL per clone and coincided with backend crashes on WSL).
+                    await conn.execute(text(f'CREATE DATABASE "{name}" TEMPLATE {TEMPLATE} STRATEGY FILE_COPY'))
+                    return
+                except DBAPIError as exc:
+                    # The template is briefly busy (another clone, or a connection closing).
+                    if "being accessed by other users" not in str(exc) or attempt == attempts - 1:
+                        raise
+                    await asyncio.sleep(0.5 * (attempt + 1))
     finally:
         await eng.dispose()
 

@@ -93,7 +93,8 @@ evaldb:  ## Create the app_eval role and the eval_template database (idempotent)
 	docker compose up -d --wait db
 	docker compose exec -T db sh -c 'psql -q -v ON_ERROR_STOP=1 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"' < docker/db/evaldb.sql
 
-# LLM scenario suite (eval/scenarios) → eval/results.md and results.json. Each scenario runs
+# LLM scenario suite (eval/scenarios) → eval/results.md and results.json. Prints the LLM
+# budget (as make llm-budget) before and after. Each scenario runs
 # on its own clone of a seeded template database, with the clock frozen.
 #   make eval        replay a scenario's cassette if it exists, else record it (live)
 #   make eval-live   record live, overwriting cassettes; ONLY=store/edit_shipped,booking/*
@@ -101,14 +102,10 @@ evaldb:  ## Create the app_eval role and the eval_template database (idempotent)
 #   ARGS=--judge     add LLM-as-judge scores for KB-answer scenarios (reported separately)
 EVAL = docker compose --profile eval run --rm eval
 eval: evaldb  ## Run the LLM eval suite (replay where recorded, else record)
-	@$(EVAL) python -m scripts.llm_budget
 	$(EVAL) python /eval/runner.py --mode auto $(if $(ONLY),--only "$(ONLY)") $(ARGS)
-	@$(EVAL) python -m scripts.llm_budget
 
 eval-live: evaldb  ## Re-record eval scenarios live (ONLY=<vertical>/<id>[,...] strongly advised)
-	@$(EVAL) python -m scripts.llm_budget
 	$(EVAL) python /eval/runner.py --mode record $(if $(ONLY),--only "$(ONLY)") $(ARGS)
-	@$(EVAL) python -m scripts.llm_budget
 
 # Admin/demo: one status step (pending → confirmed → shipped → delivered). The prefix picks
 # the org; runs as app_user in an admin-scoped transaction, so no owner credentials.
