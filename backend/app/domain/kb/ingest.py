@@ -6,7 +6,7 @@ prepare_kb(), before the seeder opens its database transaction.
 
 from dataclasses import dataclass
 from pathlib import Path
-from uuid import UUID
+from uuid import UUID, uuid5
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -61,11 +61,14 @@ async def insert_chunks(conn: AsyncConnection, org_id: UUID, kb: PreparedKB) -> 
     """Insert into kb_chunks. The caller's transaction has app.org_id set (FORCE RLS)."""
     await conn.execute(
         text(
-            "INSERT INTO kb_chunks (org_id, doc_id, doc_title, section, content, embedding) "
-            "VALUES (:org_id, :doc_id, :doc_title, :section, :content, CAST(:embedding AS vector))"
+            "INSERT INTO kb_chunks (id, org_id, doc_id, doc_title, section, content, embedding) "
+            "VALUES (:id, :org_id, :doc_id, :doc_title, :section, :content, CAST(:embedding AS vector))"
         ),
         [
             {
+                # Stable id, like every seeded row: search breaks score ties on it, so a random
+                # id would let a reseed reorder equally ranked results.
+                "id": uuid5(org_id, f"kb_chunk:{c.doc_id}#{c.section}"),
                 "org_id": org_id, "doc_id": c.doc_id, "doc_title": c.doc_title,
                 "section": c.section, "content": c.content, "embedding": v,
             }  # fmt: skip

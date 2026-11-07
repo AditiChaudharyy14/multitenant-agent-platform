@@ -29,7 +29,8 @@ async def snapshot(owner: AsyncEngine, org_id: uuid.UUID) -> dict:
             t: await conn.scalar(text(f"SELECT count(*) FROM {t} WHERE org_id = :o"), {"o": org_id})
             for t in TENANT_TABLES
         }
-        chunks = sorted((await conn.execute(text("SELECT doc_id, section FROM kb_chunks"))).all())
+        # With the id: search breaks score ties on it, so a reseed must keep it.
+        chunks = sorted((await conn.execute(text("SELECT id, doc_id, section FROM kb_chunks"))).all())
         orders = sorted((await conn.execute(text("SELECT id, status, total, created_at FROM orders"))).all())
         history = sorted(
             (await conn.execute(text("SELECT order_id, to_status, changed_at FROM order_status_history"))).all()
