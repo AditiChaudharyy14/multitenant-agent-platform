@@ -71,6 +71,12 @@ rules:
       - tool: cancel_booking
         args: {booking_number: "{1}"}
       - text: "Here is the cancellation summary, with the fee. Press Confirm to cancel."
+  # Admin analytics chat: a read-only metric tool and its card (window + definition footnote).
+  - match: "how did we do today"
+    steps:
+      - tool: orders_by_status
+        args: {window: today}
+      - text: "Here are today's orders by status (today, in the shop's timezone): orders placed today, counted by their current status."
   # The Confirm button: the server commits before the model speaks; it only acknowledges.
   - match: "^confirm$"
     steps:

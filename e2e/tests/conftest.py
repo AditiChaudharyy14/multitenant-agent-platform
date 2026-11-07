@@ -25,7 +25,8 @@ def warm_routes(browser: Browser) -> None:
     visit every route once with a long timeout before any test's own timeouts apply."""
     context = browser.new_context(base_url=BASE_URL)
     p = context.new_page()
-    for path in ("/a/himali-tea", "/a/himali-tea/chat", "/a/himali-tea/chat/00000000-0000-0000-0000-000000000000"):
+    for path in ("/a/himali-tea", "/a/himali-tea/chat", "/a/himali-tea/chat/00000000-0000-0000-0000-000000000000",
+                 "/a/himali-tea/admin", "/a/himali-tea/admin/00000000-0000-0000-0000-000000000000"):
         p.goto(path, timeout=180_000, wait_until="networkidle")
     context.close()
 

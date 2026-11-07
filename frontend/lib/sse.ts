@@ -31,8 +31,9 @@ export async function streamMessage(
   body: MessageBody,
   on: StreamHandlers,
   signal: AbortSignal,
+  base = "/api/conversations", // the admin analytics chat uses /api/admin/conversations
 ): Promise<void> {
-  const res = await fetch(`/api/conversations/${encodeURIComponent(conversationId)}/messages`, {
+  const res = await fetch(`${base}/${encodeURIComponent(conversationId)}/messages`, {
     method: "POST",
     credentials: "same-origin",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },

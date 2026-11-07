@@ -1,5 +1,6 @@
 "use client";
 
+import { MetricCard } from "@/components/cards/MetricCard";
 import { ProposalCard } from "@/components/cards/ProposalCard";
 import { BookingList, OpeningHours, OrderList, OrderStatus, Outcome, ProductList, ServiceList, StockIssue } from "@/components/cards/ReadCards";
 import { SlotList } from "@/components/cards/SlotList";
@@ -8,6 +9,8 @@ import type { Card } from "@/lib/types";
 /** One card from the stream or from history, picked by its `type`. */
 export function CardView({ card }: { card: Card }) {
   switch (card.type) {
+    case "metric":
+      return <MetricCard card={card} />;
     case "order_summary":
     case "booking_summary":
       return <ProposalCard card={card} />;

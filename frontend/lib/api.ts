@@ -57,6 +57,31 @@ export const api = {
   kbSource: (ref: string) => call<KbSource>(`/api/kb/source?ref=${encodeURIComponent(ref)}`),
 };
 
+/** The conversation calls one chat screen needs; the customer chat and the admin analytics
+ * chat are the same API under different prefixes (the server checks the role). */
+export interface ChatApi {
+  base: string;
+  conversations: () => Promise<Conversation[]>;
+  createConversation: () => Promise<Conversation>;
+  messages: (id: string) => Promise<StoredMessage[]>;
+  renameConversation: (id: string, title: string) => Promise<Conversation>;
+  deleteConversation: (id: string) => Promise<void>;
+}
+
+function chatApi(base: string): ChatApi {
+  const one = (id: string) => `${base}/${encodeURIComponent(id)}`;
+  return {
+    base,
+    conversations: () => call<Conversation[]>(base),
+    createConversation: () => call<Conversation>(base, { method: "POST" }),
+    messages: (id) => call<StoredMessage[]>(`${one(id)}/messages`),
+    renameConversation: (id, title) => call<Conversation>(one(id), { method: "PATCH", body: JSON.stringify({ title }) }),
+    deleteConversation: (id) => call<void>(one(id), { method: "DELETE" }),
+  };
+}
+
+export const CHAT_API = { customer: chatApi("/api/conversations"), admin: chatApi("/api/admin/conversations") };
+
 /** Server-side only: branding for the landing page, straight from the backend. */
 export async function fetchPublicOrg(slug: string): Promise<PublicOrg | null> {
   const base = process.env.BACKEND_URL ?? "http://localhost:8000";

@@ -10,3 +10,9 @@ export const SUGGESTIONS: Record<Vertical, string[]> = {
     "What is your cancellation policy?",
   ],
 };
+
+// The admin analytics chat's starters, also by vertical.
+export const ADMIN_SUGGESTIONS: Record<Vertical, string[]> = {
+  store: ["How did we do today?", "How many new customers signed up this week?", "Which products ran out of stock most this month?"],
+  booking: ["How did we do today?", "How many new clients this week?", "Which practitioner is busiest this week?"],
+};

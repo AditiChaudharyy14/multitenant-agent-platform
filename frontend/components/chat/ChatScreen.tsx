@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -10,9 +11,9 @@ import { MessageView, type UiMessage } from "@/components/chat/MessageView";
 import { MyItemsPanel, PanelDrawer, panelTitle, type PanelData } from "@/components/chat/MyItemsPanel";
 import { SourceDrawer } from "@/components/chat/SourceDrawer";
 import { OrgSeal } from "@/components/OrgSeal";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, CHAT_API } from "@/lib/api";
 import { streamMessage, type MessageBody } from "@/lib/sse";
-import { SUGGESTIONS } from "@/lib/suggestions";
+import { ADMIN_SUGGESTIONS, SUGGESTIONS } from "@/lib/suggestions";
 import type { CardAction, Citation, Conversation, Me, ProposalInfo, StoredMessage } from "@/lib/types";
 
 type Load = "ready" | "loading" | "error" | "notfound";
@@ -28,11 +29,20 @@ function fromStored(m: StoredMessage): UiMessage {
            citations: m.citations ?? [], cards: m.cards ?? [] }; // prettier-ignore
 }
 
-export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversationId: string | null }) {
+/** "customer": the org's assistant. "admin": the read-only analytics chat (admins only; the
+ * server enforces that, this only picks the API, the starters and the chrome). */
+export type ChatMode = "customer" | "admin";
+
+const ADMIN_GREETING =
+  "Ask me how the business is doing. I'm read-only: I can't change anything, and every number comes with its time window and what it counts.";
+
+export function ChatScreen({ me, routeConversationId, mode = "customer" }: { me: Me; routeConversationId: string | null; mode?: ChatMode }) {
   const router = useRouter();
   const { org } = me;
   const slug = org.slug;
-  const base = `/a/${slug}/chat`;
+  const isAdminChat = mode === "admin";
+  const chat = CHAT_API[mode];
+  const base = `/a/${slug}/${isAdminChat ? "admin" : "chat"}`;
 
   const [conversationId, setConversationId] = useState<string | null>(routeConversationId);
   const convRef = useRef<string | null>(routeConversationId); // current id, readable inside async code
@@ -60,16 +70,17 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
   const listSeq = useRef(0);
   const refreshConversations = useCallback(() => {
     const mine = ++listSeq.current;
-    api
+    chat
       .conversations()
       .then((list) => mine === listSeq.current && setConversations(list))
       .catch(() => undefined);
-  }, []);
+  }, [chat]);
 
   useEffect(refreshConversations, [refreshConversations]);
 
   // My orders / My bookings: one fetch, shown inline on wide screens and in a drawer on narrow ones.
   useEffect(() => {
+    if (isAdminChat) return; // the analytics chat has no My orders / My bookings panel
     let live = true;
     const load = org.vertical === "store" ? api.myOrders().then((orders) => ({ orders })) : api.myBookings().then((bookings) => ({ bookings }));
     load
@@ -78,11 +89,12 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
     return () => {
       live = false;
     };
-  }, [org.vertical, panelVersion]);
+  }, [org.vertical, panelVersion, isAdminChat]);
 
   /** Current status of every proposal in a chat, so each summary card shows the truth. */
   const proposalsSeq = useRef(0); // same rule as the chat list: the latest request wins
   const loadProposals = useCallback(async (id: string) => {
+    if (isAdminChat) return; // read-only: no proposals there
     const mine = ++proposalsSeq.current;
     try {
       const list = await api.proposals(id);
@@ -90,13 +102,13 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
     } catch {
       // cards then show as open; the server still refuses a stale confirm
     }
-  }, []);
+  }, [isAdminChat]);
 
   const loadMessages = useCallback(async (id: string) => {
     setLoad("loading");
     setMessages([]);
     try {
-      const [stored] = await Promise.all([api.messages(id), loadProposals(id)]);
+      const [stored] = await Promise.all([chat.messages(id), loadProposals(id)]);
       if (convRef.current !== id) return; // the user moved on meanwhile
       setMessages(stored.map(fromStored));
       setLoad("ready");
@@ -104,7 +116,7 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
       if (convRef.current !== id) return;
       setLoad(err instanceof ApiError && err.status === 404 ? "notfound" : "error");
     }
-  }, [loadProposals]);
+  }, [chat, loadProposals]);
 
   /** Switch conversation (null = a new one). `push` adds a history entry. */
   const open = useCallback(
@@ -181,7 +193,7 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
     try {
       let id = convRef.current;
       if (!id) {
-        id = (await api.createConversation()).id;
+        id = (await chat.createConversation()).id;
         convRef.current = id;
         setConversationId(id);
         // Same page component for /chat and /chat/<id>: the URL changes, the screen stays.
@@ -209,6 +221,7 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
           },
         },
         ctrl.signal,
+        chat.base,
       );
       if (!finished) {
         patch(asstKey, (m) => ({ ...m, status: "error", error: m.error ?? { code: "network", message: "The connection dropped before the reply finished." } }));
@@ -239,12 +252,12 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
   }
 
   async function renameConversation(id: string, title: string) {
-    await api.renameConversation(id, title).catch(() => undefined);
+    await chat.renameConversation(id, title).catch(() => undefined);
     refreshConversations();
   }
 
   async function deleteConversation(id: string) {
-    await api.deleteConversation(id).catch(() => undefined);
+    await chat.deleteConversation(id).catch(() => undefined);
     refreshConversations();
     if (convRef.current === id) open(null, true);
   }
@@ -280,15 +293,29 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
         <span className="max-[420px]:hidden"><OrgSeal emoji={org.branding.logo_emoji} size="sm" /></span>
         <div className="min-w-0 flex-1">
           <p className="truncate font-display text-[17px] leading-tight text-brand">{org.name}</p>
-          <p className="hidden truncate text-[13px] text-muted sm:block">Chatting with {org.branding.agent_name}</p>
+          <p className="hidden truncate text-[13px] text-muted sm:block">
+            {isAdminChat ? "Analytics · read-only" : `Chatting with ${org.branding.agent_name}`}
+          </p>
         </div>
-        <button
-          type="button"
-          className="shrink-0 rounded-[var(--radius-control)] border border-rule px-2.5 py-1.5 text-sm min-[1100px]:hidden"
-          onClick={() => setPanelOpen(true)}
-        >
-          {panelTitle(org.vertical)}
-        </button>
+        {/* Shown only to admins; the admin routes themselves answer 403 to anyone else. */}
+        {me.user.role === "admin" && (
+          <Link
+            href={isAdminChat ? `/a/${slug}/chat` : `/a/${slug}/admin`}
+            data-testid={isAdminChat ? "customer-chat-link" : "analytics-link"}
+            className="shrink-0 rounded-[var(--radius-control)] border border-rule px-2.5 py-1.5 text-sm font-medium hover:border-brand hover:text-brand"
+          >
+            {isAdminChat ? "Customer chat" : "Analytics"}
+          </Link>
+        )}
+        {!isAdminChat && (
+          <button
+            type="button"
+            className="shrink-0 rounded-[var(--radius-control)] border border-rule px-2.5 py-1.5 text-sm min-[1100px]:hidden"
+            onClick={() => setPanelOpen(true)}
+          >
+            {panelTitle(org.vertical)}
+          </button>
+        )}
       </header>
 
       <div className="flex min-h-0 flex-1">
@@ -325,13 +352,13 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
                   <div className="flex items-start gap-3">
                     <OrgSeal emoji={org.branding.logo_emoji} size="md" />
                     <p className="max-w-xl rounded-[var(--radius-bubble)] rounded-tl-none bg-brand-soft px-5 py-4 font-display text-[19px] leading-snug sm:text-[22px]">
-                      {org.branding.greeting}
+                      {isAdminChat ? ADMIN_GREETING : org.branding.greeting}
                     </p>
                   </div>
                   <div className="flex flex-col gap-2 sm:pl-14">
                     <p className="text-sm text-muted">You could ask</p>
                     <div className="flex flex-wrap gap-2">
-                      {SUGGESTIONS[org.vertical].map((q) => (
+                      {(isAdminChat ? ADMIN_SUGGESTIONS : SUGGESTIONS)[org.vertical].map((q) => (
                         <button
                           key={q}
                           type="button"
@@ -370,16 +397,18 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
               onStop={() => abortRef.current?.abort()}
               streaming={streaming}
               disabled={rateUntil !== null || load === "loading" || load === "notfound"}
-              placeholder={`Message ${org.branding.agent_name}`}
+              placeholder={isAdminChat ? "Ask about your numbers" : `Message ${org.branding.agent_name}`}
             />
             <p className="mt-1.5 hidden text-[12px] text-muted sm:block">Enter to send, Shift+Enter for a new line</p>
           </div>
         </main>
         </CardEnvContext.Provider>
 
-        <aside className="hidden w-80 shrink-0 border-l border-rule min-[1100px]:block">
-          <MyItemsPanel vertical={org.vertical} data={panel} onRetry={() => setPanelVersion((v) => v + 1)} onAsk={send} />
-        </aside>
+        {!isAdminChat && (
+          <aside className="hidden w-80 shrink-0 border-l border-rule min-[1100px]:block">
+            <MyItemsPanel vertical={org.vertical} data={panel} onRetry={() => setPanelVersion((v) => v + 1)} onAsk={send} />
+          </aside>
+        )}
       </div>
 
       {panelOpen && (
