@@ -82,3 +82,12 @@ async def test_429_is_rate_limited_with_retry_after() -> None:
 async def test_401_is_auth_error() -> None:
     with pytest.raises(ProviderAuthError):
         await run(Replay(error(401, {"message": "Unauthorized"})), ChatRequest(system="", messages=[Message("user", "q")]))
+
+
+@pytest.mark.parametrize("status", [500, 502, 503, 504])
+async def test_server_overload_is_transient(status: int) -> None:
+    from app.agents.providers.base import ProviderOverloaded
+
+    with pytest.raises(ProviderOverloaded) as ei:
+        await run(Replay(error(status, {"message": "Service unavailable"})), ChatRequest(system="", messages=[Message("user", "q")]))
+    assert isinstance(ei.value, RateLimited) and ei.value.daily is False

@@ -26,7 +26,9 @@ from app.agents.providers.base import (
     Finished,
     ProviderAuthError,
     ProviderError,
+    ProviderOverloaded,
     RateLimited,
+    TRANSIENT_STATUSES,
     TextDelta,
     ToolCall,
     ToolCallEvent,
@@ -165,6 +167,8 @@ class GeminiAdapter:
         except ValueError:
             err = {}
         message = f"gemini HTTP {resp.status_code}: {err.get('message') or resp.text[:200]}"
+        if resp.status_code in TRANSIENT_STATUSES:
+            return ProviderOverloaded(message)
         if resp.status_code in (401, 403):
             return ProviderAuthError(message + " (check GEMINI_API_KEY)")
         if resp.status_code == 429:

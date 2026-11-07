@@ -170,3 +170,16 @@ def test_tool_without_arguments_sends_no_parameters() -> None:
     with_args, without = body["tools"][0]["functionDeclarations"]
     assert "parameters" in with_args
     assert without == {"name": "list_my_orders", "description": "List orders."}
+
+
+@pytest.mark.parametrize("status", [500, 502, 503, 504])
+async def test_server_overload_is_transient_so_the_router_retries(status: int) -> None:
+    """Seen in a live eval: 503 "This model is currently experiencing high demand" on a
+    turn's second step became a user-facing error instead of a retry."""
+    from app.agents.providers.base import ProviderOverloaded
+
+    body = {"error": {"code": status, "status": "UNAVAILABLE", "message": "This model is currently experiencing high demand."}}
+    with pytest.raises(ProviderOverloaded) as ei:
+        await run(Replay(error(status, body)), "m", ChatRequest(system="", messages=[Message("user", "q")]))
+    assert isinstance(ei.value, RateLimited) and ei.value.daily is False
+    assert str(status) in str(ei.value)

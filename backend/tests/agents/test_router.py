@@ -138,3 +138,26 @@ async def test_no_fallback_once_streaming_has_started() -> None:
     with pytest.raises(RateLimited):
         await collect(r)
     assert a.calls == ["p"]  # a half-streamed answer is never stitched to another model's
+
+
+async def test_overloaded_5xx_backs_off_then_succeeds() -> None:
+    """A 503 is retried like a transient 429, on the same model, before any fallback."""
+    from app.agents.providers.base import ProviderOverloaded
+
+    t = FakeTime()
+    a = ScriptedAdapter({"p": [ProviderOverloaded("gemini HTTP 503: high demand"), "ok"], "f": ["ok"]})
+    r, _ = router(a, ["p", "f"], t=t)
+    events = await collect(r)
+    assert a.calls == ["p", "p"]
+    assert events[-1] == Finished("stop", Usage(1, 1), "p")
+    assert t.sleeps == [1.0]
+
+
+async def test_persistent_overload_falls_back_to_next_model() -> None:
+    from app.agents.providers.base import ProviderOverloaded
+
+    a = ScriptedAdapter({"p": [ProviderOverloaded("503")] * 4, "f": ["ok"]})
+    r, _ = router(a, ["p", "f"])
+    events = await collect(r)
+    assert a.calls == ["p", "p", "p", "p", "f"]
+    assert events[0] == TextDelta("from f")

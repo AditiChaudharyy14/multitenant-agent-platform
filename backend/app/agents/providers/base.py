@@ -119,6 +119,17 @@ class RateLimited(LLMError):
         self.daily = daily  # True: the per-day quota is spent, retrying today is pointless
 
 
+class ProviderOverloaded(RateLimited):
+    """A transient server-side failure (HTTP 500/502/503/504, e.g. Gemini's "high demand").
+    Handled exactly like a transient 429: back off, retry, then fall back to the next model."""
+
+    def __init__(self, message: str, retry_after: float | None = None) -> None:
+        super().__init__(message, retry_after, daily=False)
+
+
+TRANSIENT_STATUSES = frozenset({500, 502, 503, 504})
+
+
 class DailyBudgetExhausted(LLMError):
     """Our own per-model daily budget is spent for every configured model. Fails fast."""
 
