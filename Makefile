@@ -1,5 +1,5 @@
 # Everything runs inside the containers, so the host needs only Docker and make.
-.PHONY: up build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live e2e e2e-setup advance logs
+.PHONY: up up-traces build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live e2e e2e-setup advance logs
 
 # Owner-only commands run in the one-shot `ops` container, which is the only place
 # DATABASE_URL_OWNER exists. The running backend never holds app_owner credentials.
@@ -13,12 +13,19 @@ up: migrate sync-orgs  ## Start db, backend and frontend, then wait until health
 
 # -V replaces the anonymous node_modules volume, which would otherwise keep the old
 # dependencies hidden behind the new image.
+# Same as `up`, plus Jaeger (compose profile "observability", off by default to save RAM),
+# with the backend exporting OpenTelemetry spans to it. A later plain `make up` turns
+# tracing off again (the backend is recreated without the endpoint).
+up-traces: migrate sync-orgs  ## Start everything plus Jaeger; traces at http://localhost:16686
+	OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318 docker compose --profile observability up -d --wait
+	@echo "Jaeger UI: http://localhost:16686 (service multitenant-backend)"
+
 build:  ## Rebuild images after a dependency change, then restart on them
 	docker compose build
 	docker compose up -d --wait -V
 
 down:  ## Stop the services (keeps the database volume)
-	docker compose down
+	docker compose --profile observability down
 
 migrate:  ## alembic upgrade head, as app_owner
 	$(OPS) alembic upgrade head

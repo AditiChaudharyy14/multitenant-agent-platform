@@ -11,6 +11,7 @@ from app.auth.csrf import OriginCheckMiddleware
 from app.config import get_settings
 from app.db.session import app_engine, readonly_engine
 from app.domain.notifications import worker as email_worker
+from app.observability import tracing
 from app.tenancy.orgs import check_orgs_present, load_org_configs
 
 
@@ -23,7 +24,11 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     # Email sender + 24 h reminder scan (domain/notifications), only where the service
     # enables them: never in tests or evals, which call their run_once() directly.
     workers = email_worker.start() if get_settings().email_worker_enabled else []
+    # OpenTelemetry: on only when OTEL_EXPORTER_OTLP_ENDPOINT is set (make up-traces).
+    traces = tracing.setup_from_env()
     yield
+    if traces is not None:
+        traces.shutdown()  # flush the last spans to the collector
     for task in workers:
         task.cancel()
     await asyncio.gather(*workers, return_exceptions=True)

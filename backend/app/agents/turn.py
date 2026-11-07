@@ -12,6 +12,8 @@ import time
 from dataclasses import dataclass
 from typing import Any
 
+from opentelemetry import context as otel_context
+from opentelemetry import trace
 from pydantic import ValidationError
 
 from app import clock
@@ -24,6 +26,7 @@ from app.agents.tools.base import Tool, ToolResult, error_result
 from app.agents.tools.registry import admin_tools_for, tools_for
 from app.db.session import tenant_tx
 from app.domain import memory
+from app.observability import tracing
 from app.domain.conversations import repo
 from app.tenancy.context import ToolContext
 from app.tenancy.orgs import Org
@@ -86,7 +89,9 @@ def start_turn(provider: LLMProvider, inp: TurnInput, *, tools: dict[str, Tool] 
         chosen = admin_tools_for(inp.org.vertical)  # keyed on vertical only
     else:
         chosen = tools_for(inp.org.vertical, inp.org.features)  # vertical, minus features switched off
-    task = asyncio.create_task(_run(provider, inp, chosen, queue))
+    # Tracing (a no-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set): a span per LLM and tool call.
+    chosen = {name: tracing.traced_tool(t) for name, t in chosen.items()}
+    task = asyncio.create_task(_run(tracing.TracingProvider(provider), inp, chosen, queue))
     _running.add(task)
     task.add_done_callback(_running.discard)
     return task, queue
@@ -96,6 +101,12 @@ async def _run(provider: LLMProvider, inp: TurnInput, tools: dict[str, Tool], qu
     state = TurnState()
     started = time.monotonic()
     cancelled = False
+    # One agent.run span per turn, current for this task, so the llm.call and tool.call spans
+    # nest under it. Attached here (the task has its own context) and detached below.
+    span = tracing.tracer().start_span("agent.run", attributes=tracing.run_attributes(
+        slug=inp.org.slug, vertical=inp.org.vertical, conversation_id=inp.ctx.conversation_id,
+        turn_id=inp.ctx.turn_id, agent=inp.agent))  # fmt: skip
+    span_token = otel_context.attach(trace.set_span_in_context(span))
     try:
         build = build_admin_prompt if inp.agent == "admin" else build_system_prompt
         system = build(inp.org, clock.now())
@@ -123,6 +134,11 @@ async def _run(provider: LLMProvider, inp: TurnInput, tools: dict[str, Tool], qu
         queue.put_nowait(AgentEvent("error", {"code": "internal_error",
                                               "message": "Sorry, something went wrong. Please try again."}))  # fmt: skip
     state.finalize()
+    span.set_attributes({"status": state.status, "steps": len(state.steps), "tool_calls": len(state.tools_called)})
+    if state.status == "error":
+        span.set_status(trace.Status(trace.StatusCode.ERROR, "turn failed"))
+    span.end()
+    otel_context.detach(span_token)
     latency_ms = int((time.monotonic() - started) * 1000)
     message_id = await asyncio.shield(_persist(inp.ctx, state, latency_ms))
     queue.put_nowait(AgentEvent("done", {

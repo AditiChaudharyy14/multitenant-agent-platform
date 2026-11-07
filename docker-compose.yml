@@ -58,6 +58,9 @@ services:
       EMAIL_WORKER_ENABLED: ${EMAIL_WORKER_ENABLED:-true}
       EMAIL_POLL_SECONDS: ${EMAIL_POLL_SECONDS:-10}
       REMINDER_INTERVAL_SECONDS: ${REMINDER_INTERVAL_SECONDS:-300}
+      # Tracing: empty = off (no exporter, no cost). `make up-traces` sets it to Jaeger.
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OTEL_EXPORTER_OTLP_ENDPOINT:-}
+      OTEL_SERVICE_NAME: ${OTEL_SERVICE_NAME:-multitenant-backend}
     volumes:
       - ./backend:/app
       - ./seed:/seed:ro
@@ -233,6 +236,20 @@ services:
       MP_MAX_MESSAGES: 500
     ports:
       - "8025:8025"
+
+  # Trace viewer, opt-in (profile "observability", off by default to save RAM on an 8 GB
+  # machine): `make up-traces` starts it and points the backend's OTLP exporter at it.
+  # UI: http://localhost:16686. Spans are kept in memory only, capped.
+  jaeger:
+    image: jaegertracing/all-in-one:1.62.0
+    profiles: ["observability"]
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+      SPAN_STORAGE_TYPE: memory
+      MEMORY_MAX_TRACES: 5000
+    mem_limit: 384m
+    ports:
+      - "16686:16686"
 
 volumes:
   db_data:
