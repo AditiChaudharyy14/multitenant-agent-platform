@@ -54,8 +54,16 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
   const abortRef = useRef<AbortController | null>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
 
+  // Refreshes overlap (one after every turn, one after each rename or delete) and responses can
+  // arrive out of order. Only the most recently issued request may apply its result, otherwise an
+  // older list could bring back a deleted chat or an old title.
+  const listSeq = useRef(0);
   const refreshConversations = useCallback(() => {
-    api.conversations().then(setConversations).catch(() => undefined);
+    const mine = ++listSeq.current;
+    api
+      .conversations()
+      .then((list) => mine === listSeq.current && setConversations(list))
+      .catch(() => undefined);
   }, []);
 
   useEffect(refreshConversations, [refreshConversations]);
@@ -73,10 +81,12 @@ export function ChatScreen({ me, routeConversationId }: { me: Me; routeConversat
   }, [org.vertical, panelVersion]);
 
   /** Current status of every proposal in a chat, so each summary card shows the truth. */
+  const proposalsSeq = useRef(0); // same rule as the chat list: the latest request wins
   const loadProposals = useCallback(async (id: string) => {
+    const mine = ++proposalsSeq.current;
     try {
       const list = await api.proposals(id);
-      if (convRef.current === id) setProposals(Object.fromEntries(list.map((p) => [p.proposal_id, p])));
+      if (convRef.current === id && mine === proposalsSeq.current) setProposals(Object.fromEntries(list.map((p) => [p.proposal_id, p])));
     } catch {
       // cards then show as open; the server still refuses a stale confirm
     }

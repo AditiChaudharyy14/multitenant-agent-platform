@@ -3,6 +3,7 @@
 
 import re
 
+import pytest
 from playwright.sync_api import Page, expect
 
 from conftest import shot, sign_up
@@ -202,3 +203,56 @@ def test_rename_and_delete_a_conversation(page: Page) -> None:
     if page.viewport_size["width"] <= 768:
         expect(page.get_by_role("button", name="Chats", exact=True)).to_be_visible()
     expect(page.get_by_text("Namaste! I'm Chiya")).to_be_visible()
+
+
+# Holds back ONE chat-list response (the first GET /api/conversations after `armed`) until the test
+# releases it, so the test decides the order in which responses reach the page. The held response
+# carries the list as it was when the request was made.
+HOLD_LIST_JS = """
+(() => {
+  const real = window.fetch.bind(window);
+  const L = (window.__list = { armed: false, held: false, applied: false, open: null });
+  window.fetch = (input, init) => {
+    const url = input instanceof Request ? input.url : String(input); // Next passes URL objects too
+    const isListGet = url.endsWith("/api/conversations") && ((init && init.method) || "GET") === "GET";
+    const request = real(input, init);
+    if (!isListGet || !L.armed || L.held) return request;
+    L.held = true;
+    return request.then((res) => new Promise((resolve) => {
+      const json = res.json.bind(res);
+      res.json = () => json().then((v) => { L.applied = true; return v; }); // the app has read it
+      L.open = () => resolve(res);
+    }));
+  };
+})();
+"""
+
+
+def test_a_late_chat_list_response_cannot_undo_a_rename(page: Page) -> None:
+    """The list is refetched after every turn without waiting. A response that was requested before
+    a rename but arrives after it must not put the old title back."""
+    if page.viewport_size["width"] <= 768:
+        pytest.skip("the chat list is only always visible on desktop; the race itself doesn't depend on width")
+    page.add_init_script(HOLD_LIST_JS)
+    sign_up(page, "himali-tea")
+    ask(page, "How long does delivery take?")
+    item = chat_nav(page).get_by_test_id("conversation-item").first
+    expect(item).to_be_visible()  # the first refresh has landed: there is something to rename
+
+    page.evaluate("window.__list.armed = true")
+    ask(page, "tell me more")  # this turn's refresh is the one we hold back
+    page.wait_for_function("window.__list.held")  # in flight, still carrying the OLD title
+
+    item.hover()
+    item.get_by_role("button", name=re.compile(r"^Rename")).click()
+    field = chat_nav(page).get_by_label("Chat name")
+    field.fill("Delivery times")
+    field.press("Enter")
+    renamed = item.get_by_role("button", name="Delivery times", exact=True)
+    expect(renamed).to_have_count(1)  # the refresh after the rename has landed
+
+    page.evaluate("window.__list.open()")  # now the older response arrives
+    page.wait_for_function("window.__list.applied")  # the app has read it
+    # Let React finish whatever that response triggered: two frames, no timers.
+    page.evaluate("new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)))")
+    expect(renamed).to_have_count(1)
