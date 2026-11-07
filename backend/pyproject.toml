@@ -35,4 +35,6 @@ py-modules = []
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
+# Redacts DB URLs and secret values in all output; pytester for its end-to-end test.
+addopts = "-p app.redact_pytest -p pytester"
 pythonpath = ["."]

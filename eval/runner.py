@@ -49,6 +49,7 @@ from app.auth.sessions import COOKIE_NAME, create_session  # noqa: E402
 from app.config import get_settings, require_owner_url  # noqa: E402
 from app.db import session as db  # noqa: E402
 from app.main import app  # noqa: E402
+from app.redact import install_output_redaction, redact, redact_obj  # noqa: E402
 from app.seed.run import resolve_seed_now  # noqa: E402
 from app.tenancy.orgs import load_org_configs  # noqa: E402
 from scenario import Scenario, load_scenarios  # noqa: E402
@@ -266,6 +267,7 @@ async def main() -> int:
     args = ap.parse_args()
     KEEP = args.keep
     logging.getLogger().setLevel(logging.WARNING)  # app.main configured INFO on import
+    install_output_redaction()  # no DB URL password or API key in logs or tracebacks
     logging.getLogger("httpx").setLevel(logging.WARNING)
     logging.getLogger("app.llm").setLevel(logging.INFO if args.mode != "replay" else logging.WARNING)
 
@@ -321,7 +323,7 @@ async def main() -> int:
             left = await providers.left()
             if left < min_left:
                 stopped = f"not run: {providers.primary} has {left} requests left today (< {min_left})"
-                print(f"STOP: {stopped}", flush=True)
+                print(redact(f"STOP: {stopped}"), flush=True)
                 results.append({"key": sc.key, "id": sc.id, "vertical": sc.vertical, "title": sc.title, "rule": sc.rule,
                                 "status": "skipped", "failures": [stopped], "turns": [], "mode": mode})  # fmt: skip
                 continue
@@ -338,7 +340,7 @@ async def main() -> int:
             r["judge_scores"] = await judge.score(sc, r, providers, jmode)
         results.append(r)
         mark = {"pass": "PASS", "fail": "FAIL", "error": "ERR "}[r["status"]]
-        print(f"{mark} {sc.key:45s} {mode:6s} {r['wall_ms']:>6d} ms  {'; '.join(r['failures'])[:160]}", flush=True)
+        print(redact(f"{mark} {sc.key:45s} {mode:6s} {r['wall_ms']:>6d} ms  {'; '.join(r['failures'])[:160]}"), flush=True)
 
     if not KEEP:  # the first drop's checkpoint flushes everything, so the rest are quick
         for sc in scenarios:
@@ -350,6 +352,7 @@ async def main() -> int:
     elapsed = time.monotonic() - t0
     if args.only:  # a partial run updates those scenarios in the last full report
         results = report.merge_previous(EVAL_DIR / "results.json", results)
+    results = redact_obj(results)  # results.json/.md are committed: no credentials in them
     explained = report.explained_ids(EVAL_DIR / "FAILURES.md")
     report.write(EVAL_DIR, results, providers.primary, s.llm_models(s.llm_provider), elapsed, explained)
     await providers.print_budget("after")

@@ -56,3 +56,15 @@ def test_scrub_drops_headers_and_redacts_keys(monkeypatch: pytest.MonkeyPatch) -
     for leaked in ("abcdef", "AIza", "zzzzzz", "abcdefghijkl", "secret-value-123456"):
         assert leaked not in clean
     assert REDACTED in clean
+
+
+URL_WITH_PASSWORD = re.compile(r"\b[a-z][a-z0-9+.\-]*://[^\s:/@'\"<>]+:(?!\*\*\*@)[^\s'\"<>@]+@", re.I)
+
+
+@pytest.mark.parametrize("path", [p for p in (Path("/eval/results.json"), Path("/eval/results.md")) if p.exists()],
+                         ids=lambda p: p.name)  # fmt: skip
+def test_committed_results_hold_no_credentials(path: Path) -> None:
+    raw = path.read_text(encoding="utf-8")
+    assert not URL_WITH_PASSWORD.search(raw), f"{path.name} contains a URL with a password"
+    for pattern in FORBIDDEN:
+        assert not pattern.search(raw), f"{path.name} matches {pattern.pattern}"
