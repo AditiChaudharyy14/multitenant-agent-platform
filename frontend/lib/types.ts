@@ -65,3 +65,44 @@ export interface KbSource {
   section: string;
   content: string;
 }
+
+// ── Cards and panels. These mirror the payloads built in backend/app/domain/*/service.py. ──
+
+export type ProposalState = "open" | "confirmed" | "superseded" | "expired" | "rejected";
+
+export interface ProposalInfo {
+  proposal_id: string;
+  status: ProposalState;
+  expires_at: string; // ISO
+}
+
+export interface OrderRow {
+  order_number: string;
+  status: string;
+  total_display: string;
+  placed_at: string;
+  units: number;
+}
+
+export interface BookingRow {
+  booking_number: string;
+  service: string;
+  practitioner: string;
+  date: string;
+  time: string;
+  when: string;
+  status: string;
+  price_display: string;
+  cancellation_fee_display: string | null;
+}
+
+export interface MyOrders {
+  orders: OrderRow[];
+}
+export interface MyBookings {
+  upcoming: BookingRow[];
+  past: BookingRow[];
+}
+
+/** What a card button sends: exactly the body the server's action models accept. */
+export type CardAction = { type: string; [key: string]: unknown };

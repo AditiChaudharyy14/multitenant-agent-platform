@@ -1,6 +1,6 @@
 "use client";
 
-import { CardPlaceholder } from "@/components/chat/CardPlaceholder";
+import { CardView } from "@/components/cards/CardView";
 import { CitationChips } from "@/components/chat/CitationChips";
 import { Markdown, withCitationMarkers } from "@/components/chat/Markdown";
 import type { Card, Citation, MessageStatus } from "@/lib/types";
@@ -73,7 +73,7 @@ export function MessageView({ message: m, activity, onOpenSource }: Props) {
       )}
 
       {m.cards.map((card, i) => (
-        <CardPlaceholder key={i} card={card} />
+        <CardView key={i} card={card} />
       ))}
 
       <CitationChips citations={m.citations} onOpen={onOpenSource} />
