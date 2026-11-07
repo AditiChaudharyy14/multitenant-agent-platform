@@ -1,0 +1,12 @@
+id: unanswerable_coffee
+title: Near-domain unanswerable (coffee)
+rule: Only the org's own catalogue; no invented products, prices or citations.
+org: himali-tea
+user: kiran@himali.test
+turns:
+  - user: Do you sell coffee? I'd like a bag of Ilam arabica beans.
+assertions:
+  reply_matches: ["(don't|do not|doesn't|does not|no,|not) .*(sell|carry|have|offer|stock)|only (sell|carry|offer)|tea"]
+  reply_not_matches: ['(NPR|Rs\.?|रु)\s*[\d,]+.*(coffee|arabica|bean)', 'arabica .*(NPR|Rs)']
+  tools_called: {excludes: [create_order]}
+  no_new_rows: [orders, proposals]

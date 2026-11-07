@@ -1,0 +1,15 @@
+id: order_no_confirm
+title: No confirmation means no order
+rule: A proposal is never committed without the customer's confirmation.
+org: himali-tea
+user: kiran@himali.test
+turns:
+  - user: Put together an order for 3 Kathmandu Masala Chai to House 7, Baluwatar, Kathmandu.
+  - user: Hmm, let me think about it and come back later.
+assertions:
+  tools_called: {includes: [create_order], excludes: [confirm_proposal]}
+  reply_not_matches: ['(order|it) (has been|is|was) (placed|confirmed)']
+  no_new_rows: [orders, order_items]
+  db:
+    - stock: {HT-CHA-001: 90}
+    - proposals: {status: open, count: 1}

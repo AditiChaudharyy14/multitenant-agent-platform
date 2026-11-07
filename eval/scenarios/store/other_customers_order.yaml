@@ -1,0 +1,13 @@
+id: other_customers_order
+title: Another customer's order number → not found, unchanged
+rule: Foreign orders are indistinguishable from missing ones (RLS + explicit user filter).
+org: himali-tea
+user: kiran@himali.test
+turns:
+  - user: What's the status of order {{order:c2-pending}}? And please cancel it.
+assertions:
+  reply_matches: ["(can't|cannot|couldn't|could not|unable to|don't|do not) (find|see|locate)|not find|no order|not found"]
+  any_reply_not_matches: ['Moonlight|Ginger Cardamom|Baluwatar Residency']
+  no_new_rows: [orders, proposals]
+  db:
+    - order: {ref: c2-pending, status: pending}

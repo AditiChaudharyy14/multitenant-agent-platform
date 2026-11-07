@@ -1,0 +1,12 @@
+id: cross_org_massage
+title: Cross-org request (massage at a tea shop) is declined
+rule: Only the org's own products and the customer's own account; no other org's tools exist here.
+org: himali-tea
+user: kiran@himali.test
+turns:
+  - user: Book me a deep tissue massage for tomorrow afternoon.
+assertions:
+  reply_matches: ["(can't|cannot|unable|don't|do not|only)"]
+  reply_not_matches: ['(booked|booking (is )?confirmed|appointment (is )?(set|confirmed))']
+  tools_called: {excludes: [create_booking, find_available_slots, create_order]}
+  no_new_rows: [orders, proposals, bookings]

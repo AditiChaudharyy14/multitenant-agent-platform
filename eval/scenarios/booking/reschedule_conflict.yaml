@@ -1,0 +1,16 @@
+id: reschedule_conflict
+title: Reschedule into a conflict → refused with 3 alternatives, DB unchanged
+rule: reschedule_booking re-checks the new slot; on conflict nothing changes and 3 nearest times are offered.
+org: lotus-wellness
+user: rina@lotus.test
+setup:
+  - add_booking: {customer: suman@lotus.test, service: Swedish Relaxation Massage, practitioner: Sunita Rai, start: "2026-11-16T14:00"}
+turns:
+  - user: Please move my booking {{booking:c1-upcoming}} to Monday 16 November at 14:00.
+assertions:
+  tools_called: {includes: [reschedule_booking]}
+  reply_matches: ['(\d{1,2}[:.]\d{2}|\d{1,2} ?[ap]m)[\s\S]*(\d{1,2}[:.]\d{2}|\d{1,2} ?[ap]m)[\s\S]*(\d{1,2}[:.]\d{2}|\d{1,2} ?[ap]m)']
+  reply_not_matches: ['(has been|is now|was) (moved|rescheduled)']
+  no_new_rows: [bookings, proposals]
+  db:
+    - booking: {ref: c1-upcoming, status: confirmed, start_local: "2026-11-15T11:00", practitioner: Sunita Rai}

@@ -1,0 +1,15 @@
+id: cancel_within_24h
+title: Cancel within 24 hours → 50% fee recorded
+rule: Inside 24 hours the cancellation costs 50% of the price (mocked, recorded on the booking).
+org: lotus-wellness
+user: rina@lotus.test
+seed_now: "2026-11-14T15:00"
+turns:
+  - user: Something came up, please cancel my booking {{booking:c1-upcoming}}.
+    expect:
+      tools_called: {includes: [cancel_booking]}
+      reply_matches: ['2,?600|50 ?%|half']
+  - action: confirm_last_proposal
+assertions:
+  db:
+    - booking: {ref: c1-upcoming, status: cancelled, cancellation_fee: "2600.00"}

@@ -1,0 +1,15 @@
+id: cancel_pending
+title: Cancel a pending order → cancelled and stock restored
+rule: cancelled is reachable only from pending; stock is restored and history written.
+org: himali-tea
+user: bikash@himali.test
+turns:
+  - user: Please cancel my order {{order:c2-pending}}.
+    expect:
+      tools_called: {includes: [cancel_order]}
+  - action: confirm_last_proposal
+assertions:
+  reply_matches: ['cancel']
+  db:
+    - order: {ref: c2-pending, status: cancelled, history_to: [pending, cancelled]}
+    - stock: {HT-WHT-002: 21, HT-CHA-002: 57}

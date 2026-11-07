@@ -1,0 +1,13 @@
+id: track_order
+title: Track an order with its status history
+rule: Order status is a live fact from get_order_status, with its history.
+org: himali-tea
+user: anisha@himali.test
+turns:
+  - user: Where is my order {{order:c1-shipped}}? When did it ship?
+assertions:
+  tools_called: {includes: [get_order_status]}
+  reply_matches: ['shipped', '(9|10) Nov|Nov(ember)? (9|10)|yesterday|\d{1,2}:\d{2}']
+  no_new_rows: [orders, proposals]
+  db:
+    - order: {ref: c1-shipped, status: shipped}

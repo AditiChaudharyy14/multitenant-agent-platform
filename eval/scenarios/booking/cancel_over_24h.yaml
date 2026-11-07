@@ -1,0 +1,14 @@
+id: cancel_over_24h
+title: Cancel more than 24 hours ahead → no fee
+rule: Cancellation is free more than 24 hours before the start.
+org: lotus-wellness
+user: rina@lotus.test
+turns:
+  - user: Please cancel my booking {{booking:c1-upcoming}}.
+    expect:
+      tools_called: {includes: [cancel_booking]}
+      reply_matches: ['free|no (cancellation )?fee|without (a|any) (fee|charge)|NPR 0']
+  - action: confirm_last_proposal
+assertions:
+  db:
+    - booking: {ref: c1-upcoming, status: cancelled, cancellation_fee: "0.00"}

@@ -1,0 +1,17 @@
+id: memory_add_two_more
+title: 'Memory: "add two more of that one"'
+rule: Earlier turns are history; the agent resolves "that one" and edits the proposal, not a guess.
+org: himali-tea
+user: kiran@himali.test
+turns:
+  - user: Tell me about the Golden Tips Black. What does it cost?
+  - user: Nice. Order one of those to House 7, Baluwatar, Kathmandu.
+    expect:
+      tools_called: {includes: [create_order]}
+  - user: Actually, add two more of that one.
+  - action: confirm_last_proposal
+assertions:
+  new_rows: {orders: 1}
+  db:
+    - order: {latest_for: me, status: pending, items: {HT-BLK-002: 3}, total: "4950.00"}
+    - stock: {HT-BLK-002: 15}

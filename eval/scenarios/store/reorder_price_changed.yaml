@@ -1,0 +1,18 @@
+id: reorder_price_changed
+title: '"Same as last time" with a price change noted'
+rule: reorder re-prices at today's price and the agent mentions every change.
+org: himali-tea
+user: anisha@himali.test
+setup:
+  - set_price: {sku: HT-OOL-001, price: "1450"}
+turns:
+  - user: Same as last time please.
+    expect:
+      tools_called: {includes: [reorder]}
+      reply_matches: ['1,?450|price (has )?(gone up|changed|increased)|now costs|was 1,?350']
+  - action: confirm_last_proposal
+assertions:
+  new_rows: {orders: 1}
+  db:
+    - order: {latest_for: me, status: pending, items: {HT-OOL-001: 1, HT-CHA-001: 3}, unit_prices: {HT-OOL-001: "1450.00"}, total: "2890.00"}
+    - stock: {HT-OOL-001: 21, HT-CHA-001: 87}

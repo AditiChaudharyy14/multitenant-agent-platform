@@ -1,0 +1,17 @@
+id: order_typed_yes
+title: Order confirmed by typing "yes"
+rule: confirm_proposal commits only on a later user message that clearly says yes.
+org: himali-tea
+user: kiran@himali.test
+turns:
+  - user: I'd like 1 Golden Tips Black sent to House 7, Baluwatar, Kathmandu.
+    expect:
+      tools_called: {includes: [create_order], excludes: [confirm_proposal]}
+  - user: Yes, please place it.
+assertions:
+  tools_called: {includes: [confirm_proposal]}
+  reply_matches: ['HT-\d{4}']
+  new_rows: {orders: 1}
+  db:
+    - order: {latest_for: me, status: pending, items: {HT-BLK-002: 1}, total: "1650.00"}
+    - stock: {HT-BLK-002: 17}

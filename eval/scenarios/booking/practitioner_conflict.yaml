@@ -1,0 +1,13 @@
+id: practitioner_conflict
+title: Practitioner already booked → alternatives
+rule: The EXCLUDE constraint per practitioner; the slot engine reads busy times via busy_intervals().
+org: lotus-wellness
+user: pooja@lotus.test
+setup:
+  - add_booking: {customer: suman@lotus.test, service: Swedish Relaxation Massage, practitioner: Sunita Rai, start: "2026-11-17T14:00"}
+turns:
+  - user: Book a Swedish Relaxation Massage with Sunita Rai on Tuesday 17 November at 14:00.
+assertions:
+  reply_matches: ["(not|isn't|is not|no longer) (free|available)|already (booked|taken)|unavailable|taken", '(\d{1,2}[:.]\d{2}|\d{1,2} ?[ap]m)']
+  any_reply_not_matches: ['Suman']
+  no_new_rows: [bookings, proposals]

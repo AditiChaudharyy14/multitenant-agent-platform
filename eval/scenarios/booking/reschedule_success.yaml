@@ -1,0 +1,15 @@
+id: reschedule_success
+title: Reschedule to a free time
+rule: Reschedule proposes, the confirm re-checks the slot and moves the same booking.
+org: lotus-wellness
+user: rina@lotus.test
+turns:
+  - user: Please move my booking {{booking:c1-upcoming}} to Tuesday 17 November at 10:00.
+    expect:
+      tools_called: {includes: [reschedule_booking]}
+  - action: confirm_last_proposal
+assertions:
+  no_new_rows: [bookings]
+  db:
+    - booking: {ref: c1-upcoming, status: confirmed, start_local: "2026-11-17T10:00", practitioner: Sunita Rai}
+    - proposals: {status: confirmed, count: 1}

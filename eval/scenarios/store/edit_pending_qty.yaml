@@ -1,0 +1,15 @@
+id: edit_pending_qty
+title: Edit a pending order's quantity
+rule: Pending orders can be edited (FOR UPDATE + pending check); stock follows the change.
+org: himali-tea
+user: bikash@himali.test
+turns:
+  - user: On my order {{order:c2-pending}}, please change the Ginger Cardamom Chai from 2 to 3.
+    expect:
+      tools_called: {includes: [update_order]}
+  - action: confirm_last_proposal
+assertions:
+  no_new_rows: [orders]
+  db:
+    - order: {ref: c2-pending, status: pending, items: {HT-WHT-002: 1, HT-CHA-002: 3}, total: "3310.00"}
+    - stock: {HT-CHA-002: 54, HT-WHT-002: 20}

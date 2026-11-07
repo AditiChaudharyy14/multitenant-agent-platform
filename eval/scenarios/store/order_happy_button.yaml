@@ -1,0 +1,18 @@
+id: order_happy_button
+title: Happy path order confirmed with the Confirm button
+rule: create_order only proposes; the Confirm button commits a pending order and decrements stock atomically.
+org: himali-tea
+user: kiran@himali.test
+turns:
+  - user: Please order 2 packs of Himalayan Sencha, delivered to House 7, Baluwatar, Kathmandu.
+    expect:
+      tools_called: {includes: [create_order]}
+  - action: confirm_last_proposal
+assertions:
+  tools_called: {includes: ["server:confirm_proposal"]}
+  reply_matches: ['HT-\d{4}']
+  new_rows: {orders: 1}
+  db:
+    - order: {latest_for: me, status: pending, items: {HT-GRN-003: 2}, total: "1500.00", history_to: [pending]}
+    - stock: {HT-GRN-003: 58}
+    - proposals: {status: confirmed, count: 1}

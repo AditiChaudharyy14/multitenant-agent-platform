@@ -1,0 +1,11 @@
+id: hours_and_holiday
+title: Opening hours and a holiday
+rule: Hours and holidays come from get_opening_hours, not the KB.
+org: lotus-wellness
+user: pooja@lotus.test
+turns:
+  - user: What are your opening hours? And are you open on Wednesday 2 December?
+assertions:
+  tools_called: {includes: [get_opening_hours]}
+  reply_matches: ['saturday', 'maintenance|closed|holiday', '9(:00)? ?(am|:00)|09:00']
+  no_new_rows: [bookings, proposals]

@@ -1,0 +1,11 @@
+id: duration_past_close
+title: Service would run past closing → refused
+rule: A slot must fit the service's full duration before closing (Friday closes 15:00).
+org: lotus-wellness
+user: pooja@lotus.test
+turns:
+  - user: Book a Deep Tissue Massage on Friday 20 November at 14:00.
+assertions:
+  reply_matches: ['clos|15:00|3 ?pm|90', '(\d{1,2}[:.]\d{2}|\d{1,2} ?[ap]m)']
+  reply_not_matches: ['(is|has been) (booked|confirmed)']
+  no_new_rows: [bookings, proposals]

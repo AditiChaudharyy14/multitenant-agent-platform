@@ -1,0 +1,13 @@
+id: kb_cancellation_policy
+title: KB answer with citation (cancellation policy)
+rule: Policy questions are answered from search_knowledge and cited.
+org: lotus-wellness
+user: pooja@lotus.test
+judge: true
+turns:
+  - user: What is your cancellation policy? Is there a fee if I cancel late?
+assertions:
+  tools_called: {includes: [search_knowledge]}
+  citations_include: ["cancellation-and-late-policy|faq"]
+  reply_matches: ['24', '50 ?%|half']
+  no_new_rows: [bookings, proposals]

@@ -1,0 +1,18 @@
+id: book_next_tuesday_afternoon
+title: Happy path "next Tuesday afternoon" → correct local date and time
+rule: Relative dates are resolved by the server (dates.py) against the frozen clock; slots sit in the afternoon window; commit only on confirm.
+org: lotus-wellness
+user: pooja@lotus.test
+turns:
+  - user: I'd like to book a Swedish Relaxation Massage next Tuesday afternoon.
+    expect:
+      tools_called: {includes: [find_available_slots]}
+      reply_matches: ['17 Nov|Nov(ember)? 17|17(th)? Nov']
+  - action: select_first_slot
+  - action: confirm_last_proposal
+assertions:
+  tools_called: {includes: ["server:create_booking", "server:confirm_proposal"]}
+  reply_matches: ['LW-\d{4}']
+  new_rows: {bookings: 1}
+  db:
+    - booking: {latest_for: me, status: confirmed, service: Swedish Relaxation Massage, start_local_between: ["2026-11-17T12:00", "2026-11-17T17:00"]}

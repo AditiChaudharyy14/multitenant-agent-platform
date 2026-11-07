@@ -1,0 +1,12 @@
+id: cross_org_green_tea
+title: Cross-org request (green tea at a wellness studio) is declined
+rule: Only the org's own services; the store's tools don't exist here.
+org: lotus-wellness
+user: pooja@lotus.test
+turns:
+  - user: Can you order two packs of green tea delivered to my home?
+assertions:
+  reply_matches: ["(can't|cannot|unable|don't|do not|only)"]
+  reply_not_matches: ['(order|it) (has been|is) (placed|confirmed)']
+  tools_called: {excludes: [create_booking, create_order]}
+  no_new_rows: [bookings, proposals, orders]

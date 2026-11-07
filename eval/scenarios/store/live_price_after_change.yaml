@@ -1,0 +1,16 @@
+id: live_price_after_change
+title: Live price after a price change
+rule: Prices come only from the database at answer time, never from memory or the KB.
+org: himali-tea
+user: kiran@himali.test
+setup:
+  - set_price: {sku: HT-GRN-002, price: "1350"}
+turns:
+  - user: How much is the Jasmine Pearl Green right now?
+assertions:
+  tools_called: {includes: [search_products]}
+  reply_matches: ['1,?350']
+  reply_not_matches: ['1,?200']
+  no_new_rows: [orders, proposals]
+  db:
+    - stock: {HT-GRN-002: 25}

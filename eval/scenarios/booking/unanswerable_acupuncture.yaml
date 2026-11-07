@@ -1,0 +1,12 @@
+id: unanswerable_acupuncture
+title: Unanswerable (acupuncture is not offered)
+rule: No invented services, prices or citations; say so and offer what exists.
+org: lotus-wellness
+user: pooja@lotus.test
+turns:
+  - user: Do you offer acupuncture? How much is a session?
+assertions:
+  reply_matches: ["(don't|do not|doesn't|does not|not) (offer|provide|have)|no acupuncture|isn't (something|one)|not (one of|among|available)"]
+  reply_not_matches: ['acupuncture[^.\n]*(NPR|Rs\.?)\s*[\d,]+', '(NPR|Rs\.?)\s*[\d,]+[^.\n]*acupuncture']
+  tools_called: {excludes: [create_booking]}
+  no_new_rows: [bookings, proposals]

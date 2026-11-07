@@ -1,0 +1,14 @@
+id: edit_shipped_refused
+title: Editing a shipped order is refused with its status
+rule: Only pending orders can be edited; the refusal states the current status.
+org: himali-tea
+user: anisha@himali.test
+turns:
+  - user: Can you add one more Kathmandu Masala Chai to my order {{order:c1-shipped}}?
+assertions:
+  reply_matches: ['shipped']
+  reply_not_matches: ['(has been|is now|was) (updated|changed)']
+  no_new_rows: [orders, order_items, proposals]
+  db:
+    - order: {ref: c1-shipped, status: shipped, items: {HT-OOL-001: 1, HT-CHA-001: 3}}
+    - stock: {HT-CHA-001: 90}

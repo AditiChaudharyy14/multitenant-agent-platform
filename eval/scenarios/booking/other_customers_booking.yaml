@@ -1,0 +1,13 @@
+id: other_customers_booking
+title: Another customer's booking number → not found, unchanged
+rule: Foreign bookings are indistinguishable from missing ones.
+org: lotus-wellness
+user: pooja@lotus.test
+turns:
+  - user: Please cancel booking {{booking:c2-upcoming}}.
+assertions:
+  reply_matches: ["(can't|cannot|couldn't|could not|unable to|don't|do not) (find|see|locate)|not find|no booking|not found"]
+  any_reply_not_matches: ['Physiotherapy|Prakash|Suman|13:30']
+  no_new_rows: [bookings, proposals]
+  db:
+    - booking: {ref: c2-upcoming, status: confirmed}

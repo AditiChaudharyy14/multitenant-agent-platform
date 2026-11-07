@@ -1,0 +1,16 @@
+id: memory_same_practitioner
+title: 'Memory: "same practitioner as last time"'
+rule: Earlier turns are history; "last time" resolves to the customer's own past booking, not a guess.
+org: lotus-wellness
+user: rina@lotus.test
+turns:
+  - user: Who did my last massage, and when was it?
+    expect:
+      tools_called: {includes: [list_my_bookings]}
+      reply_matches: ['Maya']
+  - user: Lovely. Book me a Swedish Relaxation Massage with the same practitioner as last time, on Tuesday 17 November at 15:00.
+  - action: confirm_last_proposal
+assertions:
+  new_rows: {bookings: 1}
+  db:
+    - booking: {latest_for: me, status: confirmed, practitioner: Maya Tamang, service: Swedish Relaxation Massage, start_local: "2026-11-17T15:00"}

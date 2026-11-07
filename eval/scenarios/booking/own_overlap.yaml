@@ -1,0 +1,11 @@
+id: own_overlap
+title: Customer's own overlapping booking → refused
+rule: The per-customer EXCLUDE constraint; a customer can't be in two places at once.
+org: lotus-wellness
+user: rina@lotus.test
+turns:
+  - user: Book a Private Hatha Yoga session with Maya Tamang on Sunday 15 November at 11:30.
+assertions:
+  reply_matches: ['(already|own|existing|another) .*(booking|appointment)|overlap|clash|conflict', '(\d{1,2}[:.]\d{2}|\d{1,2} ?[ap]m)']
+  reply_not_matches: ['(is|has been) (booked|confirmed)']
+  no_new_rows: [bookings, proposals]
