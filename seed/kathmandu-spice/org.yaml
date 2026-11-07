@@ -1,0 +1,15 @@
+# Org config: branding and behaviour. Behaviour is keyed on `vertical`, never on the slug.
+# Added with config + seed data only: no code changed for this org.
+slug: kathmandu-spice
+name: Kathmandu Spice Co.
+vertical: store
+timezone: Asia/Kathmandu
+business_type: online spice shop selling Nepali spices, masalas and pickling blends
+order_prefix: KS        # order numbers look like KS-1001
+currency: NPR
+branding:
+  primary_color: "#8C2F1B"
+  secondary_color: "#E0A526"
+  logo_emoji: "🌶️"
+  agent_name: Masala
+  greeting: "Namaste! I'm Masala. Ask me about our spices and blends, place an order, or check on one you've already placed."

@@ -43,8 +43,8 @@ async def _user_id(owner: AsyncEngine, org_id: uuid.UUID, role: str) -> uuid.UUI
     return uid
 
 
-def test_org_slugs_and_prefixes_are_unique() -> None:
-    assert len(SLUGS) >= 2
+def test_there_are_at_least_three_orgs_and_ids_are_unique() -> None:
+    assert len(SLUGS) >= 3
     assert len(set(SLUGS)) == len(SLUGS)
     prefixes = [p for c in CONFIGS for p in (c.order_prefix, c.booking_prefix) if p]
     assert len(set(prefixes)) == len(prefixes)

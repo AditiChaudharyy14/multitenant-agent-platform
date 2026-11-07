@@ -1,0 +1,67 @@
+# Kathmandu Spice Co.: relational seed data (fictional). Loaded by `make seed`, which wipes
+# and rebuilds this org's rows. Prices are NPR. Stock is current stock (historic orders
+# below are already accounted for). Same format as every other store org's data.yaml.
+
+# ─────────────────────────────────────────────────────────────────────────────
+# DEMO ONLY: these passwords exist so reviewers can log in to a local demo.
+# They are not secrets, are listed in the README, and must never be reused.
+# ─────────────────────────────────────────────────────────────────────────────
+users:
+  - key: c1
+    email: sita@spice.test
+    display_name: Sita Thapa
+    role: customer
+    password: demo-sita-2026          # DEMO ONLY
+  - key: c2
+    email: ramesh@spice.test
+    display_name: Ramesh Karki
+    role: customer
+    password: demo-ramesh-2026        # DEMO ONLY
+  - key: admin
+    email: admin@spice.test
+    display_name: Spice Admin
+    role: admin
+    password: demo-admin-spice        # DEMO ONLY
+
+products:
+  - {sku: KS-MSL-001, name: Kathmandu Garam Masala, category: masala, price: 450, stock: 60}
+  - {sku: KS-MSL-002, name: Momo Masala, category: masala, price: 350, stock: 45}
+  - {sku: KS-MSL-003, name: Newari Choila Spice Mix, category: masala, price: 520, stock: 3}   # low
+  - {sku: KS-WHL-001, name: Timur Sichuan Pepper, category: whole, price: 680, stock: 25}
+  - {sku: KS-WHL-002, name: Jimbu Himalayan Herb, category: whole, price: 750, stock: 18}
+  - {sku: KS-WHL-003, name: Large Black Cardamom, category: whole, price: 900, stock: 0}       # out
+  - {sku: KS-GRD-001, name: Turmeric Powder, category: ground, price: 280, stock: 80}
+  - {sku: KS-PKL-001, name: Achar Pickling Blend, category: pickling, price: 400, stock: 30}
+
+orders:
+  # Customer 1: one delivered, one pending.
+  - key: c1-delivered
+    customer: c1
+    delivery_address: House 7, Thamel Marg, Kathmandu
+    placed: {days_ago: 12, at: "09:40"}
+    items:
+      - {sku: KS-MSL-002, qty: 2}
+      - {sku: KS-WHL-001, qty: 1}
+    history:
+      - {to: confirmed, after_hours: 2}
+      - {to: shipped, after_hours: 24}
+      - {to: delivered, after_hours: 52}
+  - key: c1-pending
+    customer: c1
+    delivery_address: House 7, Thamel Marg, Kathmandu
+    placed: {days_ago: 1, at: "14:05"}
+    items:
+      - {sku: KS-MSL-002, qty: 1}
+      - {sku: KS-GRD-001, qty: 2}
+    history: []
+  # Customer 2: one shipped.
+  - key: c2-shipped
+    customer: c2
+    delivery_address: Ward 4, Lakeside, Pokhara
+    placed: {days_ago: 4, at: "17:30"}
+    items:
+      - {sku: KS-MSL-001, qty: 1}
+      - {sku: KS-PKL-001, qty: 1}
+    history:
+      - {to: confirmed, after_hours: 1}
+      - {to: shipped, after_hours: 20}
