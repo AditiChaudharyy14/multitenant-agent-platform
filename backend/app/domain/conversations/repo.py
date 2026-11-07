@@ -13,6 +13,7 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.agents.ids import new_id
 from app.agents.state import TurnState
 from app.tenancy.context import ToolContext
 
@@ -132,10 +133,12 @@ async def add_user_message(conn: AsyncConnection, ctx: ToolContext, cid: UUID, c
     )
     turn_id = await conn.scalar(
         text(
-            "INSERT INTO messages (org_id, user_id, conversation_id, role, content) "
-            "VALUES (:o, :u, :c, 'user', :t) RETURNING id"
+            "INSERT INTO messages (id, org_id, user_id, conversation_id, role, content) "
+            "VALUES (:id, :o, :u, :c, 'user', :t) RETURNING id"
         ),
-        {"o": ctx.org_id, "u": ctx.user_id, "c": cid, "t": content},
+        # The turn id ends up in server-action call ids the model reads back, so it comes
+        # from new_id() (deterministic under evals), not gen_random_uuid().
+        {"id": new_id(), "o": ctx.org_id, "u": ctx.user_id, "c": cid, "t": content},
     )
     await conn.execute(
         text(

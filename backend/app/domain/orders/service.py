@@ -15,6 +15,7 @@ from typing import Any
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app import clock
+from app.agents.ids import new_id
 from app.domain.money import format_money, money_str, to_money
 from app.domain.orders import repo
 from app.domain.orders.numbers import display_number, parse_order_number
@@ -133,7 +134,7 @@ async def _propose(
     card: dict[str, Any], what: str,
 ) -> Reply:  # fmt: skip
     """Store the proposal and build its order_summary card (with the Confirm button)."""
-    pid = uuid.uuid4()
+    pid = new_id()  # deterministic under evals: the model reads it back
     card = {
         "type": "order_summary", "kind": kind, "proposal_id": str(pid), **card,
         "payment_method": PAYMENT_METHOD,

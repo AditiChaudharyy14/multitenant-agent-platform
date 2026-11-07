@@ -8,6 +8,8 @@
 Behaviour is keyed on the provider name and settings only; nothing here knows an org.
 """
 
+from sqlalchemy.ext.asyncio import AsyncEngine
+
 from app.agents.providers.base import LLMProvider, ProviderAuthError
 from app.agents.providers.budget import DailyBudget
 from app.agents.providers.fake import FakeProvider
@@ -18,7 +20,7 @@ from app.agents.providers.scripted import ScriptedProvider, load_scenario
 from app.config import Settings, get_settings
 
 
-def _live(settings: Settings, name: str) -> LLMProvider:
+def _live(settings: Settings, name: str, budget_engine: AsyncEngine | None = None) -> LLMProvider:
     key = getattr(settings, f"{name}_api_key").get_secret_value()
     if not key:
         raise ProviderAuthError(
@@ -35,18 +37,20 @@ def _live(settings: Settings, name: str) -> LLMProvider:
         adapter = MistralAdapter(key)
     models = settings.llm_models(name)
     rpm = getattr(settings, f"llm_rpm_{name}")
-    budget = DailyBudget(name, getattr(settings, f"llm_daily_budget_{name}"))
+    budget = DailyBudget(name, getattr(settings, f"llm_daily_budget_{name}"), budget_engine)
     return ModelRouter(adapter, models, budget, {m: limiter_for(name, m, rpm) for m in models})
 
 
-def get_provider(settings: Settings | None = None) -> LLMProvider:
+def get_provider(settings: Settings | None = None, *, budget_engine: AsyncEngine | None = None) -> LLMProvider:
+    """budget_engine: where llm_usage is counted. Default: the app engine. The eval runner
+    passes the main database's engine, because it points app_engine at per-scenario clones."""
     s = settings or get_settings()
     if s.eval_mode == "replay":
         return RecordReplayProvider("replay", s.eval_cassette_dir)  # offline: no key, no budget
     if s.llm_provider == "fake":
         inner: LLMProvider = ScriptedProvider(load_scenario(s.fake_scenario_file)) if s.fake_scenario_file else FakeProvider()
     else:
-        inner = _live(s, s.llm_provider)
+        inner = _live(s, s.llm_provider, budget_engine)
     if s.eval_mode == "record":
         return RecordReplayProvider("record", s.eval_cassette_dir, inner)
     return inner

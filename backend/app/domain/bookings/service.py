@@ -18,6 +18,7 @@ from zoneinfo import ZoneInfo
 from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app import clock
+from app.agents.ids import new_id
 from app.domain.bookings import repo
 from app.domain.bookings.repo import Booking
 from app.domain.money import format_money, money_str, to_money
@@ -204,7 +205,7 @@ async def _propose(
     conn: AsyncConnection, ctx: ToolContext, org: Org, kind: str, payload: dict[str, Any], card: dict[str, Any], what: str,
 ) -> Reply:  # fmt: skip
     """Store the proposal and build its booking_summary card (with the Confirm button)."""
-    pid = uuid.uuid4()
+    pid = new_id()  # deterministic under evals: the model reads it back
     card = {
         "type": "booking_summary", "kind": kind, "proposal_id": str(pid), **card,
         "expires_at": local_display(clock.now() + PROPOSAL_TTL, org.timezone),
