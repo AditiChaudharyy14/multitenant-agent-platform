@@ -19,6 +19,7 @@ frozen clock, deterministic ids), or every replay after the first tool call will
 import difflib
 import json
 import os
+import re
 from collections.abc import AsyncIterator, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -36,6 +37,38 @@ from app.agents.providers.base import (
     request_fingerprint,
     request_to_dict,
 )
+
+
+# Cassettes are committed to git, so nothing secret may ever be written into one. They hold
+# normalised requests and events only (never raw HTTP), so this is defence in depth: drop
+# any "headers" mapping and redact anything that looks like an API key or key parameter.
+_SECRET_PATTERNS = (
+    re.compile(r"AIza[0-9A-Za-z_\-]{35}"),  # Google API key
+    re.compile(r"(?i)(x-goog-api-key\s*[:=]\s*)[^\s\"',&]+"),
+    re.compile(r"(?i)([?&]key=)[^\s\"',&]+"),
+    re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._\-]{8,}"),
+)
+REDACTED = "[REDACTED]"
+
+
+def _secret_values() -> list[str]:
+    """The configured API keys themselves, so they are removed even in an unknown format."""
+    values = [os.environ.get(k, "") for k in ("GEMINI_API_KEY", "MISTRAL_API_KEY")]
+    return [v for v in values if len(v) >= 8]
+
+
+def scrub(value: object) -> object:
+    """A copy of `value` (JSON-like) with headers dropped and secrets redacted."""
+    if isinstance(value, dict):
+        return {k: scrub(v) for k, v in value.items() if k.lower() != "headers"}
+    if isinstance(value, list):
+        return [scrub(v) for v in value]
+    if isinstance(value, str):
+        for secret in _secret_values():
+            value = value.replace(secret, REDACTED)
+        for pattern in _SECRET_PATTERNS:
+            value = pattern.sub(lambda m: (m.group(1) if m.groups() else "") + REDACTED, value)
+    return value
 
 
 class CassetteMissing(LLMError):
@@ -99,7 +132,7 @@ class RecordReplayProvider(LLMProvider):
         self._save(scope.scenario, index, req, events)
 
     def _replay(self, scenario: str, index: int, req: ChatRequest) -> list[Event]:
-        hint = f"record it with: make eval SCENARIO={scenario} EVAL_MODE=record"
+        hint = f"re-record just this scenario: make eval-live ONLY={scenario} (EVAL_MODE=record)"
         path = self._path(scenario)
         calls = json.loads(path.read_text(encoding="utf-8"))["calls"] if path.exists() else []
         if index >= len(calls):
@@ -124,5 +157,7 @@ class RecordReplayProvider(LLMProvider):
             "events": [event_to_dict(e) for e in events],
         })  # fmt: skip
         tmp = path.with_suffix(".json.tmp")
-        tmp.write_text(json.dumps({"scenario": scenario, "calls": calls}, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
+        # The fingerprint is computed from the real request above; only the stored copy is scrubbed.
+        cassette = scrub({"scenario": scenario, "calls": calls})
+        tmp.write_text(json.dumps(cassette, indent=1, ensure_ascii=False) + "\n", encoding="utf-8")
         os.replace(tmp, path)  # atomic: an interrupted recording never leaves half a file
