@@ -344,7 +344,8 @@ export function ChatScreen({ me, routeConversationId, mode = "customer" }: { me:
 
         <CardEnvContext.Provider value={{ busy: streaming || rateUntil !== null, send: sendAction, proposals }}>
         <main className="flex min-w-0 flex-1 flex-col">
-          <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" aria-live="polite">
+          {/* A chat log for assistive tech: new messages are announced; a reply is marked busy while it streams (MessageView), so it is read once, complete, not token by token. */}
+          <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" role="log" aria-live="polite" aria-relevant="additions" aria-label="Conversation" data-testid="conversation-log">
             <div className="mx-auto flex max-w-3xl flex-col gap-6 px-4 py-6 sm:px-6">
               {load === "loading" && <HistorySkeleton />}
               {load === "error" && (

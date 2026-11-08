@@ -45,7 +45,7 @@ export function MessageView({ message: m, activity, onOpenSource }: Props) {
   const waiting = streaming && !m.content && !activity;
 
   return (
-    <article data-role="assistant" data-status={m.status} data-testid="assistant-message" className="flex flex-col">
+    <article data-role="assistant" data-status={m.status} data-testid="assistant-message" aria-busy={streaming} className="flex flex-col">
       {text && (
         <div className={streaming ? "streaming-tail" : undefined}>
           <Markdown
