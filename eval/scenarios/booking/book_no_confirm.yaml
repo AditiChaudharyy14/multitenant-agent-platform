@@ -1,0 +1,18 @@
+id: book_no_confirm
+title: No confirmation means no booking
+rule: A booking proposal is never committed without the customer's confirmation (button or a typed yes).
+org: lotus-wellness
+user: pooja@lotus.test
+category: rule
+turns:
+  - user: Book a Swedish Relaxation Massage with Sunita Rai on Tuesday 17 November at 10:00.
+    expect:
+      tools_called: {includes: [create_booking]}
+  - user: Actually, let me check my calendar first and get back to you.
+assertions:
+  tools_called: {includes: [create_booking], excludes: [confirm_proposal]}
+  any_reply_not_matches: ['(booking|appointment|it) (is|has been|was) (confirmed|booked)|you are (all )?booked|you.re (all )?booked']
+  no_new_rows: [bookings]
+  db:
+    - proposals: {status: open, count: 1}
+    - proposals: {status: confirmed, count: 0}

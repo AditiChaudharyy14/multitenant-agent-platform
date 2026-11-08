@@ -1,0 +1,15 @@
+id: kb_return_window
+title: KB answer with citation (return window, stated the same in every KB document)
+rule: Policy answers come from search_knowledge with a citation; make kb-check keeps the return window consistent across documents.
+org: himali-tea
+user: anisha@himali.test
+category: kb
+judge: true
+turns:
+  - user: How long do I have to return an unopened tea? And what if it arrives damaged?
+assertions:
+  tools_called: {includes: [search_knowledge]}
+  citations_include: ["returns-and-refunds|faq"]
+  reply_matches: ['14|fourteen', '\b7\b|seven']
+  reply_not_matches: ['\b30\b|thirty']
+  no_new_rows: [orders, proposals]

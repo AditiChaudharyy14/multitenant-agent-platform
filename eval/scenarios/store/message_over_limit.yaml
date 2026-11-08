@@ -1,0 +1,14 @@
+id: message_over_limit
+title: A message over the 2000-character limit → refused with the limit named, no model call
+rule: Chat messages are capped at 2000 characters (422, nothing stored); the Composer shows a friendly message and keeps the draft.
+org: himali-tea
+user: kiran@himali.test
+category: safety
+turns:
+  - user: '{{chars:2001}}'
+    expect_http: 422
+    expect:
+      reply_matches: ['2000 characters']
+assertions:
+  # Nothing was stored and the agent never ran, so no LLM request was made.
+  no_new_rows: [messages, agent_runs, orders, proposals]

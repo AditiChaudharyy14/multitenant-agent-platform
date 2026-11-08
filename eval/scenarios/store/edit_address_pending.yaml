@@ -1,0 +1,20 @@
+id: edit_address_pending
+title: Change only the delivery address of a pending order
+rule: Pending orders can be edited (FOR UPDATE + pending check); an address-only edit leaves items, total and stock untouched.
+org: himali-tea
+user: bikash@himali.test
+category: rule
+turns:
+  - user: Please deliver my order {{order:c2-pending}} to House 22, Pulchowk Road, Lalitpur instead. Nothing else changes.
+    expect:
+      tools_called: {includes: [update_order]}
+  - action: confirm_last_proposal
+assertions:
+  no_new_rows: [orders, order_items, order_status_history]
+  db:
+    - order: {ref: c2-pending, status: pending, items: {HT-WHT-002: 1, HT-CHA-002: 2}, total: "2790.00"}
+    - stock: {HT-CHA-002: 55, HT-WHT-002: 20}
+    - sql:
+        query: "SELECT count(*) FROM orders o JOIN users u ON u.id = o.user_id WHERE u.email = 'bikash@himali.test' AND o.delivery_address ILIKE '%Pulchowk%'"
+        equals: 1
+    - proposals: {status: confirmed, count: 1}

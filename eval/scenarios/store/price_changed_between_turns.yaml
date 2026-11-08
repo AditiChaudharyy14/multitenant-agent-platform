@@ -1,0 +1,23 @@
+id: price_changed_between_turns
+title: Price changes between two turns → the agent re-fetches and states the new price
+rule: Live facts are fetched again each time they are stated (prompt rule 8), never repeated from earlier in the conversation.
+org: himali-tea
+user: kiran@himali.test
+category: rule
+turns:
+  - user: How much is the Jasmine Pearl Green?
+    expect:
+      tools_called: {includes: [search_products]}
+      reply_matches: ['1,?200']
+  # The shop changes the price after the first answer, while the conversation is open.
+  - user: Thanks. Can you check the price again right now? I want to be sure before I order.
+    setup:
+      - set_price: {sku: HT-GRN-002, price: "1350"}
+    expect:
+      tools_called: {includes: [search_products]}
+      reply_matches: ['1,?350']
+      reply_not_matches: ['(still|remains|is) (NPR|Rs\.?)?\s*1,?200']
+assertions:
+  no_new_rows: [orders, proposals]
+  db:
+    - stock: {HT-GRN-002: 25}
