@@ -237,6 +237,10 @@ export function ChatScreen({ me, routeConversationId, mode = "customer" }: { me:
         if ("content" in body) setDraft(text);
         setRateUntil(Date.now() + (err.retryAfter ?? 60) * 1000);
         setNow(Date.now());
+      } else if (err instanceof ApiError && err.status === 409) {
+        // Another reply in this conversation is still being written (e.g. in a second tab).
+        if ("content" in body) setDraft(text);
+        patch(asstKey, (m) => ({ ...m, status: "error", error: { code: "busy", message: "A reply is still in progress. Wait for it to finish, then send again." } }));
       } else if (err instanceof ApiError && err.status === 422) {
         // Refused by the server's input limits (e.g. too long): nothing was stored.
         if ("content" in body) setDraft(text);

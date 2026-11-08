@@ -16,11 +16,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
 
+from app.agents import turnlock
 from app.agents.history import HISTORY_LIMIT, to_messages
 from app.agents.providers import get_provider
 from app.agents.providers.base import LLMProvider
 from app.agents.tools.registry import tools_for
 from app.agents.turn import ServerAction, TurnInput, start_turn
+from app.agents.turnlock import TurnLock
 from app.api.conversations import not_found
 from app.auth.deps import current_ctx
 from app.auth.ratelimit import SlidingWindowLimiter
@@ -34,6 +36,7 @@ from app.tenancy.orgs import Org, get_org_by_id
 router = APIRouter(prefix="/api/conversations")
 
 HEARTBEAT_SECONDS = 15.0
+REPLY_IN_PROGRESS = "A reply is still in progress"
 MAX_MESSAGE_CHARS = 2000  # the Composer enforces the same limit (frontend/lib/limits.ts)
 
 # 20 chat messages per minute per user (CLAUDE.md). Per process, like the login limiter.
@@ -138,6 +141,18 @@ async def post_message(
         )  # fmt: skip
 
     action = body.action.server_action() if body.action else None
+    lock = await turnlock.acquire(conversation_id)
+    if lock is None:  # another reply in this conversation is still being written
+        raise HTTPException(status_code=409, detail=REPLY_IN_PROGRESS)
+    try:
+        return await _start(conversation_id, body, ctx, provider, action, lock)
+    except BaseException:
+        await lock.release()  # refused before the turn started (404, 422, ...)
+        raise
+
+
+async def _start(conversation_id: UUID, body: "MessageIn", ctx: ToolContext, provider: LLMProvider,
+                 action: ServerAction | None, lock: TurnLock) -> StreamingResponse:  # fmt: skip
     # One transaction: read the org, load history, store the user message (its id is the turn id).
     async with tenant_tx(ctx.tenant) as conn:
         org = await get_org_by_id(conn, ctx.org_id)
@@ -153,21 +168,21 @@ async def post_message(
 
     turn_ctx = ToolContext(ctx.org_id, ctx.user_id, ctx.role, conversation_id, turn_id)
     inp = TurnInput(org=org, ctx=turn_ctx, history=history, user_text=user_text, action=action)
-    return stream_turn(provider, inp)
+    return stream_turn(provider, inp, lock)
 
 
-def stream_turn(provider: LLMProvider, inp: TurnInput) -> StreamingResponse:
-    """The SSE response for one turn (customer or admin chat)."""
+def stream_turn(provider: LLMProvider, inp: TurnInput, lock: TurnLock | None = None) -> StreamingResponse:
+    """The SSE response for one turn (customer or admin chat). The turn releases `lock`."""
     return StreamingResponse(
-        _stream(provider, inp),
+        _stream(provider, inp, lock),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
-async def _stream(provider: LLMProvider, inp: TurnInput) -> AsyncIterator[str]:
+async def _stream(provider: LLMProvider, inp: TurnInput, lock: TurnLock | None) -> AsyncIterator[str]:
     # The turn starts only once the response does, so it is never left running unwatched.
-    task, queue = start_turn(provider, inp)
+    task, queue = start_turn(provider, inp, lock=lock)
     try:
         while True:
             try:

@@ -25,6 +25,7 @@ from app.agents.providers.base import LLMProvider, Message
 from app.agents.state import AgentEvent, TurnState
 from app.agents.tools.base import Tool, ToolResult, error_result
 from app.agents.tools.registry import admin_tools_for, tools_for
+from app.agents.turnlock import TurnLock
 from app.db.session import tenant_tx
 from app.domain import memory
 from app.domain.conversations import repo
@@ -83,7 +84,7 @@ to the customer as yourself; don't mention "the server".
 
 
 def start_turn(
-    provider: LLMProvider, inp: TurnInput, *, tools: dict[str, Tool] | None = None
+    provider: LLMProvider, inp: TurnInput, *, tools: dict[str, Tool] | None = None, lock: TurnLock | None = None
 ) -> tuple[asyncio.Task[None], Queue]:
     queue: Queue = asyncio.Queue()
     if tools is not None:
@@ -94,13 +95,15 @@ def start_turn(
         chosen = tools_for(inp.org.vertical, inp.org.features)  # vertical, minus features switched off
     # Tracing (a no-op unless OTEL_EXPORTER_OTLP_ENDPOINT is set): a span per LLM and tool call.
     chosen = {name: tracing.traced_tool(t) for name, t in chosen.items()}
-    task = asyncio.create_task(_run(tracing.TracingProvider(provider), inp, chosen, queue))
+    task = asyncio.create_task(_run(tracing.TracingProvider(provider), inp, chosen, queue, lock))
     _running.add(task)
     task.add_done_callback(_running.discard)
     return task, queue
 
 
-async def _run(provider: LLMProvider, inp: TurnInput, tools: dict[str, Tool], queue: Queue) -> None:
+async def _run(
+    provider: LLMProvider, inp: TurnInput, tools: dict[str, Tool], queue: Queue, lock: TurnLock | None = None
+) -> None:
     state = TurnState()
     started = time.monotonic()
     cancelled = False
@@ -146,6 +149,8 @@ async def _run(provider: LLMProvider, inp: TurnInput, tools: dict[str, Tool], qu
     otel_context.detach(span_token)
     latency_ms = int((time.monotonic() - started) * 1000)
     message_id = await asyncio.shield(_persist(inp.ctx, state, latency_ms))
+    if lock is not None:  # released before `done`, so the next message never races it
+        await asyncio.shield(lock.release())
     queue.put_nowait(AgentEvent("done", {
         "message_id": str(message_id) if message_id else None, "turn_id": str(inp.ctx.turn_id),
         "status": repo.MESSAGE_STATUS[state.status], "content": state.content,

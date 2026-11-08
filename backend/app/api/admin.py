@@ -18,10 +18,11 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
+from app.agents import turnlock
 from app.agents.history import HISTORY_LIMIT, to_messages
 from app.agents.providers.base import LLMProvider
 from app.agents.turn import TurnInput
-from app.api.chat import MAX_MESSAGE_CHARS, chat_limiter, get_chat_provider, stream_turn
+from app.api.chat import MAX_MESSAGE_CHARS, REPLY_IN_PROGRESS, chat_limiter, get_chat_provider, stream_turn
 from app.api.conversations import ConversationOut, RenameIn, not_found
 from app.auth.deps import require_admin
 from app.db.session import tenant_tx
@@ -119,12 +120,20 @@ async def post_admin_message(
     if retry_after is not None:
         raise HTTPException(status_code=429, detail="Too many messages, slow down a little",
                             headers={"Retry-After": str(retry_after)})  # fmt: skip
-    async with tenant_tx(ctx.tenant) as conn:
-        org = await get_org_by_id(conn, ctx.org_id)
-        assert org is not None  # the session's org always exists (FK)
-        history = to_messages(await conversations.recent_messages(conn, ctx, conversation_id, HISTORY_LIMIT))
-        turn_id = await conversations.add_user_message(conn, ctx, conversation_id, body.content, ADMIN)
-        if turn_id is None:
-            raise not_found()  # not this admin's analytics chat: nothing was stored
+    lock = await turnlock.acquire(conversation_id)  # one reply at a time, as in the customer chat
+    if lock is None:
+        raise HTTPException(status_code=409, detail=REPLY_IN_PROGRESS)
+    try:
+        async with tenant_tx(ctx.tenant) as conn:
+            org = await get_org_by_id(conn, ctx.org_id)
+            assert org is not None  # the session's org always exists (FK)
+            history = to_messages(await conversations.recent_messages(conn, ctx, conversation_id, HISTORY_LIMIT))
+            turn_id = await conversations.add_user_message(conn, ctx, conversation_id, body.content, ADMIN)
+            if turn_id is None:
+                raise not_found()  # not this admin's analytics chat: nothing was stored
+    except BaseException:
+        await lock.release()
+        raise
     turn_ctx = ToolContext(ctx.org_id, ctx.user_id, ctx.role, conversation_id, turn_id)
-    return stream_turn(provider, TurnInput(org=org, ctx=turn_ctx, history=history, user_text=body.content, agent=ADMIN))
+    inp = TurnInput(org=org, ctx=turn_ctx, history=history, user_text=body.content, agent=ADMIN)
+    return stream_turn(provider, inp, lock)
