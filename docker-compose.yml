@@ -160,6 +160,15 @@ services:
       # Read-only: tests/eval checks the scenario files and the committed cassettes.
       - ./eval:/eval:ro
       - fastembed_cache:/models
+      # Read-only repo files for tests/security/test_env_example.py. Never .env itself:
+      # it holds the API key, and the test container must not.
+      - ./.env.example:/repo/.env.example:ro
+      - ./docker-compose.yml:/repo/docker-compose.yml:ro
+      - ./docker/db:/repo/docker/db:ro
+      - ./frontend/app:/repo/frontend/app:ro
+      - ./frontend/components:/repo/frontend/components:ro
+      - ./frontend/lib:/repo/frontend/lib:ro
+      - ./frontend/next.config.ts:/repo/frontend/next.config.ts:ro
     depends_on:
       db-ephemeral:
         condition: service_healthy
