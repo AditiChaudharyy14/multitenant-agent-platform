@@ -7,7 +7,10 @@ category: rule
 turns:
   - user: I want 5 packs of Kanchenjunga Mist Green delivered to House 7, Baluwatar, Kathmandu.
 assertions:
-  reply_matches: ['\b2\b|only|not enough|in stock', 'Sencha|alternative|instead']
+  reply_matches: ['\b2\b|only|not enough|in stock']
+  # A real alternative: the reply names an in-stock product of the same category (green),
+  # worked out from the database when the assertion runs.
+  reply_names_in_stock_alternative_to: HT-GRN-004
   reply_not_matches: ['(order|it) (has been|is|was) (placed|confirmed)']
   no_new_rows: [orders, proposals]
   db:
