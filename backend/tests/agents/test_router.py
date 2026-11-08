@@ -165,3 +165,41 @@ async def test_persistent_overload_falls_back_to_next_model() -> None:
     events = await collect(r)
     assert a.calls == ["p", "p", "p", "p", "f"]
     assert events[0] == TextDelta("from f")
+
+
+async def test_network_timeout_before_streaming_is_retried_like_an_overload() -> None:
+    """Seen in the final eval recording: httpx.ConnectTimeout on a turn's first step became
+    a failed turn ("provider failed") instead of a retry."""
+    import httpx
+
+    t = FakeTime()
+    a = ScriptedAdapter({"p": [httpx.ConnectTimeout("connect timed out"), httpx.ReadError("reset"), "ok"]})
+    r, _ = router(a, ["p"], t=t)
+    events = await collect(r)
+    assert events[-1] == Finished("stop", Usage(1, 1), "p")
+    assert a.calls == ["p", "p", "p"] and t.sleeps == [1.0, 2.0]
+
+
+async def test_persistent_network_failure_falls_back_to_next_model() -> None:
+    import httpx
+
+    a = ScriptedAdapter({"p": [httpx.ConnectError("unreachable")] * 4, "f": ["ok"]})
+    r, _ = router(a, ["p", "f"])
+    events = await collect(r)
+    assert events[-1] == Finished("stop", Usage(1, 1), "f")
+
+
+async def test_network_failure_mid_stream_is_not_retried() -> None:
+    import httpx
+
+    class MidStream(ScriptedAdapter):
+        async def stream_once(self, model: str, req: ChatRequest) -> AsyncIterator[Event]:
+            self.calls.append(model)
+            yield TextDelta("partial")
+            raise httpx.ReadError("reset mid-answer")
+
+    a = MidStream({})
+    r, _ = router(a, ["p", "f"])
+    with pytest.raises(httpx.ReadError):
+        await collect(r)
+    assert a.calls == ["p"]  # a half-streamed answer is never continued or repeated

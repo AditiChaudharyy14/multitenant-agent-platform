@@ -6,6 +6,8 @@ For each request it tries [primary, *fallbacks] in order. Per model:
   3. stream from the adapter
 A daily-quota 429 marks the model exhausted for today and moves on; other 429s back off
 exponentially (honouring the vendor's retry delay) and fall back after max_retries.
+Network failures before the first event (connect/read timeouts, resets) are transient too,
+and are handled exactly like an overloaded 5xx.
 Fallback only happens before the first event is yielded: a half-streamed answer is never
 continued by a different model. Across a multi-step turn, the agent loop goes further and
 pin()s the router to the model that answered the turn's first step.
@@ -18,11 +20,14 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol
 
+import httpx
+
 from app.agents.providers.base import (
     ChatRequest,
     DailyBudgetExhausted,
     Event,
     LLMProvider,
+    ProviderOverloaded,
     ProviderUnavailable,
     RateLimited,
 )
@@ -102,9 +107,11 @@ class ModelRouter(LLMProvider):
                         started = True
                         yield event
                     return  # success
-                except RateLimited as err:
+                except (RateLimited, httpx.TransportError) as exc:
                     if started:
                         raise  # can't switch models mid-answer
+                    # A transport error (no HTTP response at all) is a transient failure.
+                    err = exc if isinstance(exc, RateLimited) else ProviderOverloaded(f"network: {type(exc).__name__}")
                     if err.daily:
                         await self.budget.exhaust(model)
                         out_of_budget += 1
