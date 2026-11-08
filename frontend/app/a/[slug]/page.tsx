@@ -7,7 +7,7 @@ import { OrgSeal } from "@/components/OrgSeal";
 import { fetchPublicOrg, fetchSessionMe } from "@/lib/api";
 import { brandStyle } from "@/lib/brand";
 
-type Params = { params: Promise<{ slug: string }> };
+type Params = { params: Promise<{ slug: string }>; searchParams?: Promise<{ reason?: string }> };
 
 export async function generateMetadata({ params }: Params): Promise<Metadata> {
   const org = await fetchPublicOrg((await params).slug);
@@ -16,8 +16,10 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
 
 // The slug only picks the branding and which org to log in or sign up to. It never
 // establishes identity: that comes from the session the backend sets.
-export default async function OrgLanding({ params }: Params) {
+export default async function OrgLanding({ params, searchParams }: Params) {
   const { slug } = await params;
+  // Set by the chat when the session ended mid-conversation (a 401 from the API).
+  const expired = (await searchParams)?.reason === "expired";
   const org = await fetchPublicOrg(slug);
   if (!org) notFound();
   // Checked here rather than in the browser, so an anonymous visit makes no failing request.
@@ -44,6 +46,11 @@ export default async function OrgLanding({ params }: Params) {
           </figure>
         </section>
 
+        {expired && (
+          <p role="status" data-testid="session-expired" className="rounded-[var(--radius-control)] bg-paper px-4 py-3 text-sm text-ink">
+            Your session expired. Please log in again.
+          </p>
+        )}
         <AuthPanel
           slug={org.slug}
           orgName={org.name}

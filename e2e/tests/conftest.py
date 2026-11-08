@@ -47,6 +47,11 @@ def page(request: pytest.FixtureRequest, browser: Browser, warm_routes: None) ->
     context.close()
     # Any console error is a bug (Next's dev overlay shows it as "1 Issue"), even if the
     # visible flow worked.
+    # A test whose scenario *is* an HTTP error (a 404 page, an expired session's 401) names
+    # exactly the status it expects with @pytest.mark.allow_http_errors(404); nothing else.
+    marker = request.node.get_closest_marker("allow_http_errors")
+    allowed = {f"status of {code} " for code in (marker.args if marker else ())}
+    errors = [e for e in errors if not any(a in e for a in allowed)]
     if errors and os.environ.get("E2E_ERROR_LOG"):
         Path(os.environ["E2E_ERROR_LOG"]).write_text("\n\n".join(errors))
     assert not errors, "\n".join(errors)

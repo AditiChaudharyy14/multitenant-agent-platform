@@ -242,7 +242,8 @@ export function ChatScreen({ me, routeConversationId, mode = "customer" }: { me:
         if ("content" in body) setDraft(text);
         patch(asstKey, (m) => ({ ...m, status: "error", error: { code: "invalid", message: `Messages can be at most ${MAX_MESSAGE_CHARS.toLocaleString("en-US")} characters. Shorten it and try again.` } }));
       } else if (err instanceof ApiError && err.status === 401) {
-        router.replace(`/a/${slug}`);
+        // The session ended mid-chat (expired or logged out elsewhere): back to login, saying why.
+        router.replace(`/a/${slug}?reason=expired`);
       } else {
         patch(asstKey, (m) => ({ ...m, status: "error", error: { code: "network", message: "Couldn't reach the assistant. Check your connection and try again." } }));
       }
