@@ -94,3 +94,28 @@ Reviewed by hand: Chose derived + stated memory with a visible delete control, o
 ## Hardening pass (before the final eval re-record)
 
 KB consistency: `make kb-check` (also run inside `make seed`, which fails on a finding) checks that KB statements about open and closed weekdays and opening times match `data.yaml`'s `opening_hours`, and that every KB sentence mentioning one of an org's `canonical_facts` (return windows, refund processing, delivery times, the cancellation window, the fee %, the late-arrival minutes) states the canonical value. I reviewed the KB for contradictions by hand and found none; the check now keeps it that way.
+Also in this pass, test-first and one commit each:
+- live-data freshness: prompt rule 8, plus a "call again" line on every live-data tool;
+- stored prompt injection: instruction-like memories are refused, and memories and addresses reach the model wrapped as `<user_data>`, which prompt rule 9 declares untrusted;
+- input limits: 2000-character messages, order bounds, a history token budget;
+- a per-conversation advisory turn lock (409 "A reply is still in progress");
+- production mode by default for `make up` (`make dev` for hot reload);
+- security headers on the API and the pages, and an XSS e2e test on the production build;
+- a not-found page and a clear expired-session message;
+- the `.env.example` drift test;
+- `make stats`;
+- gitleaks (0 findings across the full history), a backend lockfile, pip-audit and npm audit (one build-time PostCSS advisory accepted in `docs/security.md`), and non-root images;
+- a chat log announced once each reply is complete;
+- `make lint` (ruff, mypy, eslint, tsc) and structured JSON logs with a request id.
+
+Two slips worth recording: after a `make e2e` run the backend was back on the live model, and two hand-run probes spent 4 live requests. `make e2e` now refuses to start unless the backend is on the fake provider.
+
+### Next week
+
+- A subagent code review over `backend/app` and `frontend/` for dead code, duplication, naming, long functions and missing docstrings. Dropped from this milestone for time.
+- A full axe-core accessibility sweep (all three orgs; landing, chat and admin; 1280 and 375 px), fixing every serious and critical issue, including brand-colour contrast. This milestone shipped only the live-log semantics and the visible-focus check.
+- Return keyboard focus to the message box when a reply finishes (today it falls back to the page).
+- Upgrade to Next 16 to clear the PostCSS advisory.
+- The structured JSON logs (request id, route, org; no message text, emails or passwords) were finished and pushed before the re-prioritisation, so they are in, not deferred.
+
+Reviewed by hand: Ran a strict-reviewer audit of the brief and added freshness, stored-injection, input-limit, turn-lock, KB-consistency, security-header, accessibility and supply-chain hardening before the final eval re-record.
