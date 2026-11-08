@@ -10,7 +10,9 @@ if not DOCKERFILES["frontend"].exists():
 
 
 def _final_stage(path: Path) -> list[str]:
-    lines = [ln.strip() for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.startswith("#")]
+    lines = [
+        ln.strip() for ln in path.read_text(encoding="utf-8").splitlines() if ln.strip() and not ln.startswith("#")
+    ]
     last_from = max(i for i, ln in enumerate(lines) if ln.upper().startswith("FROM "))
     return lines[last_from:]
 
