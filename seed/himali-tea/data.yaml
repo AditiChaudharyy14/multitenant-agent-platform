@@ -106,3 +106,11 @@ orders:
       - {sku: HT-WHT-002, qty: 1}
       - {sku: HT-CHA-002, qty: 2}
     history: []   # still pending: only the initial 'pending' row is written
+
+# Facts the KB must state the same way everywhere (make kb-check; part of make seed).
+canonical_facts:
+  - {mentions: "unopened", value: "fourteen days"}
+  - {mentions: "damaged|stale|not as described", value: "seven days"}
+  - {mentions: "refunds? (?:are )?processed", value: "five working days"}
+  - {mentions: "inside the kathmandu valley", value: "one to two working days"}
+  - {mentions: "other cities", value: "three to five working days"}

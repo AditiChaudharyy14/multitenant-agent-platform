@@ -1,5 +1,5 @@
 # Everything runs inside the containers, so the host needs only Docker and make.
-.PHONY: help lint up up-traces build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live e2e e2e-setup advance logs
+.PHONY: help lint kb-check up up-traces build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live e2e e2e-setup advance logs
 
 help:  ## List the make targets
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/^([a-zA-Z_-]+):.*## (.*)/\1\t\2/' | awk -F'\t' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -46,6 +46,10 @@ sync-orgs:  ## Upsert the orgs table from seed/<slug>/org.yaml, as app_owner
 # the "now" that relative seed dates resolve against: make seed SEED_NOW=2026-11-09T10:00
 seed: sync-orgs  ## Wipe and reseed each org's data and knowledge base, as app_owner
 	docker compose run --rm $(if $(SEED_NOW),-e SEED_NOW="$(SEED_NOW)") ops python -m app.seed
+
+# Also runs inside make seed, which fails on any finding. Files only: no database needed.
+kb-check:  ## KB vs data.yaml: opening hours and each org's canonical facts agree
+	docker compose run --rm --no-deps -T ops python -m app.domain.kb.consistency
 
 # Runs as app_user in the backend container, exactly like the agent's search tool.
 kb-search:  ## make kb-search ORG=<slug> Q="question"

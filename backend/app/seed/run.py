@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection, create_async_engine
 
 from app import clock
 from app.auth.passwords import hash_password
+from app.domain.kb import consistency as kb_consistency
 from app.domain.kb.ingest import PreparedKB, insert_chunks, prepare_kb
 from app.seed.analytics import AnalyticsData, build_rows, load_analytics
 from app.seed.data import SeedData, SeedDataError, load_seed_data
@@ -207,6 +208,8 @@ async def _prepare(cfg: OrgConfig, seed_dir: Path) -> _Prepared:
         "products": {p.name: p.sku for p in data.products},
         "services": {s.name: None for s in data.services},
     }
+    if problems := kb_consistency.check(org_dir / "kb", data):  # KB vs data.yaml: hours, canonical facts
+        raise SeedDataError(f"{cfg.slug}: the KB contradicts data.yaml:\n  " + "\n  ".join(problems))
     kb = await prepare_kb(org_dir / "kb", catalogs)
     analytics = load_analytics(org_dir, data, cfg.vertical)
     people = [*data.users, *(analytics.customers if analytics else [])]

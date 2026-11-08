@@ -65,3 +65,9 @@ orders:
     history:
       - {to: confirmed, after_hours: 1}
       - {to: shipped, after_hours: 20}
+
+# Facts the KB must state the same way everywhere (make kb-check; part of make seed).
+canonical_facts:
+  - {mentions: "unopened", value: "seven days"}
+  - {mentions: "inside the kathmandu valley", value: "one to two working days"}
+  - {mentions: "other cities", value: "three to five working days"}

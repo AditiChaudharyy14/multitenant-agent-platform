@@ -194,7 +194,7 @@ def test_seed_data_has_no_slug_specific_keys() -> None:
     for path in SEED.glob("*/data.yaml"):
         assert set(yaml.safe_load(path.read_text())) <= {
             "users", "products", "orders", "services", "practitioners",
-            "opening_hours", "holidays", "bookings",
+            "opening_hours", "holidays", "bookings", "canonical_facts",
         }  # fmt: skip
 
 

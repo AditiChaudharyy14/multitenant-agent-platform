@@ -112,6 +112,13 @@ class SeedBooking(_Model):
     status: Literal["confirmed", "completed", "cancelled"]
 
 
+class CanonicalFact(_Model):
+    """One fact the KB must state consistently (app/domain/kb/consistency.py)."""
+
+    mentions: str  # regex, lower case: what a sentence is about, e.g. "unopened"
+    value: str  # the one true value, e.g. "fourteen days", "50%"
+
+
 class SeedData(_Model):
     users: list[SeedUser] = Field(min_length=1)
     products: list[Product] = []
@@ -121,6 +128,7 @@ class SeedData(_Model):
     opening_hours: list[OpeningHours] = []
     holidays: list[Holiday] = []
     bookings: list[SeedBooking] = []
+    canonical_facts: list[CanonicalFact] = []
 
     @model_validator(mode="after")
     def _cross_references(self) -> "SeedData":

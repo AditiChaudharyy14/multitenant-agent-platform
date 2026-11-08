@@ -74,3 +74,9 @@ bookings:
   # Customer 2: same shape, different practitioners so nothing overlaps.
   - {key: c2-past, customer: c2, service: hatha, practitioner: maya, day_offset: -6, at: "12:00", status: completed}
   - {key: c2-upcoming, customer: c2, service: physio-assessment, practitioner: prakash, day_offset: 4, at: "13:30", status: confirmed}
+
+# Facts the KB must state the same way everywhere (make kb-check; part of make seed).
+canonical_facts:
+  - {mentions: "cancel|reschedul", value: "24 hours"}
+  - {mentions: "fee|cost", value: "50%"}
+  - {mentions: "late", value: "15 minutes"}
