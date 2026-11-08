@@ -1,0 +1,45 @@
+# Playwright UI smoke tests on the scripted fake LLM (no secrets, no quota). Manual only:
+# it builds and starts the whole stack, which takes several minutes.
+name: E2E
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  COMPOSE_PROJECT_NAME: multitenant-agents
+  COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+
+jobs:
+  e2e:
+    name: make e2e (fake LLM)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - uses: docker/setup-buildx-action@v3
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with: {context: backend, load: true, tags: "multitenant-agents-backend:dev", cache-from: "type=gha,scope=backend", cache-to: "type=gha,scope=backend,mode=max"}
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with: {context: frontend, load: true, tags: "multitenant-agents-frontend:latest", cache-from: "type=gha,scope=frontend", cache-to: "type=gha,scope=frontend,mode=max"}
+      - name: Embedding model cache
+        uses: actions/cache@v4
+        with: {path: .cache/fastembed, key: fastembed-BAAI-bge-small-en-v1.5}
+      - name: Prepare
+        run: cp .env.example .env && mkdir -p .cache/fastembed docs/screenshots && chmod -R a+rwX .cache backend frontend eval docs/screenshots
+      - run: make e2e-setup
+      - name: Start the stack on the fake LLM, then seed
+        run: |
+          make migrate seed
+          docker compose -f docker-compose.yml -f docker-compose.ci.yml -f docker-compose.e2e.yml up -d --wait
+      - run: make e2e
+      - name: Screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with: {name: screenshots, path: docs/screenshots}

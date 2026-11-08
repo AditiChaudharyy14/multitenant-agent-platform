@@ -1,0 +1,91 @@
+# Every push: static checks, the backend test suite, the frontend typecheck and the LLM
+# eval suite replayed from the committed cassettes. No secrets are used anywhere: tests
+# run on FakeProvider and evals replay recorded responses (a missing cassette fails).
+name: CI
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+env:
+  COMPOSE_PROJECT_NAME: multitenant-agents  # image names as in local dev (…-backend:dev)
+  COMPOSE_FILE: docker-compose.yml:docker-compose.ci.yml
+
+jobs:
+  lint:
+    name: make lint
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build backend image (layer cache in GitHub Actions)
+        uses: docker/build-push-action@v6
+        with: {context: backend, load: true, tags: "multitenant-agents-backend:dev", cache-from: "type=gha,scope=backend", cache-to: "type=gha,scope=backend,mode=max"}
+      - name: Build frontend image
+        uses: docker/build-push-action@v6
+        with: {context: frontend, load: true, tags: "multitenant-agents-frontend:latest", cache-from: "type=gha,scope=frontend", cache-to: "type=gha,scope=frontend,mode=max"}
+      - name: Prepare (no secrets; the template's placeholders are enough)
+        run: cp .env.example .env && mkdir -p .cache/fastembed && chmod -R a+rwX .cache backend frontend
+      - run: make lint
+
+  backend-tests:
+    name: make test (pgvector Postgres)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with: {context: backend, load: true, tags: "multitenant-agents-backend:dev", cache-from: "type=gha,scope=backend", cache-to: "type=gha,scope=backend,mode=max"}
+      - name: Embedding model cache
+        uses: actions/cache@v4
+        with: {path: .cache/fastembed, key: fastembed-BAAI-bge-small-en-v1.5}
+      - name: Prepare
+        run: cp .env.example .env && mkdir -p .cache/fastembed && chmod -R a+rwX .cache backend eval
+      # db-ephemeral is pgvector/pgvector:pg16 (tmpfs); the suite connects as app_user for
+      # everything the app does, exactly as locally.
+      - run: make test
+
+  frontend-typecheck:
+    name: frontend typecheck
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    defaults:
+      run: {working-directory: frontend}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: {node-version: 22, cache: npm, cache-dependency-path: frontend/package-lock.json}
+      - run: npm ci
+      - run: npm run typecheck
+
+  eval-replay:
+    name: make eval (replay, offline)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
+      - name: Build backend image
+        uses: docker/build-push-action@v6
+        with: {context: backend, load: true, tags: "multitenant-agents-backend:dev", cache-from: "type=gha,scope=backend", cache-to: "type=gha,scope=backend,mode=max"}
+      - name: Embedding model cache
+        uses: actions/cache@v4
+        with: {path: .cache/fastembed, key: fastembed-BAAI-bge-small-en-v1.5}
+      - name: Prepare (no GEMINI_API_KEY, so replay cannot reach the network)
+        run: cp .env.example .env && mkdir -p .cache/fastembed && chmod -R a+rwX .cache backend eval
+      # The dev db holds only the quota ledger the runner prints; it needs the schema.
+      - run: make migrate
+      - name: Replay every scenario, the judge and its calibration
+        run: make eval MODE=replay ARGS="--judge --calibrate-judge"
+      - name: Committed results match the replay
+        run: git diff --stat --exit-code -- eval/cassettes eval/runs || (echo "replay changed committed cassettes" && exit 1)

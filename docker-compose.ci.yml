@@ -1,0 +1,10 @@
+# GitHub Actions only (COMPOSE_FILE=docker-compose.yml:docker-compose.ci.yml in the workflow):
+# the embedding model lives in a host directory that actions/cache saves and restores, so
+# CI downloads BAAI/bge-small-en-v1.5 (~130 MB) once instead of on every run.
+volumes:
+  fastembed_cache:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${GITHUB_WORKSPACE:-.}/.cache/fastembed
