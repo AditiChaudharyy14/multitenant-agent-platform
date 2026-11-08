@@ -54,7 +54,9 @@ async def test_text_stream() -> None:
 
 async def test_tool_call_stream_keeps_thought_signature() -> None:
     fx = load("gemini", "tool_call")
-    events = await run(Replay(fx), fx["model"], ChatRequest(system="s", messages=[Message("user", "q")], tools=[SEARCH]))
+    events = await run(
+        Replay(fx), fx["model"], ChatRequest(system="s", messages=[Message("user", "q")], tools=[SEARCH])
+    )
     calls = [e.call for e in events if isinstance(e, ToolCallEvent)]
     assert len(calls) == 1
     call = calls[0]
@@ -79,7 +81,13 @@ def tool_round_trip(call: ToolCall) -> ChatRequest:
 
 async def test_request_translation_and_signature_round_trip() -> None:
     call_fx, result_fx = load("gemini", "tool_call"), load("gemini", "tool_result")
-    call = next(e.call for e in await run(Replay(call_fx), call_fx["model"], ChatRequest(system="s", messages=[Message("user", "q")], tools=[SEARCH])) if isinstance(e, ToolCallEvent))
+    call = next(
+        e.call
+        for e in await run(
+            Replay(call_fx), call_fx["model"], ChatRequest(system="s", messages=[Message("user", "q")], tools=[SEARCH])
+        )
+        if isinstance(e, ToolCallEvent)
+    )
     replay = Replay(result_fx)
     events = await run(replay, call_fx["model"], tool_round_trip(call))
     assert "".join(e.text for e in events if isinstance(e, TextDelta)).strip()
@@ -95,7 +103,11 @@ async def test_request_translation_and_signature_round_trip() -> None:
     vendor_id = call.provider_meta["call_id"]  # Gemini 3 returns its own call id
     assert fc_part["functionCall"] == {"name": call.name, "args": call.arguments, "id": vendor_id}
     assert fc_part["thoughtSignature"] == call.provider_meta["thought_signature"]
-    assert tool_turn["parts"][0]["functionResponse"] == {"name": call.name, "response": {"answerable": True}, "id": vendor_id}
+    assert tool_turn["parts"][0]["functionResponse"] == {
+        "name": call.name,
+        "response": {"answerable": True},
+        "id": vendor_id,
+    }
     # The recorded follow-up (which Gemini answered with 200) carried the same shape.
     recorded = result_fx["request_body"]["contents"]
     assert recorded[1]["parts"][0]["functionCall"]["id"] == recorded[2]["parts"][0]["functionResponse"]["id"]
@@ -139,13 +151,21 @@ def quota_429(quota_id: str, delay: str) -> dict:
 
 async def test_per_day_quota_429_is_daily() -> None:
     with pytest.raises(RateLimited) as ei:
-        await run(Replay(quota_429("GenerateRequestsPerDayPerProjectPerModel-FreeTier", "34s")), "m", ChatRequest(system="", messages=[Message("user", "q")]))
+        await run(
+            Replay(quota_429("GenerateRequestsPerDayPerProjectPerModel-FreeTier", "34s")),
+            "m",
+            ChatRequest(system="", messages=[Message("user", "q")]),
+        )
     assert ei.value.daily is True
 
 
 async def test_per_minute_quota_429_is_transient_with_retry_delay() -> None:
     with pytest.raises(RateLimited) as ei:
-        await run(Replay(quota_429("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "17s")), "m", ChatRequest(system="", messages=[Message("user", "q")]))
+        await run(
+            Replay(quota_429("GenerateRequestsPerMinutePerProjectPerModel-FreeTier", "17s")),
+            "m",
+            ChatRequest(system="", messages=[Message("user", "q")]),
+        )
     assert ei.value.daily is False and ei.value.retry_after == 17.0
 
 
@@ -165,8 +185,12 @@ async def test_other_errors_carry_status_and_message() -> None:
 
 def test_tool_without_arguments_sends_no_parameters() -> None:
     """Gemini rejects an OBJECT schema with empty properties (e.g. list_my_orders)."""
-    no_args = ToolSpec("list_my_orders", "List orders.", {"type": "object", "properties": {}, "additionalProperties": False})
-    body = GeminiAdapter("k").build_body("m", ChatRequest(system="s", messages=[Message("user", "q")], tools=[SEARCH, no_args]))
+    no_args = ToolSpec(
+        "list_my_orders", "List orders.", {"type": "object", "properties": {}, "additionalProperties": False}
+    )
+    body = GeminiAdapter("k").build_body(
+        "m", ChatRequest(system="s", messages=[Message("user", "q")], tools=[SEARCH, no_args])
+    )
     with_args, without = body["tools"][0]["functionDeclarations"]
     assert "parameters" in with_args
     assert without == {"name": "list_my_orders", "description": "List orders."}
@@ -178,7 +202,13 @@ async def test_server_overload_is_transient_so_the_router_retries(status: int) -
     turn's second step became a user-facing error instead of a retry."""
     from app.agents.providers.base import ProviderOverloaded
 
-    body = {"error": {"code": status, "status": "UNAVAILABLE", "message": "This model is currently experiencing high demand."}}
+    body = {
+        "error": {
+            "code": status,
+            "status": "UNAVAILABLE",
+            "message": "This model is currently experiencing high demand.",
+        }
+    }
     with pytest.raises(ProviderOverloaded) as ei:
         await run(Replay(error(status, body)), "m", ChatRequest(system="", messages=[Message("user", "q")]))
     assert isinstance(ei.value, RateLimited) and ei.value.daily is False

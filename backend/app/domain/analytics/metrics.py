@@ -63,7 +63,7 @@ def _w(w: Window) -> dict[str, Any]:
 
 
 async def _orders_by_status(conn: AsyncConnection, org: Org, w: Window, limit: int) -> Values:
-    rows = dict((await conn.execute(text(
+    rows: dict[str, int] = dict(tuple(r) for r in (await conn.execute(text(
         "SELECT status, count(*) FROM orders WHERE org_id = app_org() "
         "AND created_at >= :start AND created_at < :end GROUP BY status"), _w(w))).all())  # fmt: skip
     by_status = {s: rows.get(s, 0) for s in ORDER_STATUSES}
@@ -111,7 +111,7 @@ async def _most_out_of_stock(conn: AsyncConnection, org: Org, w: Window, limit: 
 
 
 async def _bookings_by_status(conn: AsyncConnection, org: Org, w: Window, limit: int) -> Values:
-    rows = dict((await conn.execute(text(
+    rows: dict[str, int] = dict(tuple(r) for r in (await conn.execute(text(
         "SELECT status, count(*) FROM bookings WHERE org_id = app_org() "
         "AND starts_at >= :start AND starts_at < :end GROUP BY status"), _w(w))).all())  # fmt: skip
     by_status = {s: rows.get(s, 0) for s in BOOKING_STATUSES}
@@ -272,7 +272,9 @@ METRICS: dict[str, Metric] = {m.name: m for m in (
 )}  # fmt: skip
 
 
-async def compute(conn: AsyncConnection, org: Org, name: str, window: Window, limit: int = DEFAULT_LIMIT) -> dict[str, Any]:
+async def compute(
+    conn: AsyncConnection, org: Org, name: str, window: Window, limit: int = DEFAULT_LIMIT
+) -> dict[str, Any]:
     """One metric for the org, in the standard shape. KeyError for a metric the org's
     vertical doesn't have (the registry never offers one)."""
     metric = METRICS[name]
@@ -288,7 +290,14 @@ async def compute(conn: AsyncConnection, org: Org, name: str, window: Window, li
 # The sections of activity_summary per vertical (keyed on vertical, never on a slug). Each
 # is an existing metric, computed by compute() above: the summary adds no numbers of its own.
 SUMMARY_SECTIONS: dict[str, list[str]] = {
-    "store": ["orders_by_status", "revenue", "average_order_value", "active_customers", "new_signups", "conversion_rate"],
+    "store": [
+        "orders_by_status",
+        "revenue",
+        "average_order_value",
+        "active_customers",
+        "new_signups",
+        "conversion_rate",
+    ],
     "booking": ["bookings_by_status", "cancellations", "active_customers", "new_signups", "conversion_rate"],
 }
 

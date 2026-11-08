@@ -70,7 +70,7 @@ async def signup(slug: str, body: SignupIn, response: Response) -> dict[str, Any
             )
             token = await create_session(conn, org.id, user_id, "customer")
     except IntegrityError as exc:
-        if isinstance(exc.orig.__cause__, asyncpg.UniqueViolationError):
+        if isinstance(getattr(exc.orig, "__cause__", None), asyncpg.UniqueViolationError):
             raise HTTPException(status_code=409, detail="Email already registered") from None
         raise
     set_session_cookie(response, token)

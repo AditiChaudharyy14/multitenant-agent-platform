@@ -8,6 +8,7 @@ import uuid
 from collections.abc import Mapping
 from dataclasses import dataclass, field
 from datetime import date, datetime, time, timedelta
+from decimal import Decimal
 
 STEP = timedelta(minutes=15)  # slots start on wall-clock quarter hours
 LEAD = timedelta(minutes=60)  # the earliest bookable start is now + 60 minutes
@@ -47,7 +48,7 @@ class Service:
     id: uuid.UUID
     name: str
     duration_min: int
-    price: object  # Decimal; typed loosely so this module needs no money import
+    price: Decimal
     practitioners: Mapping[uuid.UUID, str]  # who is qualified to give it: id -> name
 
 

@@ -26,9 +26,9 @@ from app.auth.deps import current_ctx
 from app.auth.ratelimit import SlidingWindowLimiter
 from app.db.session import tenant_tx
 from app.domain.conversations import repo
-from app.tenancy.context import ToolContext
 from app.domain.slots.dates import parse_local_start
 from app.domain.timefmt import local_display
+from app.tenancy.context import ToolContext
 from app.tenancy.orgs import Org, get_org_by_id
 
 router = APIRouter(prefix="/api/conversations")
@@ -58,7 +58,9 @@ class ConfirmActionIn(BaseModel):
     proposal_id: UUID
 
     def server_action(self) -> ServerAction:
-        return ServerAction("confirm_proposal", {"proposal_id": str(self.proposal_id)}, "the Confirm button on a proposal")
+        return ServerAction(
+            "confirm_proposal", {"proposal_id": str(self.proposal_id)}, "the Confirm button on a proposal"
+        )
 
     def describe(self, org: Org) -> str:
         return "Confirm"
@@ -102,7 +104,9 @@ ActionIn = Annotated[ConfirmActionIn | SelectSlotIn, Field(discriminator="type")
 
 class MessageIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    content: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_MESSAGE_CHARS)] | None = None
+    content: (
+        Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=MAX_MESSAGE_CHARS)] | None
+    ) = None
     action: ActionIn | None = None
 
     @model_validator(mode="after")

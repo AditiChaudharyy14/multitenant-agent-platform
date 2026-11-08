@@ -198,7 +198,6 @@ def test_seed_data_has_no_slug_specific_keys() -> None:
         }  # fmt: skip
 
 
-
 async def test_seed_bookings_get_numbers_from_1001(seeded: dict[str, uuid.UUID], owner_engine: AsyncEngine) -> None:
     """Seed bookings are numbered by the same per-org counter trigger as new ones, in data.yaml
     order, and the wipe restarts the counter, so the numbers are identical on every reseed."""

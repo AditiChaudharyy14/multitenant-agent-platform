@@ -136,9 +136,14 @@ async def seed_tenant(owner: AsyncEngine, vertical: str) -> Tenant:
                 "INSERT INTO orgs (id, slug, name, vertical, order_prefix, booking_prefix) "
                 "VALUES (:id, :slug, :name, :v, :p, :bp)"
             ),
-            {"id": org_id, "slug": f"test-{org_id.hex}", "name": "Test org", "v": vertical,
-             "p": unique_prefix() if vertical == "store" else None,
-             "bp": unique_prefix() if vertical == "booking" else None},  # fmt: skip
+            {
+                "id": org_id,
+                "slug": f"test-{org_id.hex}",
+                "name": "Test org",
+                "v": vertical,
+                "p": unique_prefix() if vertical == "store" else None,
+                "bp": unique_prefix() if vertical == "booking" else None,
+            },  # fmt: skip
         )
         await set_owner_tenant(conn, org_id)
 
@@ -173,10 +178,7 @@ async def seed_tenant(owner: AsyncEngine, vertical: str) -> Tenant:
             {"o": org_id, "p1": p1, "p2": p2, "s": service},
         )
         await conn.execute(
-            text(
-                "INSERT INTO opening_hours (org_id, weekday, opens, closes) "
-                "VALUES (:o, 0, '09:00', '18:00')"
-            ),
+            text("INSERT INTO opening_hours (org_id, weekday, opens, closes) " "VALUES (:o, 0, '09:00', '18:00')"),
             {"o": org_id},
         )
         await conn.execute(
@@ -289,8 +291,7 @@ def valid_row_sql(table: str, t: Tenant) -> tuple[str, dict]:
             {"e": f"{new_id().hex}@example.test"},
         ),
         "products": (
-            "INSERT INTO products (org_id, sku, name, category, price, stock) "
-            "VALUES (:o, :sku, 'n', 'c', 1, 1)",
+            "INSERT INTO products (org_id, sku, name, category, price, stock) " "VALUES (:o, :sku, 'n', 'c', 1, 1)",
             {"sku": new_id().hex},
         ),
         "orders": (
@@ -313,8 +314,7 @@ def valid_row_sql(table: str, t: Tenant) -> tuple[str, dict]:
         ),
         "practitioners": ("INSERT INTO practitioners (org_id, name) VALUES (:o, 'n')", {}),
         "practitioner_services": (
-            "INSERT INTO practitioner_services (org_id, practitioner_id, service_id) "
-            "VALUES (:o, :p, :s)",
+            "INSERT INTO practitioner_services (org_id, practitioner_id, service_id) " "VALUES (:o, :p, :s)",
             {"p": t.p1, "s": t.spare_service},
         ),
         "opening_hours": (
@@ -478,8 +478,14 @@ async def insert_shop_order(
                     "INSERT INTO orders (org_id, user_id, status, delivery_address, total, created_at, updated_at) "
                     "VALUES (:o, :u, :s, :a, :t, :at, :at) RETURNING id, order_number"
                 ),
-                {"o": shop.org_id, "u": user, "s": status, "a": address,
-                 "t": sum(prices[sku] * q for sku, q in items), "at": at},  # fmt: skip
+                {
+                    "o": shop.org_id,
+                    "u": user,
+                    "s": status,
+                    "a": address,
+                    "t": sum(prices[sku] * q for sku, q in items),
+                    "at": at,
+                },  # fmt: skip
             )
         ).one()
         for sku, qty in items:
@@ -488,8 +494,16 @@ async def insert_shop_order(
                     "INSERT INTO order_items (org_id, user_id, order_id, product_id, sku, name, unit_price, qty) "
                     "VALUES (:o, :u, :ord, :p, :sku, :n, :price, :q)"
                 ),
-                {"o": shop.org_id, "u": user, "ord": oid, "p": shop.products[sku], "sku": sku,
-                 "n": names[sku], "price": prices[sku], "q": qty},  # fmt: skip
+                {
+                    "o": shop.org_id,
+                    "u": user,
+                    "ord": oid,
+                    "p": shop.products[sku],
+                    "sku": sku,
+                    "n": names[sku],
+                    "price": prices[sku],
+                    "q": qty,
+                },  # fmt: skip
             )
         previous = None
         for n, step in enumerate(steps):
@@ -498,8 +512,14 @@ async def insert_shop_order(
                     "INSERT INTO order_status_history (org_id, user_id, order_id, from_status, to_status, "
                     "changed_at, changed_by) VALUES (:o, :u, :ord, :f, :t, :at, 'system')"
                 ),
-                {"o": shop.org_id, "u": user, "ord": oid, "f": previous, "t": step,
-                 "at": at + timedelta(hours=n)},  # fmt: skip
+                {
+                    "o": shop.org_id,
+                    "u": user,
+                    "ord": oid,
+                    "f": previous,
+                    "t": step,
+                    "at": at + timedelta(hours=n),
+                },  # fmt: skip
             )
             previous = step
     return number
@@ -577,10 +597,7 @@ async def seed_studio(owner: AsyncEngine) -> Studio:
                 )
         for weekday, (opens, closes) in STUDIO_HOURS.items():
             await conn.execute(
-                text(
-                    "INSERT INTO opening_hours (org_id, weekday, opens, closes) "
-                    "VALUES (:o, :w, :a, :b)"
-                ),
+                text("INSERT INTO opening_hours (org_id, weekday, opens, closes) " "VALUES (:o, :w, :a, :b)"),
                 {"o": org_id, "w": weekday, "a": time.fromisoformat(opens), "b": time.fromisoformat(closes)},
             )
         await conn.execute(

@@ -13,9 +13,7 @@ _ID = re.compile(r"^[A-Za-z0-9][\w.-]*#[\w.-]+$")
 _SPLIT = re.compile(r"\s*[,;]\s*")
 
 
-def filter_citations(
-    text: str, allowed: dict[str, Citation]
-) -> tuple[str, list[Citation], list[str]]:
+def filter_citations(text: str, allowed: dict[str, Citation]) -> tuple[str, list[Citation], list[str]]:
     """(text without invented citations, kept citations in order, dropped ids in order)."""
     kept: dict[str, Citation] = {}
     dropped: dict[str, None] = {}  # dicts as ordered sets

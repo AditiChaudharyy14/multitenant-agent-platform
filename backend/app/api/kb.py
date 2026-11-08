@@ -21,7 +21,9 @@ REF_MAX = 300  # longer than any doc_id#section the chunker produces
 
 
 @router.get("/source")
-async def kb_source(ref: str = Query(max_length=REF_MAX * 2), ctx: ToolContext = Depends(current_ctx)) -> dict[str, Any]:
+async def kb_source(
+    ref: str = Query(max_length=REF_MAX * 2), ctx: ToolContext = Depends(current_ctx)
+) -> dict[str, Any]:
     doc_id, sep, section = ref.rpartition("#")
     if not sep or not doc_id or not section or len(ref) > REF_MAX:
         raise not_found()

@@ -60,29 +60,38 @@ async def test_analytics_seed_is_idempotent(with_analytics: dict[str, uuid.UUID]
 async def test_base_rows_keep_their_numbers(seeded: dict[str, uuid.UUID], owner_engine: AsyncEngine) -> None:
     """History comes after the base rows, so README order/booking numbers don't change."""
     base = await snapshot(owner_engine, seeded["store"])
-    base_numbers = await _scalar(owner_engine, seeded["store"], "SELECT array_agg(order_number ORDER BY id) FROM orders")
+    base_numbers = await _scalar(
+        owner_engine, seeded["store"], "SELECT array_agg(order_number ORDER BY id) FROM orders"
+    )
     await seed_all(require_owner_url(), get_settings().seed_dir, SEED_NOW)
     try:
         ids = [o[0] for o in base["orders"]]
         async with owner_engine.begin() as conn:
             await set_owner_tenant(conn, seeded["store"])
-            numbers = list(await conn.scalars(text("SELECT order_number FROM orders WHERE id = ANY(:i) ORDER BY id"), {"i": ids}))
+            numbers = list(
+                await conn.scalars(text("SELECT order_number FROM orders WHERE id = ANY(:i) ORDER BY id"), {"i": ids})
+            )
         assert numbers == base_numbers
     finally:
         await seed_all(require_owner_url(), get_settings().seed_dir, SEED_NOW, analytics=False)
 
 
-async def test_history_bookings_are_past_and_fit_the_schedule(with_analytics: dict[str, uuid.UUID], owner_engine: AsyncEngine) -> None:
+async def test_history_bookings_are_past_and_fit_the_schedule(
+    with_analytics: dict[str, uuid.UUID], owner_engine: AsyncEngine
+) -> None:
     org = with_analytics["booking"]
     async with owner_engine.begin() as conn:
         await set_owner_tenant(conn, org)
-        hours = {wd: (o, c) for wd, o, c in (await conn.execute(text("SELECT weekday, opens, closes FROM opening_hours"))).all()}
+        hours = {
+            wd: (o, c)
+            for wd, o, c in (await conn.execute(text("SELECT weekday, opens, closes FROM opening_hours"))).all()
+        }
         holidays = set(await conn.scalars(text("SELECT day FROM holidays")))
         rows = (await conn.execute(text(
             "SELECT b.status, b.starts_at, b.ends_at, b.price, b.cancellation_fee, b.conversation_id, c.created_at "
             "FROM bookings b LEFT JOIN conversations c ON c.id = b.conversation_id WHERE b.conversation_id IS NOT NULL"))).all()  # fmt: skip
     assert len(rows) >= 18
-    for status, start, end, price, fee, conv, chat_started in rows:
+    for status, start, end, price, fee, _conv, chat_started in rows:
         local_start, local_end = start.astimezone(TZ), end.astimezone(TZ)
         assert status in ("completed", "cancelled") and end <= ANCHOR
         assert local_start.date() not in holidays
@@ -94,7 +103,9 @@ async def test_history_bookings_are_past_and_fit_the_schedule(with_analytics: di
     assert any(r.cancellation_fee for r in rows), "some cancellation has a fee"
 
 
-async def test_nothing_is_dated_after_the_seed_now(with_analytics: dict[str, uuid.UUID], owner_engine: AsyncEngine) -> None:
+async def test_nothing_is_dated_after_the_seed_now(
+    with_analytics: dict[str, uuid.UUID], owner_engine: AsyncEngine
+) -> None:
     for org in with_analytics.values():
         for table, col in (("users", "created_at"), ("conversations", "created_at"), ("messages", "created_at"),
                            ("agent_runs", "created_at"), ("orders", "updated_at"), ("stock_events", "created_at")):  # fmt: skip
@@ -108,7 +119,9 @@ async def test_an_early_seed_now_leaves_out_later_rows(seeded: dict[str, uuid.UU
     try:
         org = seeded["store"]
         assert await _scalar(owner_engine, org, "SELECT count(*) FROM users WHERE email = 'asmita@himali.test'") == 0
-        n = await _scalar(owner_engine, org, "SELECT count(*) FROM conversations WHERE created_at >= '2026-11-09T07:00+05:45'")
+        n = await _scalar(
+            owner_engine, org, "SELECT count(*) FROM conversations WHERE created_at >= '2026-11-09T07:00+05:45'"
+        )
         assert n == 0
     finally:
         await seed_all(require_owner_url(), get_settings().seed_dir, SEED_NOW, analytics=False)
@@ -127,7 +140,9 @@ async def test_metrics_are_not_zero_on_the_seeded_history(with_analytics: dict[s
     assert (await _metric(booking, "ai_usage", "this_month"))["runs"] > 20
 
 
-async def test_apply_analytics_adds_the_same_history_to_a_base_seeded_org(seeded: dict[str, uuid.UUID], owner_engine: AsyncEngine) -> None:
+async def test_apply_analytics_adds_the_same_history_to_a_base_seeded_org(
+    seeded: dict[str, uuid.UUID], owner_engine: AsyncEngine
+) -> None:
     """What the admin eval scenarios do to their clone: same rows as `make seed` would add."""
     await seed_all(require_owner_url(), get_settings().seed_dir, SEED_NOW)
     full = {v: await snapshot(owner_engine, o) for v, o in seeded.items()}

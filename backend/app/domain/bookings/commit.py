@@ -175,7 +175,11 @@ async def commit_reschedule(conn: AsyncConnection, ctx: ToolContext, proposal: P
     if refusal := service.refuse_unchangeable(org, b, "rescheduled", now):
         return refusal
     old = p["old"]
-    if (str(b.practitioner_id), b.starts_at, b.ends_at) != (old["practitioner_id"], _at(old["starts_at"]), _at(old["ends_at"])):
+    if (str(b.practitioner_id), b.starts_at, b.ends_at) != (
+        old["practitioner_id"],
+        _at(old["starts_at"]),
+        _at(old["ends_at"]),
+    ):
         return Reply(f"{CHANGED} Booking {p['booking_number']} was changed after this summary was made. Show the "
                      "customer list_my_bookings and propose again.", status="changed")  # fmt: skip
     svc = await repo.service_by_id(conn, b.service_id)
@@ -186,7 +190,9 @@ async def commit_reschedule(conn: AsyncConnection, ctx: ToolContext, proposal: P
     reason = await provider_for(org).check(conn, ctx, svc, start, pid, now, ignore=ignore)
     if reason is None:
         try:
-            await guarded_write(conn, lambda: repo.move_booking(conn, b.id, practitioner_id=pid, starts_at=start, ends_at=end))
+            await guarded_write(
+                conn, lambda: repo.move_booking(conn, b.id, practitioner_id=pid, starts_at=start, ends_at=end)
+            )
         except SlotTaken as taken:
             reason = _reason(taken)
     if reason is not None:
@@ -231,7 +237,11 @@ async def commit_cancel(conn: AsyncConnection, ctx: ToolContext, proposal: Propo
         "service": b.service_name, "practitioner": b.practitioner_name, "when": local_display(b.starts_at, org.timezone),
         "fee": money_str(fee), "fee_display": format_money(fee, org.currency),
     }  # fmt: skip
-    fee_text = "No fee applies." if fee == 0 else f"A cancellation fee of {card['fee_display']} is recorded (pay at the studio)."
+    fee_text = (
+        "No fee applies."
+        if fee == 0
+        else f"A cancellation fee of {card['fee_display']} is recorded (pay at the studio)."
+    )
     return Reply(f"CONFIRMED: booking {p['booking_number']} is cancelled. {fee_text}", cards=[card], status="committed")
 
 
@@ -247,7 +257,7 @@ async def describe(conn: AsyncConnection, ctx: ToolContext, proposal: Proposal) 
     (reschedule/cancel: payload booking_id), with its status as it is NOW."""
     booking_id = proposal.payload.get("booking_id")
     row = (await conn.execute(
-        text("SELECT booking_number, status FROM bookings WHERE user_id = :u AND "
+        text("SELECT booking_number, status FROM bookings WHERE user_id = :u AND "  # noqa: S608  (interpolates a module constant; values are bound)
              + ("id = :i" if booking_id else "proposal_id = :p")),
         {"u": ctx.user_id, "i": uuid.UUID(booking_id) if booking_id else None, "p": proposal.id},
     )).one_or_none()  # fmt: skip

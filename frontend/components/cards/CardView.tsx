@@ -40,6 +40,6 @@ export function CardView({ card }: { card: Card }) {
       return <Outcome card={card} />;
     default:
       // A card type this UI doesn't know yet: say so quietly rather than show nothing.
-      return <p data-testid="card-unknown" className="mt-3 text-[13px] text-muted">(This reply has a card this version can't show.)</p>;
+      return <p data-testid="card-unknown" className="mt-3 text-[13px] text-muted">(This reply has a card this version can&apos;t show.)</p>;
   }
 }

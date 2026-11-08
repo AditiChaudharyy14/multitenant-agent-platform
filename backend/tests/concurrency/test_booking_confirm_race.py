@@ -30,7 +30,9 @@ async def test_ten_concurrent_confirms_make_exactly_one_booking(studio: Studio, 
     with clock.freeze(NOW):
         # Turn 1 for everyone: each gets a valid proposal, since nothing is booked yet.
         proposals = [
-            proposal_id(await call(create_booking, turn_ctx(studio, c), service="swedish", start=iso(SLOT), practitioner="Asha"))
+            proposal_id(
+                await call(create_booking, turn_ctx(studio, c), service="swedish", start=iso(SLOT), practitioner="Asha")
+            )
             for c in customers
         ]
         # Turn 2, all at once. gather() starts every confirm before any finishes.

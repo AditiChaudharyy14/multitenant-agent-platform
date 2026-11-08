@@ -24,7 +24,9 @@ def me(org: Shop | Studio, user: uuid.UUID) -> ToolContext:
     return ToolContext(org.org_id, user, "customer", uuid.uuid4(), uuid.uuid4())
 
 
-async def place(owner: AsyncEngine, shop: Shop, user: uuid.UUID, items: dict[str, int], status: str = "delivered") -> None:
+async def place(
+    owner: AsyncEngine, shop: Shop, user: uuid.UUID, items: dict[str, int], status: str = "delivered"
+) -> None:
     """An order straight into the table (as the owner), with its items."""
     async with owner.begin() as conn:
         await set_owner_tenant(conn, shop.org_id)
@@ -71,7 +73,9 @@ async def test_remember_then_list_then_forget(shop: Shop) -> None:
     assert "preferred_tea" not in await listed(shop, shop.x, "store")
 
 
-@pytest.mark.parametrize(("key", "value"), [("", "x"), ("a" * 41, "x"), ("ok", ""), ("ok", "v" * 201), ("bad<key>", "x")])
+@pytest.mark.parametrize(
+    ("key", "value"), [("", "x"), ("a" * 41, "x"), ("ok", ""), ("ok", "v" * 201), ("bad<key>", "x")]
+)
 async def test_bad_keys_and_values_are_refused(shop: Shop, key: str, value: str) -> None:
     ctx = me(shop, shop.x)
     with pytest.raises(memory.MemoryRefused):

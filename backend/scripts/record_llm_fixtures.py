@@ -75,12 +75,21 @@ async def main() -> int:
     rec = RecordingTransport()
     adapter = GeminiAdapter(key, httpx.AsyncClient(transport=rec, timeout=httpx.Timeout(10.0, read=120.0)))
     # Primary model only, through the real router: budget counted, RPM respected.
-    router = ModelRouter(adapter, [model], DailyBudget("gemini", s.llm_daily_budget_gemini), {model: limiter_for("gemini", model, s.llm_rpm_gemini)})
+    router = ModelRouter(
+        adapter,
+        [model],
+        DailyBudget("gemini", s.llm_daily_budget_gemini),
+        {model: limiter_for("gemini", model, s.llm_rpm_gemini)},
+    )
     OUT.mkdir(parents=True, exist_ok=True)
 
     async def call(name: str, req: ChatRequest) -> list:
         events = [e async for e in router.stream(req)]
-        fixture = {"source": f"RECORDED from {model} on {clock.now():%Y-%m-%d} by make record-fixtures", "model": model, **rec.last}
+        fixture = {
+            "source": f"RECORDED from {model} on {clock.now():%Y-%m-%d} by make record-fixtures",
+            "model": model,
+            **rec.last,
+        }
         (OUT / f"{name}.json").write_text(json.dumps(fixture, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
         print(f"recorded {name}.json ({len(events)} events)")
         return events

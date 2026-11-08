@@ -164,9 +164,7 @@ async def check_orgs_present(conn: AsyncConnection, configs: list[OrgConfig]) ->
     present = set(await conn.scalars(text("SELECT slug FROM orgs")))
     missing = sorted(c.slug for c in configs if c.slug not in present)
     if missing:
-        raise RuntimeError(
-            f"org.yaml slugs missing from orgs table: {missing}; run `make sync-orgs`"
-        )
+        raise RuntimeError(f"org.yaml slugs missing from orgs table: {missing}; run `make sync-orgs`")
 
 
 @dataclass(frozen=True, slots=True)
@@ -198,18 +196,16 @@ class Org:
         }
 
 
-_ORG_COLUMNS = "id, slug, name, vertical, timezone, branding, business_type, order_prefix, currency, booking_prefix, features"
+_ORG_COLUMNS = (
+    "id, slug, name, vertical, timezone, branding, business_type, order_prefix, currency, booking_prefix, features"
+)
 
 
 async def get_org_by_slug(conn: AsyncConnection, slug: str) -> Org | None:
-    row = (
-        await conn.execute(text(f"SELECT {_ORG_COLUMNS} FROM orgs WHERE slug = :s"), {"s": slug})
-    ).one_or_none()
+    row = (await conn.execute(text(f"SELECT {_ORG_COLUMNS} FROM orgs WHERE slug = :s"), {"s": slug})).one_or_none()  # noqa: S608  (interpolates a module constant; values are bound)
     return Org(*row) if row else None
 
 
 async def get_org_by_id(conn: AsyncConnection, org_id: UUID) -> Org | None:
-    row = (
-        await conn.execute(text(f"SELECT {_ORG_COLUMNS} FROM orgs WHERE id = :i"), {"i": org_id})
-    ).one_or_none()
+    row = (await conn.execute(text(f"SELECT {_ORG_COLUMNS} FROM orgs WHERE id = :i"), {"i": org_id})).one_or_none()  # noqa: S608  (interpolates a module constant; values are bound)
     return Org(*row) if row else None

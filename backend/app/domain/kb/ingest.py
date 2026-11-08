@@ -69,8 +69,12 @@ async def insert_chunks(conn: AsyncConnection, org_id: UUID, kb: PreparedKB) -> 
                 # Stable id, like every seeded row: search breaks score ties on it, so a random
                 # id would let a reseed reorder equally ranked results.
                 "id": uuid5(org_id, f"kb_chunk:{c.doc_id}#{c.section}"),
-                "org_id": org_id, "doc_id": c.doc_id, "doc_title": c.doc_title,
-                "section": c.section, "content": c.content, "embedding": v,
+                "org_id": org_id,
+                "doc_id": c.doc_id,
+                "doc_title": c.doc_title,
+                "section": c.section,
+                "content": c.content,
+                "embedding": v,
             }  # fmt: skip
             for c, v in zip(kb.chunks, kb.vectors, strict=True)
         ],

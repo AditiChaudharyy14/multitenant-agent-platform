@@ -8,8 +8,8 @@ from datetime import datetime
 from typing import Annotated, Any
 from uuid import UUID
 
-from fastapi.encoders import jsonable_encoder
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.encoders import jsonable_encoder
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from app.auth.deps import current_ctx

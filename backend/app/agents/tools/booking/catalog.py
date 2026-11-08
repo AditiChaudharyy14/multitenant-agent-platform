@@ -60,7 +60,9 @@ async def _find(ctx: ToolContext, args: FindSlotsArgs) -> ToolResult:
             conn, ctx, await org_of(conn, ctx), service=args.service, when=args.when,
             date_from=args.date_from, date_to=args.date_to, practitioner=args.practitioner,
         )  # fmt: skip
-    label = {"ambiguous": "Which day?", "need_date": "Which day?", "error": "Couldn't search"}.get(reply.status, "Free times found")
+    label = {"ambiguous": "Which day?", "need_date": "Which day?", "error": "Couldn't search"}.get(
+        reply.status, "Free times found"
+    )
     return from_reply(reply, label)
 
 

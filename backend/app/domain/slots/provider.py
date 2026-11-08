@@ -26,18 +26,41 @@ from app.tenancy.context import ToolContext
 
 class SlotProvider(Protocol):
     async def find(
-        self, conn: AsyncConnection, ctx: ToolContext, service: Service, days: Iterable[date], now: datetime, *,
-        practitioner: uuid.UUID | None = None, window: tuple[time, time] | None = None, ignore: Ignore | None = None,
+        self,
+        conn: AsyncConnection,
+        ctx: ToolContext,
+        service: Service,
+        days: Iterable[date],
+        now: datetime,
+        *,
+        practitioner: uuid.UUID | None = None,
+        window: tuple[time, time] | None = None,
+        ignore: Ignore | None = None,
     ) -> list[Slot]: ...  # fmt: skip
 
     async def check(
-        self, conn: AsyncConnection, ctx: ToolContext, service: Service, start: datetime, practitioner: uuid.UUID,
-        now: datetime, *, ignore: Ignore | None = None,
+        self,
+        conn: AsyncConnection,
+        ctx: ToolContext,
+        service: Service,
+        start: datetime,
+        practitioner: uuid.UUID,
+        now: datetime,
+        *,
+        ignore: Ignore | None = None,
     ) -> str | None: ...  # fmt: skip
 
     async def nearest_alternatives(
-        self, conn: AsyncConnection, ctx: ToolContext, service: Service, target: datetime, now: datetime, *,
-        practitioner: uuid.UUID | None = None, ignore: Ignore | None = None, k: int = 3,
+        self,
+        conn: AsyncConnection,
+        ctx: ToolContext,
+        service: Service,
+        target: datetime,
+        now: datetime,
+        *,
+        practitioner: uuid.UUID | None = None,
+        ignore: Ignore | None = None,
+        k: int = 3,
     ) -> list[Slot]: ...  # fmt: skip
 
     async def schedule(self, conn: AsyncConnection) -> Schedule: ...
@@ -52,9 +75,11 @@ class LocalSlotProvider:
     async def schedule(self, conn: AsyncConnection) -> Schedule:
         hours = {
             wd: (opens, closes)
-            for wd, opens, closes in (await conn.execute(text("SELECT weekday, opens, closes FROM opening_hours"))).all()
+            for wd, opens, closes in (
+                await conn.execute(text("SELECT weekday, opens, closes FROM opening_hours"))
+            ).all()
         }
-        holidays = dict((await conn.execute(text("SELECT day, name FROM holidays"))).all())
+        holidays = {day: name for day, name in (await conn.execute(text("SELECT day, name FROM holidays"))).all()}
         return Schedule(self.timezone, hours, frozenset(holidays), holidays)
 
     async def _busy(
@@ -75,9 +100,7 @@ class LocalSlotProvider:
             ),
             {"o": ctx.org_id, "u": ctx.user_id, "a": start, "b": end},
         )
-        customer = [
-            Interval(s, e) for s, e in mine.all() if not (ignore and (s, e) == (ignore.start, ignore.end))
-        ]
+        customer = [Interval(s, e) for s, e in mine.all() if not (ignore and (s, e) == (ignore.start, ignore.end))]
         return practitioners, customer
 
     def _span(self, days: Sequence[date]) -> tuple[datetime, datetime]:

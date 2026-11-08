@@ -41,5 +41,7 @@ async def run_once() -> int:
                                                    number=booking_number(org, b.booking_number), service=b.service,
                                                    practitioner=b.practitioner, starts_at=b.starts_at):  # fmt: skip
                     queued += 1
-                await conn.execute(text("UPDATE bookings SET reminder_sent_at = :n WHERE id = :i"), {"n": now, "i": b.id})
+                await conn.execute(
+                    text("UPDATE bookings SET reminder_sent_at = :n WHERE id = :i"), {"n": now, "i": b.id}
+                )
     return queued

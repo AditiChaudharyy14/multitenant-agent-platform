@@ -52,7 +52,9 @@ def line_card(sku: str, name: str, qty: int, unit_price: Decimal, currency: str)
             "line_total_display": format_money(unit_price * qty, currency)}  # fmt: skip
 
 
-def payload_line(product_id: uuid.UUID, sku: str, name: str, qty: int, unit_price: Decimal, **extra: Any) -> dict[str, Any]:
+def payload_line(
+    product_id: uuid.UUID, sku: str, name: str, qty: int, unit_price: Decimal, **extra: Any
+) -> dict[str, Any]:
     return {"product_id": str(product_id), "sku": sku, "name": name, "qty": qty,
             "unit_price": money_str(unit_price), **extra}  # fmt: skip
 
@@ -84,7 +86,9 @@ def _unknown(skus: list[str]) -> Reply:
     )  # fmt: skip
 
 
-async def resolve_order(conn: AsyncConnection, ctx: ToolContext, org: Org, raw: str, *, lock: bool = False) -> Order | None:
+async def resolve_order(
+    conn: AsyncConnection, ctx: ToolContext, org: Org, raw: str, *, lock: bool = False
+) -> Order | None:
     number = parse_order_number(raw, org.order_prefix or "")
     return await repo.own_order(conn, ctx, number, lock=lock) if number else None
 
@@ -112,7 +116,9 @@ async def stock_issue(
             "sku": product.sku, "name": product.name, "requested": requested, "available": available,
             "alternatives": [_product_card(a, org) for a in alts],
         })  # fmt: skip
-        alt_text = ", ".join(f"{a.name} ({a.sku}, {format_money(a.price, org.currency)}, {a.stock} in stock)" for a in alts)
+        alt_text = ", ".join(
+            f"{a.name} ({a.sku}, {format_money(a.price, org.currency)}, {a.stock} in stock)" for a in alts
+        )
         text_parts.append(
             f"{product.name} ({product.sku}): asked for {requested}, only {available} available"
             + (f"; alternatives: {alt_text}" if alt_text else "; no in-stock alternative in that category")
@@ -203,8 +209,10 @@ async def propose_new_order(
         "total": money_str(total), "total_display": format_money(total, org.currency),
         "delivery_address": address, "changes": changes or [], "unavailable": [], **(extra or {}),
     }  # fmt: skip
-    what = f"{intro + ' ' if intro else ''}new order of {_describe(lines, org.currency)}; total " \
-           f"{format_money(total, org.currency)}; deliver to {address}."
+    what = (
+        f"{intro + ' ' if intro else ''}new order of {_describe(lines, org.currency)}; total "
+        f"{format_money(total, org.currency)}; deliver to {address}."
+    )
     if changes:
         what += " Changes: " + " ".join(changes)
     return await _propose(conn, ctx, org, kind, payload, card, what)
@@ -285,7 +293,7 @@ async def propose_update(
     number = display_number(org.order_prefix, order.order_number)
     current = {i.sku: i for i in await repo.items(conn, order.id)}
     new_qty = {sku: i.qty for sku, i in current.items()}
-    for sku, qty in (items or []):
+    for sku, qty in items or []:
         new_qty[sku.strip().upper()] = qty  # the new quantity for that SKU; 0 removes it
     products = await repo.products_by_sku(conn, list(new_qty))
     if missing := [s for s in new_qty if s not in products]:
@@ -366,7 +374,7 @@ async def order_status(conn: AsyncConnection, ctx: ToolContext, org: Org, raw_nu
     number = display_number(org.order_prefix, order.order_number)
     lines = await repo.items(conn, order.id)
     steps = await repo.history(conn, order.id)
-    card = {
+    card: dict[str, Any] = {
         "type": "order_status", "order_number": number, "status": order.status,
         "placed_at": local_display(order.created_at, org.timezone),
         "items": [line_card(i.sku, i.name, i.qty, i.unit_price, org.currency) for i in lines],
@@ -382,7 +390,9 @@ async def order_status(conn: AsyncConnection, ctx: ToolContext, org: Org, raw_nu
         + "; ".join(f"{i.qty} x {i.name}" for i in lines)
         + f". Total {card['total_display']} ({PAYMENT_METHOD}). Deliver to {order.delivery_address}. "
         f"History ({org.timezone}): {timeline}. "
-        + ("It can still be changed or cancelled." if card["can_edit"] else "It can no longer be changed or cancelled."),
+        + (
+            "It can still be changed or cancelled." if card["can_edit"] else "It can no longer be changed or cancelled."
+        ),
         cards=[card],
     )
 

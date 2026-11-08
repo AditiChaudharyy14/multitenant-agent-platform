@@ -47,6 +47,9 @@ class RetryPolicy:
     max_delay: float = 30.0
 
 
+DEFAULT_RETRY = RetryPolicy()  # frozen, so one shared default is safe
+
+
 class ModelRouter(LLMProvider):
     def __init__(
         self,
@@ -54,7 +57,7 @@ class ModelRouter(LLMProvider):
         models: list[str],
         budget: DailyBudget,
         limiters: dict[str, RpmLimiter],
-        retry: RetryPolicy = RetryPolicy(),
+        retry: RetryPolicy = DEFAULT_RETRY,
         *,
         sleep: Callable[[float], Awaitable[None]] = asyncio.sleep,
         jitter: Callable[[], float] = random.random,
@@ -116,4 +119,6 @@ class ModelRouter(LLMProvider):
         if out_of_budget == len(self.models):
             usage = [(m, await self.budget.used(m), self.budget.limit) for m in self.models]
             raise DailyBudgetExhausted(self.name, usage, next_reset())
-        raise ProviderUnavailable(f"{self.name}: every model is rate limited ({', '.join(self.models)}); try again shortly")
+        raise ProviderUnavailable(
+            f"{self.name}: every model is rate limited ({', '.join(self.models)}); try again shortly"
+        )

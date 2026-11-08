@@ -161,7 +161,9 @@ class SeedData(_Model):
         for b in self.bookings:
             _require(b.customer in customers, f"booking {b.key}: unknown customer {b.customer!r}")
             _require(b.practitioner in offers, f"booking {b.key}: unknown practitioner")
-            _require(b.service in offers.get(b.practitioner, set()), f"booking {b.key}: practitioner doesn't offer service")
+            _require(
+                b.service in offers.get(b.practitioner, set()), f"booking {b.key}: practitioner doesn't offer service"
+            )
             _require(b.day_offset != 0, f"booking {b.key}: day_offset 0 is ambiguous (past or upcoming?)")
             if b.day_offset > 0:
                 _require(b.status == "confirmed", f"booking {b.key}: an upcoming booking must be confirmed")
@@ -177,6 +179,7 @@ class SeedData(_Model):
             "services": self.services, "practitioners": self.practitioners,
             "opening_hours": self.opening_hours, "holidays": self.holidays, "bookings": self.bookings,
         }  # fmt: skip
+        required: tuple[str, ...]
         if vertical == "store":
             required, forbidden = ("products",), booking_parts
         elif vertical == "booking":

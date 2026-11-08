@@ -134,7 +134,9 @@ async def _usual_products(conn: AsyncConnection, ctx: ToolContext) -> str | None
         "GROUP BY i.name, i.sku ORDER BY units DESC, orders DESC, i.name LIMIT 3"), {"u": ctx.user_id})).all()  # fmt: skip
     if not rows:
         return None
-    return "; ".join(f"{r.name} (SKU {r.sku}), {r.units} units over {r.orders} order{'s' if r.orders != 1 else ''}" for r in rows)
+    return "; ".join(
+        f"{r.name} (SKU {r.sku}), {r.units} units over {r.orders} order{'s' if r.orders != 1 else ''}" for r in rows
+    )
 
 
 async def _usual_booking(conn: AsyncConnection, ctx: ToolContext, column: str, table: str) -> str | None:

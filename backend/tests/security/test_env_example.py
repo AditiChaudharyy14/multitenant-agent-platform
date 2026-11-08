@@ -37,7 +37,9 @@ def _scan(files: list[Path], pattern: re.Pattern[str]) -> set[str]:
 
 def variables_read() -> dict[str, set[str]]:
     py = [*APP.glob("app/**/*.py"), *APP.glob("scripts/**/*.py"), *EVAL.glob("*.py")]
-    frontend = [p for p in (REPO / "frontend").rglob("*") if p.suffix in {".ts", ".tsx"} and "node_modules" not in p.parts]
+    frontend = [
+        p for p in (REPO / "frontend").rglob("*") if p.suffix in {".ts", ".tsx"} and "node_modules" not in p.parts
+    ]
     return {
         "Settings": {name.upper() for name in Settings.model_fields},
         "os.environ": _scan(py, _ENV_READ),

@@ -8,7 +8,7 @@ and returns one of those. Every request is kept in `fake.requests` for assertion
 """
 
 from collections.abc import AsyncIterator, Callable
-from typing import Any, Union
+from typing import Any, cast
 
 from app.agents.providers.base import (
     ChatRequest,
@@ -21,7 +21,7 @@ from app.agents.providers.base import (
     Usage,
 )
 
-Turn = Union[str, ToolCall, list[ToolCall], Exception, Callable[[ChatRequest], Any]]
+Turn = str | ToolCall | list[ToolCall] | Exception | Callable[[ChatRequest], Any]
 
 
 def tool_call(name: str, arguments: dict[str, Any], id: str | None = None) -> ToolCall:  # noqa: A002
@@ -55,7 +55,7 @@ class FakeProvider(LLMProvider):
                 yield TextDelta(piece if i + step >= len(words) else piece + " ")
             yield Finished("stop", Usage(prompt_tokens, len(words)), self.model)
             return
-        calls = turn if isinstance(turn, list) else [turn]
+        calls: list[ToolCall] = turn if isinstance(turn, list) else [cast(ToolCall, turn)]
         for c in calls:
             yield ToolCallEvent(c)
         yield Finished("tool_calls", Usage(prompt_tokens, len(calls)), self.model)

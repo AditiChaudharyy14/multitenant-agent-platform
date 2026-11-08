@@ -18,8 +18,12 @@ from app.tenancy.context import ToolContext
 
 
 class RememberArgs(Args):
-    key: str = Field(description="A short snake_case name for the preference, e.g. preferred_practitioner, milk, spice_level.")
-    value: str = Field(description="What to remember, in a few words, e.g. 'Maya Tamang' or 'oat milk'. Never a price or stock figure.")
+    key: str = Field(
+        description="A short snake_case name for the preference, e.g. preferred_practitioner, milk, spice_level."
+    )
+    value: str = Field(
+        description="What to remember, in a few words, e.g. 'Maya Tamang' or 'oat milk'. Never a price or stock figure."
+    )
 
 
 class ForgetArgs(Args):
@@ -39,8 +43,12 @@ async def _forget(ctx: ToolContext, args: ForgetArgs) -> ToolResult:
     async with tenant_tx(ctx.tenant) as conn:
         done = await memory.forget(conn, ctx, args.key)
     if not done:
-        return ToolResult(json.dumps({"forgotten": False, "reason": "no such memory"}), activity_label="Nothing to forget")
-    return ToolResult(json.dumps({"forgotten": True, "key": memory.normalise_key(args.key)}), activity_label="Forgotten")
+        return ToolResult(
+            json.dumps({"forgotten": False, "reason": "no such memory"}), activity_label="Nothing to forget"
+        )
+    return ToolResult(
+        json.dumps({"forgotten": True, "key": memory.normalise_key(args.key)}), activity_label="Forgotten"
+    )
 
 
 async def _get(ctx: ToolContext, args: NoArgs) -> ToolResult:

@@ -32,7 +32,7 @@ export function MyItemsPanel({ vertical, data, onRetry, onAsk, memory = false, v
       <div className="min-h-0 flex-1 overflow-y-auto">
         {data.state === "error" && (
           <div className="px-4 py-4 text-sm">
-            <p className="text-muted">Couldn't load this list.</p>
+            <p className="text-muted">Couldn&apos;t load this list.</p>
             <button type="button" onClick={onRetry} className="mt-2 rounded-[var(--radius-control)] border border-rule px-3 py-1.5 font-medium">Try again</button>
           </div>
         )}
@@ -109,7 +109,7 @@ function RememberedSection({ version }: { version: number }) {
   return (
     <div data-testid="memories" className="border-t border-rule px-4 py-3">
       <h3 className="text-[13px] font-medium text-muted">What I remember</h3>
-      {failed && <p className="mt-1 text-sm text-muted">Couldn't load this.</p>}
+      {failed && <p className="mt-1 text-sm text-muted">Couldn&apos;t load this.</p>}
       {items && items.length === 0 && (
         <p className="mt-1 text-sm text-muted">Nothing yet. Ask me to remember a preference, like a favourite practitioner or how you take your tea.</p>
       )}

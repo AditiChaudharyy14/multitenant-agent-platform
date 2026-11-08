@@ -96,7 +96,7 @@ def _sections(body: str, marker: str) -> list[tuple[str, str]]:
     for line in body.splitlines():
         if line.startswith(marker + " "):
             out.append((line[len(marker) + 1 :].strip(), []))
-        elif out and not re.match(r"#{1,%d} " % len(marker), line):
+        elif out and not re.match(rf"#{{1,{len(marker)}}} ", line):
             # Lines that are higher-level headings (e.g. `# Title`) are not body text.
             out[-1][1].append(line)
     return [(h, "\n".join(lines).strip()) for h, lines in out]

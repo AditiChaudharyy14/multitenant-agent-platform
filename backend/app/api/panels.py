@@ -10,6 +10,7 @@ have answers with the same 404 as any missing resource (behaviour keys on vertic
 from typing import Any
 
 from fastapi import APIRouter, Depends, Response
+from sqlalchemy.ext.asyncio import AsyncConnection
 
 from app.api.conversations import not_found
 from app.auth.deps import current_ctx
@@ -18,7 +19,7 @@ from app.domain import memory
 from app.domain.bookings import service as bookings
 from app.domain.orders import service as orders
 from app.tenancy.context import ToolContext
-from app.tenancy.orgs import get_org_by_id
+from app.tenancy.orgs import Org, get_org_by_id
 
 router = APIRouter(prefix="/api")
 
@@ -46,7 +47,7 @@ async def my_bookings(ctx: ToolContext = Depends(current_ctx)) -> dict[str, Any]
 # what the agent knows. Off for an org whose `features.memory` is false: the same 404.
 
 
-async def _memory_org(conn, ctx: ToolContext):  # noqa: ANN001, ANN202
+async def _memory_org(conn: AsyncConnection, ctx: ToolContext) -> Org:
     org = await get_org_by_id(conn, ctx.org_id)
     if org is None or ctx.role != "customer" or not org.has("memory"):
         raise not_found()

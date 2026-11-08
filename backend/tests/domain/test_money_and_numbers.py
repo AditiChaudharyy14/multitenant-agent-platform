@@ -29,7 +29,9 @@ def test_to_money_quantizes() -> None:
     assert to_money("19.999") == Decimal("20.00")
 
 
-@pytest.mark.parametrize("raw", ["HT-1042", "ht-1042", "HT 1042", "ht1042", "#1042", "1042", " HT-1042 ", "order HT-1042"])
+@pytest.mark.parametrize(
+    "raw", ["HT-1042", "ht-1042", "HT 1042", "ht1042", "#1042", "1042", " HT-1042 ", "order HT-1042"]
+)
 def test_parse_accepts_friendly_forms(raw: str) -> None:
     assert parse_order_number(raw, "HT") == 1042
 

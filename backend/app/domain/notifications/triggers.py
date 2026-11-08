@@ -7,6 +7,8 @@ recipient there.
 
 import uuid
 from datetime import datetime
+from decimal import Decimal
+from typing import Any
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
@@ -23,7 +25,7 @@ async def _recipient(conn: AsyncConnection, user_id: uuid.UUID) -> tuple[str, st
 
 
 async def order_shipped(conn: AsyncConnection, org: Org, *, order_id: uuid.UUID, user_id: uuid.UUID,
-                        number: str, address: str, total) -> bool:  # noqa: ANN001  # fmt: skip
+                        number: str, address: str, total: Decimal) -> bool:  # fmt: skip
     items = [f"{r.qty} × {r.name}" for r in (await conn.execute(text(
         "SELECT name, qty FROM order_items WHERE order_id = :o ORDER BY name"), {"o": order_id})).all()]  # fmt: skip
     email, name = await _recipient(conn, user_id)
@@ -45,9 +47,9 @@ async def _booking_mail(conn: AsyncConnection, org: Org, kind: str, *, booking_i
                                 body_text=mail.text, body_html=mail.html, dedupe_key=key)  # fmt: skip
 
 
-async def booking_confirmed(conn: AsyncConnection, org: Org, **booking) -> bool:  # noqa: ANN003
+async def booking_confirmed(conn: AsyncConnection, org: Org, **booking: Any) -> bool:
     return await _booking_mail(conn, org, "booking_confirmed", **booking)
 
 
-async def booking_reminder(conn: AsyncConnection, org: Org, **booking) -> bool:  # noqa: ANN003
+async def booking_reminder(conn: AsyncConnection, org: Org, **booking: Any) -> bool:
     return await _booking_mail(conn, org, "booking_reminder", **booking)

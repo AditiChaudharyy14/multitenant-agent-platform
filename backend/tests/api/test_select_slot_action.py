@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app import clock
 from app.agents.providers.fake import FakeProvider
-from tests.api.test_confirm_action import _reset, fake, logged_in, parse_sse  # noqa: F401  (fixtures)
+from tests.api.test_confirm_action import logged_in, parse_sse
 from tests.booking_support import NOW, booking, local, scalar
 from tests.factories import Shop, Studio, insert_studio_booking
 
@@ -22,7 +22,9 @@ def cards_of(body: str) -> list[dict]:
     return [d["card"] for k, d in parse_sse(body) if k == "card"]
 
 
-async def test_select_slot_proposes_without_the_model_deciding(studio: Studio, owner_engine: AsyncEngine, fake: FakeProvider) -> None:
+async def test_select_slot_proposes_without_the_model_deciding(
+    studio: Studio, owner_engine: AsyncEngine, fake: FakeProvider
+) -> None:
     with clock.freeze(NOW):
         async with await logged_in(studio, studio.x) as c:
             cid = (await c.post("/api/conversations")).json()["id"]
@@ -50,7 +52,9 @@ async def test_select_slot_proposes_without_the_model_deciding(studio: Studio, o
     assert (await booking(owner_engine, studio, 1001)).status == "confirmed"
 
 
-async def test_select_slot_with_a_booking_number_reschedules(studio: Studio, owner_engine: AsyncEngine, fake: FakeProvider) -> None:
+async def test_select_slot_with_a_booking_number_reschedules(
+    studio: Studio, owner_engine: AsyncEngine, fake: FakeProvider
+) -> None:
     mine = await insert_studio_booking(owner_engine, studio, studio.x, "swedish", "asha", local(2026, 11, 10, 10))
     with clock.freeze(NOW):
         async with await logged_in(studio, studio.x) as c:
@@ -64,7 +68,9 @@ async def test_select_slot_with_a_booking_number_reschedules(studio: Studio, own
     assert "reschedule_booking" not in {t.name for t in fake.requests[-1].tools}
 
 
-async def test_select_slot_refusal_comes_from_the_server(studio: Studio, owner_engine: AsyncEngine, fake: FakeProvider) -> None:
+async def test_select_slot_refusal_comes_from_the_server(
+    studio: Studio, owner_engine: AsyncEngine, fake: FakeProvider
+) -> None:
     with clock.freeze(NOW):
         async with await logged_in(studio, studio.x) as c:
             cid = (await c.post("/api/conversations")).json()["id"]

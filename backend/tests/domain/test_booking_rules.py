@@ -98,7 +98,9 @@ async def test_opening_hours_show_closed_days_and_upcoming_holidays(studio: Stud
 
 async def test_find_slots_next_tuesday_afternoon(studio: Studio) -> None:
     with clock.freeze(NOW):
-        r = await call(find_available_slots, turn_ctx(studio, studio.x), service="swedish", when="next Tuesday afternoon")
+        r = await call(
+            find_available_slots, turn_ctx(studio, studio.x), service="swedish", when="next Tuesday afternoon"
+        )
     c = card(r, "slot_list")
     assert c["resolved_dates"] == ["Tue 10 Nov 2026"]
     starts = slot_starts(r)
@@ -106,7 +108,12 @@ async def test_find_slots_next_tuesday_afternoon(studio: Studio) -> None:
     assert all("12:00" <= s[11:] < "17:00" for s in starts)
     first = c["slots"][0]
     # Each slot is a button that books exactly that slot.
-    assert first["action"] == {"type": "select_slot", "service": "Swedish Massage", "practitioner": None, "start": first["start"]}
+    assert first["action"] == {
+        "type": "select_slot",
+        "service": "Swedish Massage",
+        "practitioner": None,
+        "start": first["start"],
+    }
     assert first["display"] == "Tue 10 Nov 2026, 12:00"
     assert "Tue 10 Nov 2026" in r.content_for_model
 
@@ -175,7 +182,11 @@ async def test_find_slots_past_date_is_refused(studio: Studio) -> None:
     ids=["holiday", "saturday", "before-opening", "overflow", "overflow-friday", "too-soon", "off-step", "past"],
 )
 async def test_invalid_slots_are_refused_without_a_proposal(
-    studio: Studio, owner_engine: AsyncEngine, service: str, start, reason: str  # noqa: ANN001
+    studio: Studio,
+    owner_engine: AsyncEngine,
+    service: str,
+    start,
+    reason: str,  # noqa: ANN001
 ) -> None:
     before = await db_snapshot(owner_engine, studio)
     with clock.freeze(NOW):
@@ -189,15 +200,21 @@ async def test_invalid_slots_are_refused_without_a_proposal(
 
 async def test_service_a_practitioner_does_not_offer_is_refused(studio: Studio) -> None:
     with clock.freeze(NOW):
-        r = await call(create_booking, turn_ctx(studio, studio.x), service="Private Yoga", start=iso(TUE_14), practitioner="Asha")
+        r = await call(
+            create_booking, turn_ctx(studio, studio.x), service="Private Yoga", start=iso(TUE_14), practitioner="Asha"
+        )
     assert r.content_for_model.startswith("REFUSED") and "Bina Shrestha" in r.content_for_model
 
 
-async def test_practitioner_double_booking_is_refused_with_three_nearest(studio: Studio, owner_engine: AsyncEngine) -> None:
+async def test_practitioner_double_booking_is_refused_with_three_nearest(
+    studio: Studio, owner_engine: AsyncEngine
+) -> None:
     await insert_studio_booking(owner_engine, studio, studio.y, "swedish", "asha", TUE_14)
     before = await db_snapshot(owner_engine, studio)
     with clock.freeze(NOW):
-        r = await call(create_booking, turn_ctx(studio, studio.x), service="swedish", start=iso(TUE_14), practitioner="Asha Gurung")
+        r = await call(
+            create_booking, turn_ctx(studio, studio.x), service="swedish", start=iso(TUE_14), practitioner="Asha Gurung"
+        )
     assert r.content_for_model.startswith("REFUSED") and "Asha Gurung" in r.content_for_model
     alts = card(r, "slot_alternatives")["slots"]
     # Asha's own nearest free starts by time difference; a tie (13:00 vs 15:00) goes to the earlier.
@@ -224,9 +241,17 @@ async def test_customer_cannot_overlap_their_own_booking_with_another_practition
 # ───────────── proposing and confirming ─────────────
 
 
-async def test_booking_summary_card_has_everything_the_customer_must_see(studio: Studio, owner_engine: AsyncEngine) -> None:
+async def test_booking_summary_card_has_everything_the_customer_must_see(
+    studio: Studio, owner_engine: AsyncEngine
+) -> None:
     with clock.freeze(NOW):
-        r = await call(create_booking, turn_ctx(studio, studio.x), service="swedish massage", start=iso(TUE_14), practitioner="bina")
+        r = await call(
+            create_booking,
+            turn_ctx(studio, studio.x),
+            service="swedish massage",
+            start=iso(TUE_14),
+            practitioner="bina",
+        )
     s = summary(r)
     assert s["kind"] == "create_booking"
     assert s["service"] == "Swedish Massage"
@@ -250,7 +275,9 @@ async def test_no_practitioner_given_picks_a_free_one_and_says_who(studio: Studi
 
 async def test_confirm_in_a_later_turn_creates_the_booking(studio: Studio, owner_engine: AsyncEngine) -> None:
     with clock.freeze(NOW):
-        proposed, confirmed = await propose_and_confirm(studio, studio.x, create_booking, service="swedish", start=iso(TUE_14))
+        proposed, confirmed = await propose_and_confirm(
+            studio, studio.x, create_booking, service="swedish", start=iso(TUE_14)
+        )
     assert confirmed.content_for_model.startswith("CONFIRMED"), confirmed.content_for_model
     done = card(confirmed, "booking_confirmed")
     assert done["booking_number"] == studio.number(1001)
@@ -279,7 +306,9 @@ async def test_double_confirm_books_once(studio: Studio, owner_engine: AsyncEngi
     assert await booking_count(owner_engine, studio) == 1
 
 
-async def test_already_confirmed_booking_refusal_names_the_booking_and_its_status(studio: Studio, owner_engine: AsyncEngine) -> None:
+async def test_already_confirmed_booking_refusal_names_the_booking_and_its_status(
+    studio: Studio, owner_engine: AsyncEngine
+) -> None:
     """The refusal carries the booking number and its live status, so the model never guesses."""
     with clock.freeze(NOW):
         proposed, _ = await propose_and_confirm(studio, studio.x, create_booking, service="swedish", start=iso(TUE_14))
@@ -292,7 +321,9 @@ async def test_already_confirmed_booking_refusal_names_the_booking_and_its_statu
         late = await call(confirm_proposal, turn_ctx(studio, studio.x), proposal_id=proposal_id(proposed))
         cancel_again = await call(confirm_proposal, turn_ctx(studio, studio.x), proposal_id=proposal_id(cancel))
     assert studio.number(1001) in late.content_for_model and "status: cancelled" in late.content_for_model
-    assert studio.number(1001) in cancel_again.content_for_model and "status: cancelled" in cancel_again.content_for_model
+    assert (
+        studio.number(1001) in cancel_again.content_for_model and "status: cancelled" in cancel_again.content_for_model
+    )
 
 
 async def test_price_change_before_confirm_issues_a_fresh_proposal(studio: Studio, owner_engine: AsyncEngine) -> None:
@@ -309,9 +340,13 @@ async def test_price_change_before_confirm_issues_a_fresh_proposal(studio: Studi
     assert statuses[proposal_id(proposed)] == "superseded" and statuses[fresh["proposal_id"]] == "open"
 
 
-async def test_slot_taken_before_confirm_is_refused_with_alternatives(studio: Studio, owner_engine: AsyncEngine) -> None:
+async def test_slot_taken_before_confirm_is_refused_with_alternatives(
+    studio: Studio, owner_engine: AsyncEngine
+) -> None:
     with clock.freeze(NOW):
-        proposed = await call(create_booking, turn_ctx(studio, studio.x), service="swedish", start=iso(TUE_14), practitioner="Asha")
+        proposed = await call(
+            create_booking, turn_ctx(studio, studio.x), service="swedish", start=iso(TUE_14), practitioner="Asha"
+        )
         await insert_studio_booking(owner_engine, studio, studio.y, "swedish", "asha", TUE_14)
         r = await call(confirm_proposal, turn_ctx(studio, studio.x), proposal_id=proposal_id(proposed))
     assert r.content_for_model.startswith("REFUSED")
@@ -319,7 +354,9 @@ async def test_slot_taken_before_confirm_is_refused_with_alternatives(studio: St
     assert await booking_count(owner_engine, studio) == 1  # only Y's
 
 
-async def test_auto_picked_practitioner_taken_before_confirm_offers_another(studio: Studio, owner_engine: AsyncEngine) -> None:
+async def test_auto_picked_practitioner_taken_before_confirm_offers_another(
+    studio: Studio, owner_engine: AsyncEngine
+) -> None:
     with clock.freeze(NOW):
         proposed = await call(create_booking, turn_ctx(studio, studio.x), service="swedish", start=iso(TUE_14))
         assert summary(proposed)["practitioner"] == "Asha Gurung"
@@ -344,12 +381,16 @@ async def test_booking_numbers_are_sequential_per_org(studio: Studio, owner_engi
 # ───────────── reschedule ─────────────
 
 
-async def test_reschedule_into_a_conflict_is_refused_and_nothing_changes(studio: Studio, owner_engine: AsyncEngine) -> None:
+async def test_reschedule_into_a_conflict_is_refused_and_nothing_changes(
+    studio: Studio, owner_engine: AsyncEngine
+) -> None:
     mine = await insert_studio_booking(owner_engine, studio, studio.x, "swedish", "asha", local(2026, 11, 10, 10))
     await insert_studio_booking(owner_engine, studio, studio.y, "swedish", "asha", TUE_14)
     before = await db_snapshot(owner_engine, studio)
     with clock.freeze(NOW):
-        r = await call(reschedule_booking, turn_ctx(studio, studio.x), booking_number=studio.number(mine), new_start=iso(TUE_14))
+        r = await call(
+            reschedule_booking, turn_ctx(studio, studio.x), booking_number=studio.number(mine), new_start=iso(TUE_14)
+        )
     assert r.content_for_model.startswith("REFUSED")
     alts = card(r, "slot_alternatives")["slots"]
     assert len(alts) == 3 and all(a["practitioner"] == "Asha Gurung" for a in alts)
@@ -363,7 +404,9 @@ async def test_reschedule_into_a_free_slot_moves_the_booking(studio: Studio, own
     mine = await insert_studio_booking(owner_engine, studio, studio.x, "swedish", "asha", local(2026, 11, 10, 10))
     new = local(2026, 11, 12, 16)
     with clock.freeze(NOW):
-        proposed = await call(reschedule_booking, turn_ctx(studio, studio.x), booking_number=studio.number(mine), new_start=iso(new))
+        proposed = await call(
+            reschedule_booking, turn_ctx(studio, studio.x), booking_number=studio.number(mine), new_start=iso(new)
+        )
         s = summary(proposed)
         assert s["kind"] == "reschedule_booking" and s["booking_number"] == studio.number(mine)
         assert s["old"]["when"] == "Tue 10 Nov 2026, 10:00" and s["when"] == "Thu 12 Nov 2026, 16:00"
@@ -392,10 +435,14 @@ async def test_reschedule_to_another_practitioner(studio: Studio, owner_engine: 
     assert (await booking(owner_engine, studio, mine)).practitioner_name == "Bina Shrestha"
 
 
-async def test_slot_taken_before_reschedule_confirm_leaves_booking_alone(studio: Studio, owner_engine: AsyncEngine) -> None:
+async def test_slot_taken_before_reschedule_confirm_leaves_booking_alone(
+    studio: Studio, owner_engine: AsyncEngine
+) -> None:
     mine = await insert_studio_booking(owner_engine, studio, studio.x, "swedish", "asha", local(2026, 11, 10, 10))
     with clock.freeze(NOW):
-        proposed = await call(reschedule_booking, turn_ctx(studio, studio.x), booking_number=studio.number(mine), new_start=iso(TUE_14))
+        proposed = await call(
+            reschedule_booking, turn_ctx(studio, studio.x), booking_number=studio.number(mine), new_start=iso(TUE_14)
+        )
         await insert_studio_booking(owner_engine, studio, studio.y, "swedish", "asha", TUE_14)
         r = await call(confirm_proposal, turn_ctx(studio, studio.x), proposal_id=proposal_id(proposed))
     assert r.content_for_model.startswith("REFUSED") and len(slot_starts(r, "slot_alternatives")) == 3
@@ -417,7 +464,9 @@ async def test_cancel_more_than_24h_ahead_is_free(studio: Studio, owner_engine: 
 
 
 async def test_cancel_within_24h_costs_half_the_price(studio: Studio, owner_engine: AsyncEngine) -> None:
-    mine = await insert_studio_booking(owner_engine, studio, studio.x, "swedish", "asha", local(2026, 11, 6, 10))  # in 20 h
+    mine = await insert_studio_booking(
+        owner_engine, studio, studio.x, "swedish", "asha", local(2026, 11, 6, 10)
+    )  # in 20 h
     with clock.freeze(NOW):
         proposed, r = await propose_and_confirm(studio, studio.x, cancel_booking, booking_number=studio.number(mine))
     s = summary(proposed)
@@ -455,7 +504,11 @@ async def test_crossing_the_24h_line_before_confirm_requotes_the_fee(studio: Stu
 )
 @pytest.mark.parametrize("tool", [reschedule_booking, cancel_booking], ids=lambda t: t.name)
 async def test_only_confirmed_future_bookings_can_change(
-    studio: Studio, owner_engine: AsyncEngine, start, status: str, tool  # noqa: ANN001
+    studio: Studio,
+    owner_engine: AsyncEngine,
+    start,
+    status: str,
+    tool,  # noqa: ANN001
 ) -> None:
     mine = await insert_studio_booking(owner_engine, studio, studio.x, "swedish", "asha", start, status=status)
     extra = {"new_start": iso(local(2026, 11, 12, 16))} if tool is reschedule_booking else {}
@@ -472,9 +525,13 @@ async def test_only_confirmed_future_bookings_can_change(
 
 
 async def test_list_my_bookings_splits_upcoming_and_past(studio: Studio, owner_engine: AsyncEngine) -> None:
-    past = await insert_studio_booking(owner_engine, studio, studio.x, "swedish", "asha", local(2026, 11, 2, 10), status="completed")
+    past = await insert_studio_booking(
+        owner_engine, studio, studio.x, "swedish", "asha", local(2026, 11, 2, 10), status="completed"
+    )
     up = await insert_studio_booking(owner_engine, studio, studio.x, "deep", "bina", TUE_14)
-    gone = await insert_studio_booking(owner_engine, studio, studio.x, "swedish", "asha", local(2026, 11, 12, 10), status="cancelled")
+    gone = await insert_studio_booking(
+        owner_engine, studio, studio.x, "swedish", "asha", local(2026, 11, 12, 10), status="cancelled"
+    )
     await insert_studio_booking(owner_engine, studio, studio.y, "swedish", "asha", TUE_14)  # someone else's
     with clock.freeze(NOW):
         r = await call(list_my_bookings, turn_ctx(studio, studio.x))

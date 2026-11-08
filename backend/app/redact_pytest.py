@@ -4,6 +4,7 @@ Loaded with `-p app.redact_pytest` (pyproject.toml addopts), so it is active bef
 tests/conftest.py is imported.
 """
 
+from collections.abc import Generator
 from typing import Any
 
 import pytest
@@ -21,12 +22,12 @@ def _clean_report(report: Any) -> None:
 
 
 @pytest.hookimpl(hookwrapper=True)
-def pytest_runtest_makereport(item: Any, call: Any):  # noqa: ANN201
+def pytest_runtest_makereport(item: Any, call: Any) -> Generator[None, Any, None]:
     outcome = yield
     _clean_report(outcome.get_result())
 
 
 @pytest.hookimpl(hookwrapper=True)
-def pytest_make_collect_report(collector: Any):  # noqa: ANN201
+def pytest_make_collect_report(collector: Any) -> Generator[None, Any, None]:
     outcome = yield
     _clean_report(outcome.get_result())

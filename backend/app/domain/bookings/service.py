@@ -97,10 +97,15 @@ def slot_card(
     """One clickable slot. The button sends exactly what create_booking (or, with a booking
     number, reschedule_booking) needs; the server re-validates everything anyway."""
     start = local_iso(slot.start, org.timezone)
-    action: dict[str, Any] = {"type": "select_slot", "service": service.name, "practitioner": practitioner, "start": start}
+    action: dict[str, Any] = {
+        "type": "select_slot",
+        "service": service.name,
+        "practitioner": practitioner,
+        "start": start,
+    }
     if booking:
         action["booking_number"] = booking
-    card = {"start": start, "display": local_display(slot.start, org.timezone), "practitioner": practitioner,
+    card: dict[str, Any] = {"start": start, "display": local_display(slot.start, org.timezone), "practitioner": practitioner,
             "action": action}  # fmt: skip
     if practitioners is not None:
         card["practitioners"] = practitioners
@@ -128,7 +133,9 @@ async def resolve_service(conn: AsyncConnection, raw: str) -> Service | Reply:
     return name if isinstance(name, Reply) else next(s for s in services if s.name == name)
 
 
-def resolve_practitioner(service: Service, raw: str | None, all_practitioners: dict[uuid.UUID, str]) -> uuid.UUID | None | Reply:
+def resolve_practitioner(
+    service: Service, raw: str | None, all_practitioners: dict[uuid.UUID, str]
+) -> uuid.UUID | None | Reply:
     """None when no practitioner was asked for; a Reply when the name is unknown, ambiguous
     or not qualified for this service."""
     if not raw or not raw.strip():
@@ -242,12 +249,14 @@ def refuse_unchangeable(org: Org, b: Booking, action: str, now: datetime) -> Rep
 
 async def list_services(conn: AsyncConnection, org: Org) -> Reply:
     services = await repo.services(conn)
-    cards = [
+    cards: list[dict[str, Any]] = [
         {"name": s.name, "duration_min": s.duration_min, "price": money_str(s.price),
          "price_display": format_money(s.price, org.currency), "practitioners": sorted(s.practitioners.values())}
         for s in services
     ]  # fmt: skip
-    rows = [f"{c['name']} | {c['duration_min']} min | {c['price_display']} | {', '.join(c['practitioners'])}" for c in cards]
+    rows = [
+        f"{c['name']} | {c['duration_min']} min | {c['price_display']} | {', '.join(c['practitioners'])}" for c in cards
+    ]
     return Reply("LIVE services (name | duration | price | practitioners):\n" + "\n".join(rows),
                  cards=[{"type": "service_list", "services": cards}])  # fmt: skip
 
@@ -290,7 +299,9 @@ def _range_days(date_from: str | None, date_to: str | None, today: date) -> list
     except ValueError as exc:
         return Reply(f"ERROR: {exc}. Use YYYY-MM-DD, or pass the customer's words as `when`.", ok=False, status="error")
     if last < today:
-        return Reply(f"REFUSED: {_day(last)} is in the past; bookings can only be made for today or later.", status="refused")
+        return Reply(
+            f"REFUSED: {_day(last)} is in the past; bookings can only be made for today or later.", status="refused"
+        )
     first = max(first, today)
     if last < first:
         return Reply("ERROR: date_to is before date_from.", ok=False, status="error")
@@ -324,9 +335,10 @@ async def find_slots(
                          "call find_available_slots again with that date.", status="ambiguous")  # fmt: skip
         days, window = r.days, r.window
     else:
-        days = _range_days(date_from, date_to, today)
-        if isinstance(days, Reply):
-            return days
+        ranged = _range_days(date_from, date_to, today)
+        if isinstance(ranged, Reply):
+            return ranged
+        days = ranged
     provider = provider_for(org)
     schedule = await provider.schedule(conn)
     slots = await provider.find(conn, ctx, svc, days, now, practitioner=pid, window=window)
@@ -334,7 +346,9 @@ async def find_slots(
     by_day: dict[date, list[Slot]] = {}
     for s in slots:
         by_day.setdefault(s.start.astimezone(ZoneInfo(org.timezone)).date(), []).append(s)
-    lines, card_slots, notes = [], [], []
+    lines: list[str] = []
+    card_slots: list[dict[str, Any]] = []
+    notes: list[str] = []
     for d in days:
         if why := engine.day_rule(schedule, d):
             note = (f"{_day(d)}: holiday ({schedule.holiday_names.get(d, '')}), closed" if why == engine.HOLIDAY
@@ -396,7 +410,11 @@ async def list_bookings(conn: AsyncConnection, ctx: ToolContext, org: Org) -> Re
     groups = await booking_groups(conn, ctx, org)
 
     def line(c: dict[str, Any]) -> str:
-        fee = f", cancellation fee {c['cancellation_fee_display']}" if c["status"] == "cancelled" and c["cancellation_fee_display"] else ""
+        fee = (
+            f", cancellation fee {c['cancellation_fee_display']}"
+            if c["status"] == "cancelled" and c["cancellation_fee_display"]
+            else ""
+        )
         return f"{c['booking_number']} | {c['when']} | {c['service']} with {c['practitioner']} | {c['status']}{fee}"
 
     text = "Upcoming:\n" + ("\n".join(line(c) for c in groups["upcoming"]) or "none")
@@ -431,7 +449,7 @@ async def propose_create(
     auto = pid is None
     if auto:
         # No preference: the first qualified practitioner (by name) who is free then.
-        reason = engine.PRACTITIONER_BUSY
+        reason: str | None = engine.PRACTITIONER_BUSY
         for candidate in sorted(svc.practitioners, key=lambda p: svc.practitioners[p]):
             reason = await provider.check(conn, ctx, svc, at, candidate, now)
             if reason is None:
@@ -440,8 +458,10 @@ async def propose_create(
             if reason != engine.PRACTITIONER_BUSY:
                 break  # a calendar or customer reason is the same for everyone
         if pid is None:
+            assert reason is not None  # the loop ended without a free practitioner, so it has a reason
             return await refuse_slot(conn, ctx, org, svc, at, reason, practitioner=None, now=now)
     else:
+        assert pid is not None  # not auto: the customer named one
         reason = await provider.check(conn, ctx, svc, at, pid, now)
         if reason:
             return await refuse_slot(conn, ctx, org, svc, at, reason, practitioner=pid, now=now)
@@ -489,7 +509,9 @@ async def propose_reschedule(
                      "with that practitioner.", ok=False, status="error")  # fmt: skip
     ignore = Ignore(b.practitioner_id, b.starts_at, b.ends_at)
     if pid not in svc.practitioners:  # their practitioner stopped offering it
-        return await refuse_slot(conn, ctx, org, svc, at, engine.PRACTITIONER_BUSY, practitioner=None, booking=b, now=now)
+        return await refuse_slot(
+            conn, ctx, org, svc, at, engine.PRACTITIONER_BUSY, practitioner=None, booking=b, now=now
+        )
     reason = await provider_for(org).check(conn, ctx, svc, at, pid, now, ignore=ignore)
     if reason:
         return await refuse_slot(conn, ctx, org, svc, at, reason, practitioner=pid, booking=b, now=now)
@@ -502,7 +524,7 @@ async def propose_reschedule(
         "new": {"practitioner_id": str(pid), "practitioner_name": name, "starts_at": at.isoformat(), "ends_at": end.isoformat()},
         "service_id": str(svc.id),
     }  # fmt: skip
-    card = {
+    card: dict[str, Any] = {
         "booking_number": number_shown, "service": svc.name, "practitioner": name, **slot_when(org, at),
         "duration_min": svc.duration_min, "price": money_str(b.price), "price_display": format_money(b.price, org.currency),
         "old": {"practitioner": b.practitioner_name, **slot_when(org, b.starts_at)},

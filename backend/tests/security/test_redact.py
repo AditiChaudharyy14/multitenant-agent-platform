@@ -38,12 +38,12 @@ def test_text_without_secrets_is_unchanged() -> None:
 
 def test_pytest_failure_output_is_redacted(pytester: pytest.Pytester) -> None:
     """End to end: a failing test whose assertion and stdout contain a DB URL."""
-    pytester.makepyfile(f'''
+    pytester.makepyfile(f"""
         def test_leaks():
             url = "{URL}"
             print("captured:", url)
             assert url.endswith("/elsewhere")
-    ''')
+    """)
     result = pytester.runpytest_subprocess("-p", "app.redact_pytest")
     result.assert_outcomes(failed=1)
     out = result.stdout.str() + result.stderr.str()

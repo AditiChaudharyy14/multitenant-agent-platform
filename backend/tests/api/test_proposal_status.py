@@ -17,7 +17,9 @@ pytestmark = pytest.mark.usefixtures("as_app_user")
 
 
 async def propose(shop: Shop, user, qty: int = 1):  # noqa: ANN001, ANN201
-    r = await ss.call(create_order, ss.turn_ctx(shop, user), items=[{"sku": "GRN-1", "qty": qty}], delivery_address="House 7")
+    r = await ss.call(
+        create_order, ss.turn_ctx(shop, user), items=[{"sku": "GRN-1", "qty": qty}], delivery_address="House 7"
+    )
     return ss.proposal_id(r)
 
 

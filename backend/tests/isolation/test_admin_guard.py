@@ -13,8 +13,7 @@ from tests.factories import Tenant, new_id, pg_cause
 pytestmark = pytest.mark.usefixtures("as_app_user")
 
 INSERT_USER = text(
-    "INSERT INTO users (org_id, email, display_name, password_hash, role) "
-    "VALUES (:o, :e, 'n', 'x', :r)"
+    "INSERT INTO users (org_id, email, display_name, password_hash, role) " "VALUES (:o, :e, 'n', 'x', :r)"
 )
 
 
@@ -72,9 +71,7 @@ async def test_anon_tx_can_rehash_existing_admin(tenants: tuple[Tenant, Tenant])
     """Login rehashes in anon_tx; that must still work for admins (role unchanged)."""
     a, _ = tenants
     async with anon_tx(a.org_id) as conn:
-        n = await conn.execute(
-            text("UPDATE users SET password_hash = 'y' WHERE id = :id"), {"id": a.admin}
-        )
+        n = await conn.execute(text("UPDATE users SET password_hash = 'y' WHERE id = :id"), {"id": a.admin})
     assert n.rowcount == 1
 
 

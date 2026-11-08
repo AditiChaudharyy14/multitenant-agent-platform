@@ -32,6 +32,14 @@ dependencies = [
   "opentelemetry-exporter-otlp-proto-http>=1.27,<2",
 ]
 
+[project.optional-dependencies]
+# Lint and type checks (make lint). Installed in the dev image next to pytest.
+dev = [
+  "ruff==0.8.6",
+  "mypy==1.14.1",
+  "types-PyYAML>=6.0,<7",
+]
+
 # The image installs dependencies only; the app runs from /app via PYTHONPATH.
 [tool.setuptools]
 py-modules = []
@@ -43,3 +51,29 @@ testpaths = ["tests"]
 # Redacts DB URLs and secret values in all output; pytester for its end-to-end test.
 addopts = "-p app.redact_pytest -p pytester"
 pythonpath = ["."]
+
+[tool.ruff]
+line-length = 120
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "S"]
+ignore = [
+  "E501",  # line length is the formatter's job; long SQL and `# fmt: skip` tables stay readable
+  "S101",  # asserts state invariants and narrow types; no security check relies on one
+]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["fastapi.Depends", "fastapi.Query", "fastapi.Header"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use literal demo passwords, build SQL from the fixed TENANT_TABLES list, and assert.
+"tests/**" = ["S105", "S106", "S608", "S311"]
+
+[tool.mypy]
+python_version = "3.12"
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+ignore_missing_imports = true  # fastembed, asyncpg and argon2 ship partial or no stubs

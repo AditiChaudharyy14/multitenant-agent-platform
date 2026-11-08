@@ -30,5 +30,7 @@ def start() -> list[asyncio.Task[None]]:
     s = get_settings()
     return [
         asyncio.create_task(_every(s.email_poll_seconds, sender.run_once, "emails sent"), name="email-sender"),
-        asyncio.create_task(_every(s.reminder_interval_seconds, reminders.run_once, "reminders queued"), name="reminders"),
+        asyncio.create_task(
+            _every(s.reminder_interval_seconds, reminders.run_once, "reminders queued"), name="reminders"
+        ),
     ]

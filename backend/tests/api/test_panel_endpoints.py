@@ -47,7 +47,9 @@ async def test_orders_never_include_another_customers(shop: Shop, other_shop: Sh
 async def test_bookings_endpoint_matches_the_tool(studio: Studio, owner_engine: AsyncEngine) -> None:
     await insert_studio_booking(owner_engine, studio, studio.x, "swedish", "asha", bs.local(2026, 11, 10, 14))
     await insert_studio_booking(owner_engine, studio, studio.x, "swedish", "asha", bs.local(2026, 11, 2, 11))
-    await insert_studio_booking(owner_engine, studio, studio.x, "swedish", "bina", bs.local(2026, 11, 12, 11), status="cancelled")
+    await insert_studio_booking(
+        owner_engine, studio, studio.x, "swedish", "bina", bs.local(2026, 11, 12, 11), status="cancelled"
+    )
     with clock.freeze(bs.NOW):
         tool = bs.card(await bs.call(list_my_bookings, bs.turn_ctx(studio, studio.x)), "booking_list")
         async with await client_for(studio.org_id, studio.x) as c:
@@ -57,7 +59,9 @@ async def test_bookings_endpoint_matches_the_tool(studio: Studio, owner_engine: 
     assert len(tool["upcoming"]) == 1 and len(tool["past"]) == 2
 
 
-async def test_bookings_never_include_another_customers(studio: Studio, other_studio: Studio, owner_engine: AsyncEngine) -> None:
+async def test_bookings_never_include_another_customers(
+    studio: Studio, other_studio: Studio, owner_engine: AsyncEngine
+) -> None:
     tue = bs.local(2026, 11, 10, 14)
     mine = await insert_studio_booking(owner_engine, studio, studio.x, "swedish", "asha", tue)
     theirs = await insert_studio_booking(owner_engine, studio, studio.y, "swedish", "bina", tue)

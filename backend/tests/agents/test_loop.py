@@ -190,10 +190,14 @@ async def test_history_is_sent_before_the_new_user_message() -> None:
     fake = FakeProvider(["Hello again."])
     state = TurnState()
     history = [Message("user", "hi"), Message("assistant", "Namaste!")]
-    async for _ in run_turn(fake, system="sys", history=history, user_text="me again", tools=TOOLS, ctx=CTX, state=state):
+    async for _ in run_turn(
+        fake, system="sys", history=history, user_text="me again", tools=TOOLS, ctx=CTX, state=state
+    ):
         pass
     assert [(m.role, m.content) for m in fake.requests[0].messages] == [
-        ("user", "hi"), ("assistant", "Namaste!"), ("user", "me again")
+        ("user", "hi"),
+        ("assistant", "Namaste!"),
+        ("user", "me again"),
     ]
     assert fake.requests[0].system == "sys"
 

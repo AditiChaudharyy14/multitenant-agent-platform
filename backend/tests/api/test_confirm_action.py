@@ -6,7 +6,6 @@ acknowledges the outcome, which reaches it through the server-written system pro
 
 import json
 import uuid
-from collections.abc import AsyncIterator
 
 import httpx
 import pytest
@@ -14,7 +13,6 @@ from sqlalchemy.ext.asyncio import AsyncEngine
 
 from app.agents.providers.base import ProviderUnavailable
 from app.agents.providers.fake import FakeProvider, tool_call
-from app.api.chat import chat_limiter, get_chat_provider
 from app.auth.sessions import COOKIE_NAME, create_session
 from app.db.session import app_engine
 from app.main import app
@@ -24,19 +22,6 @@ from tests.store_support import scalar, stock
 pytestmark = pytest.mark.usefixtures("as_app_user")
 
 ORIGIN = "http://localhost:3000"
-
-
-@pytest.fixture(autouse=True)
-def _reset() -> None:
-    chat_limiter.reset()
-
-
-@pytest.fixture
-def fake() -> AsyncIterator[FakeProvider]:
-    provider = FakeProvider()
-    app.dependency_overrides[get_chat_provider] = lambda: provider
-    yield provider
-    app.dependency_overrides.pop(get_chat_provider, None)
 
 
 async def logged_in(shop: Shop, user: uuid.UUID) -> httpx.AsyncClient:
@@ -72,7 +57,9 @@ async def order_count(owner: AsyncEngine, shop: Shop) -> int:
     return await scalar(owner, shop, "SELECT count(*) FROM orders WHERE org_id = :o")
 
 
-async def test_button_commits_before_the_model_speaks(shop: Shop, owner_engine: AsyncEngine, fake: FakeProvider) -> None:
+async def test_button_commits_before_the_model_speaks(
+    shop: Shop, owner_engine: AsyncEngine, fake: FakeProvider
+) -> None:
     async with await logged_in(shop, shop.x) as c:
         cid, pid = await propose_via_chat(c, fake)
         assert await order_count(owner_engine, shop) == 0
@@ -98,7 +85,9 @@ async def test_button_commits_before_the_model_speaks(shop: Shop, owner_engine: 
     assert "confirm_proposal" in {t.name for t in fake.requests[0].tools}
 
 
-async def test_button_commit_survives_a_model_failure(shop: Shop, owner_engine: AsyncEngine, fake: FakeProvider) -> None:
+async def test_button_commit_survives_a_model_failure(
+    shop: Shop, owner_engine: AsyncEngine, fake: FakeProvider
+) -> None:
     async with await logged_in(shop, shop.x) as c:
         cid, pid = await propose_via_chat(c, fake)
         fake.script += [ProviderUnavailable("all models down")]
@@ -120,7 +109,9 @@ async def test_button_refusals_come_from_the_server(shop: Shop, owner_engine: As
     assert "already confirmed" in fake.requests[-1].system
 
 
-async def test_button_for_someone_elses_proposal_is_not_found(shop: Shop, owner_engine: AsyncEngine, fake: FakeProvider) -> None:
+async def test_button_for_someone_elses_proposal_is_not_found(
+    shop: Shop, owner_engine: AsyncEngine, fake: FakeProvider
+) -> None:
     async with await logged_in(shop, shop.x) as c:
         _, pid = await propose_via_chat(c, fake)
     async with await logged_in(shop, shop.y) as c:

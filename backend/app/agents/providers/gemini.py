@@ -21,6 +21,7 @@ from typing import Any
 import httpx
 
 from app.agents.providers.base import (
+    TRANSIENT_STATUSES,
     ChatRequest,
     Event,
     Finished,
@@ -28,7 +29,6 @@ from app.agents.providers.base import (
     ProviderError,
     ProviderOverloaded,
     RateLimited,
-    TRANSIENT_STATUSES,
     TextDelta,
     ToolCall,
     ToolCallEvent,
@@ -112,8 +112,8 @@ class GeminiAdapter:
                     contents[-1]["parts"].append(part)
                 else:
                     contents.append({"role": "user", "parts": [part], "_tool_turn": True})
-        for c in contents:
-            c.pop("_tool_turn", None)  # internal marker only
+        for content in contents:
+            content.pop("_tool_turn", None)  # internal marker only
         body: dict[str, Any] = {
             "contents": contents,
             "generationConfig": {"temperature": req.temperature, "maxOutputTokens": req.max_output_tokens},
@@ -152,7 +152,9 @@ class GeminiAdapter:
                                 meta["thought_signature"] = sig
                             if fc.get("id"):
                                 meta["call_id"] = fc["id"]
-                            yield ToolCallEvent(ToolCall(f"call_{turn}_{n_calls}", fc["name"], fc.get("args") or {}, meta))
+                            yield ToolCallEvent(
+                                ToolCall(f"call_{turn}_{n_calls}", fc["name"], fc.get("args") or {}, meta)
+                            )
                             n_calls += 1
                         elif part.get("text") and not part.get("thought"):
                             yield TextDelta(part["text"])

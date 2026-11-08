@@ -10,8 +10,14 @@ from app.tenancy.context import ToolContext
 
 
 class SearchProductsArgs(Args):
-    query: str | None = Field(default=None, max_length=100, description="Words to match in the product name, e.g. 'oolong' or 'jasmine'.")
-    category: str | None = Field(default=None, max_length=40, description="A category such as green, black, oolong, white, herbal, chai, teaware.")
+    query: str | None = Field(
+        default=None, max_length=100, description="Words to match in the product name, e.g. 'oolong' or 'jasmine'."
+    )
+    category: str | None = Field(
+        default=None,
+        max_length=40,
+        description="A category such as green, black, oolong, white, herbal, chai, teaware.",
+    )
     min_price: Price | None = None
     max_price: Price | None = None
 

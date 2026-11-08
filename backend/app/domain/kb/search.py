@@ -114,9 +114,7 @@ class KBSearchResult:
         return asdict(self)
 
 
-async def search_kb(
-    ctx: TenantContext, query: str, k: int = 5, *, min_cosine: float = KB_MIN_COSINE
-) -> KBSearchResult:
+async def search_kb(ctx: TenantContext, query: str, k: int = 5, *, min_cosine: float = KB_MIN_COSINE) -> KBSearchResult:
     """Top-k chunks for `query` in ctx's org only. min_cosine is overridable for calibration."""
     query = query.strip()
     if not query:
@@ -129,14 +127,17 @@ async def search_kb(
         rows = (
             await conn.execute(
                 _SEARCH,
-                {"q": qvec, "text": query, "n": CANDIDATES, "rrf_k": RRF_K,
-                 "wv": VEC_WEIGHT, "wf": FTS_WEIGHT},  # fmt: skip
+                {
+                    "q": qvec,
+                    "text": query,
+                    "n": CANDIDATES,
+                    "rrf_k": RRF_K,
+                    "wv": VEC_WEIGHT,
+                    "wf": FTS_WEIGHT,
+                },  # fmt: skip
             )
         ).all()
-    hits = [
-        KBHit(r.id, r.doc_id, r.doc_title, r.section, r.content, float(r.rrf), float(r.cosine))
-        for r in rows
-    ]
+    hits = [KBHit(r.id, r.doc_id, r.doc_title, r.section, r.content, float(r.rrf), float(r.cosine)) for r in rows]
     top = max((h.cosine for h in hits), default=None)
     # A text-only match with weak semantics (e.g. one shared word) is dropped by the gate too.
     kept = [h for h in hits if h.cosine >= min_cosine][:k]

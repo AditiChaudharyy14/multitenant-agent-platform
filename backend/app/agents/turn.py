@@ -9,6 +9,7 @@ second cancel can't cut that write short.
 import asyncio
 import logging
 import time
+import uuid
 from dataclasses import dataclass
 from typing import Any
 
@@ -26,8 +27,8 @@ from app.agents.tools.base import Tool, ToolResult, error_result
 from app.agents.tools.registry import admin_tools_for, tools_for
 from app.db.session import tenant_tx
 from app.domain import memory
-from app.observability import tracing
 from app.domain.conversations import repo
+from app.observability import tracing
 from app.tenancy.context import ToolContext
 from app.tenancy.orgs import Org
 
@@ -81,7 +82,9 @@ to the customer as yourself; don't mention "the server".
 """
 
 
-def start_turn(provider: LLMProvider, inp: TurnInput, *, tools: dict[str, Tool] | None = None) -> tuple[asyncio.Task[None], Queue]:
+def start_turn(
+    provider: LLMProvider, inp: TurnInput, *, tools: dict[str, Tool] | None = None
+) -> tuple[asyncio.Task[None], Queue]:
     queue: Queue = asyncio.Queue()
     if tools is not None:
         chosen = tools
@@ -118,7 +121,9 @@ async def _run(provider: LLMProvider, inp: TurnInput, tools: dict[str, Tool], qu
         if inp.action is not None:
             # Deterministic: the action runs here, before (and regardless of) any model call.
             result = await _server_action(inp, tools, state, queue)
-            system += ACTION_NOTE.format(pressed=inp.action.pressed, tool=inp.action.tool, result=result.content_for_model)
+            system += ACTION_NOTE.format(
+                pressed=inp.action.pressed, tool=inp.action.tool, result=result.content_for_model
+            )
             # The server already ran it; the model only acknowledges, so it isn't offered
             # that tool at all (a prompt alone didn't stop it from confirming again).
             tools = {name: t for name, t in tools.items() if name != inp.action.tool}
@@ -181,7 +186,7 @@ async def _server_action(inp: TurnInput, tools: dict[str, Tool], state: TurnStat
     return result
 
 
-async def _persist(ctx: ToolContext, state: TurnState, latency_ms: int):  # noqa: ANN202
+async def _persist(ctx: ToolContext, state: TurnState, latency_ms: int) -> uuid.UUID | None:
     """Assistant message + agent_runs row in one transaction. Never raises."""
     try:
         async with tenant_tx(ctx.tenant) as conn:

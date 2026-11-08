@@ -43,8 +43,12 @@ LocalDate = Annotated[date, WithJsonSchema({"type": "string"})]
 
 class MetricArgs(Args):
     window: WindowName = Field(default="today", description=WINDOW_HELP)
-    start_date: LocalDate | None = Field(default=None, description="Only for window=custom: first local date, YYYY-MM-DD.")
-    end_date: LocalDate | None = Field(default=None, description="Only for window=custom: last local date (inclusive), YYYY-MM-DD.")
+    start_date: LocalDate | None = Field(
+        default=None, description="Only for window=custom: first local date, YYYY-MM-DD."
+    )
+    end_date: LocalDate | None = Field(
+        default=None, description="Only for window=custom: last local date (inclusive), YYYY-MM-DD."
+    )
 
 
 class RankedMetricArgs(MetricArgs):
@@ -65,7 +69,9 @@ def _tool(metric: Metric) -> Tool:
                 return error_result(f"{exc}. Fix the window and call {metric.name} again.")
             result = await compute(conn, org, metric.name, window, getattr(args, "limit", DEFAULT_LIMIT))
         card = {"type": "metric", **result}
-        return ToolResult(json.dumps(result, ensure_ascii=False), cards=[card], activity_label=f"{metric.title}: {window.label}")
+        return ToolResult(
+            json.dumps(result, ensure_ascii=False), cards=[card], activity_label=f"{metric.title}: {window.label}"
+        )
 
     return Tool(
         name=metric.name,
@@ -87,7 +93,9 @@ async def _summary(ctx: ToolContext, args: MetricArgs) -> ToolResult:
         result = await activity_summary(conn, org, window)
     # One standard metric card per section: the frontend needs no new component.
     cards = [{"type": "metric", **section} for section in result["sections"]]
-    return ToolResult(json.dumps(result, ensure_ascii=False), cards=cards, activity_label=f"Activity summary: {window.label}")
+    return ToolResult(
+        json.dumps(result, ensure_ascii=False), cards=cards, activity_label=f"Activity summary: {window.label}"
+    )
 
 
 SUMMARY_TOOL = Tool(

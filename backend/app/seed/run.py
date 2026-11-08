@@ -95,7 +95,9 @@ def _local(tz: ZoneInfo, day: date, at: time) -> datetime:
     return datetime.combine(day, at, tzinfo=tz).astimezone(UTC)
 
 
-def _store_rows(org_id: uuid.UUID, d: SeedData, users: dict[str, uuid.UUID], now: datetime, tz: ZoneInfo) -> dict[str, list[dict]]:
+def _store_rows(
+    org_id: uuid.UUID, d: SeedData, users: dict[str, uuid.UUID], now: datetime, tz: ZoneInfo
+) -> dict[str, list[dict]]:
     today = now.astimezone(tz).date()
     products = {p.sku: p for p in d.products}
     rows: dict[str, list[dict]] = {"products": [], "orders": [], "order_items": [], "order_status_history": []}
@@ -136,7 +138,9 @@ def _store_rows(org_id: uuid.UUID, d: SeedData, users: dict[str, uuid.UUID], now
     return rows
 
 
-def _booking_rows(org_id: uuid.UUID, d: SeedData, users: dict[str, uuid.UUID], now: datetime, tz: ZoneInfo) -> dict[str, list[dict]]:
+def _booking_rows(
+    org_id: uuid.UUID, d: SeedData, users: dict[str, uuid.UUID], now: datetime, tz: ZoneInfo
+) -> dict[str, list[dict]]:
     today = now.astimezone(tz).date()
     hours = {h.weekday: h for h in d.opening_hours}
     holidays = {h.day for h in d.holidays}
@@ -247,7 +251,9 @@ async def _seed_org(
     }
 
 
-async def seed_analytics(conn: AsyncConnection, org_id: uuid.UUID, p: _Prepared, users: dict[str, uuid.UUID], now: datetime) -> None:
+async def seed_analytics(
+    conn: AsyncConnection, org_id: uuid.UUID, p: _Prepared, users: dict[str, uuid.UUID], now: datetime
+) -> None:
     """analytics.yaml's history rows for one org, on a connection already scoped to it."""
     assert p.analytics is not None
     rows = build_rows(org_id, p.analytics, p.data, users, p.password_hashes, now, ZoneInfo(p.cfg.timezone))
@@ -286,7 +292,7 @@ async def seed_all(
     results = []
     try:
         async with engine.begin() as conn:  # 3. one transaction: all orgs or none
-            ids = dict((await conn.execute(text("SELECT slug, id FROM orgs"))).all())
+            ids = {slug: oid for slug, oid in (await conn.execute(text("SELECT slug, id FROM orgs"))).all()}
             for p in prepared:
                 anchor = resolve_seed_now(seed_now, p.cfg.timezone)
                 # freeze() makes every clock.now() in this org's seeding return the anchor.
@@ -296,4 +302,3 @@ async def seed_all(
     finally:
         await engine.dispose()
     return results
-

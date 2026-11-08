@@ -54,9 +54,7 @@ async def test_concurrent_bookings_for_same_slot_exactly_one_wins(
     # wait on each other; Postgres then aborts one with 40P01 deadlock_detected instead
     # of 23P01 exclusion_violation. Nothing else is acceptable.
     for _, err in losers:
-        assert isinstance(
-            err, asyncpg.ExclusionViolationError | asyncpg.DeadlockDetectedError
-        ), repr(err)
+        assert isinstance(err, asyncpg.ExclusionViolationError | asyncpg.DeadlockDetectedError), repr(err)
         if isinstance(err, asyncpg.ExclusionViolationError):
             assert err.constraint_name == "no_practitioner_overlap"
 

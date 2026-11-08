@@ -36,7 +36,7 @@ async def create_admin(slug: str, email: str, password: str, display_name: str) 
                 {"o": org.id, "e": email, "n": display_name, "h": password_hash},
             )
     except IntegrityError as exc:
-        if isinstance(exc.orig.__cause__, asyncpg.UniqueViolationError):
+        if isinstance(getattr(exc.orig, "__cause__", None), asyncpg.UniqueViolationError):
             raise SystemExit(f"{email} is already registered in {slug}") from None
         raise
     finally:

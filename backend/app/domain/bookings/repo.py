@@ -67,7 +67,9 @@ async def service_by_id(conn: AsyncConnection, service_id: uuid.UUID) -> Service
 
 
 async def practitioners(conn: AsyncConnection) -> dict[uuid.UUID, str]:
-    return dict((await conn.execute(text("SELECT id, name FROM practitioners ORDER BY name"))).all())
+    return {
+        pid: name for pid, name in (await conn.execute(text("SELECT id, name FROM practitioners ORDER BY name"))).all()
+    }
 
 
 def _norm(name: str) -> str:
@@ -96,7 +98,9 @@ def match_name(raw: str, names: list[str]) -> list[str]:
 async def own_booking(conn: AsyncConnection, ctx: ToolContext, number: int, *, lock: bool = False) -> Booking | None:
     sql = f"SELECT {_BOOKING} WHERE b.org_id = :o AND b.user_id = :u AND b.booking_number = :n"
     row = (
-        await conn.execute(text(sql + (" FOR UPDATE OF b" if lock else "")), {"o": ctx.org_id, "u": ctx.user_id, "n": number})
+        await conn.execute(
+            text(sql + (" FOR UPDATE OF b" if lock else "")), {"o": ctx.org_id, "u": ctx.user_id, "n": number}
+        )
     ).one_or_none()
     return Booking(*row) if row else None
 
@@ -141,7 +145,9 @@ async def move_booking(
 ) -> None:  # fmt: skip
     await conn.execute(
         # A new time needs its own 24 h reminder (domain/notifications/reminders.py).
-        text("UPDATE bookings SET practitioner_id = :p, starts_at = :s, ends_at = :e, reminder_sent_at = NULL WHERE id = :id"),
+        text(
+            "UPDATE bookings SET practitioner_id = :p, starts_at = :s, ends_at = :e, reminder_sent_at = NULL WHERE id = :id"
+        ),
         {"p": practitioner_id, "s": starts_at, "e": ends_at, "id": booking_id},
     )
 

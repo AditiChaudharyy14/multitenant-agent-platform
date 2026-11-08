@@ -13,6 +13,7 @@ from typing import Any
 import httpx
 
 from app.agents.providers.base import (
+    TRANSIENT_STATUSES,
     ChatRequest,
     Event,
     Finished,
@@ -20,7 +21,6 @@ from app.agents.providers.base import (
     ProviderError,
     ProviderOverloaded,
     RateLimited,
-    TRANSIENT_STATUSES,
     TextDelta,
     ToolCall,
     ToolCallEvent,
@@ -66,14 +66,24 @@ class MistralAdapter:
                     ]  # fmt: skip
                 messages.append(msg)
             else:
-                messages.append({"role": "tool", "content": m.content, "tool_call_id": _mistral_id(m.tool_call_id or ""), "name": m.name})
+                messages.append(
+                    {
+                        "role": "tool",
+                        "content": m.content,
+                        "tool_call_id": _mistral_id(m.tool_call_id or ""),
+                        "name": m.name,
+                    }
+                )
         body: dict[str, Any] = {
             "model": model, "messages": messages, "stream": True,
             "temperature": req.temperature, "max_tokens": req.max_output_tokens,
         }  # fmt: skip
         if req.tools:
             body["tools"] = [
-                {"type": "function", "function": {"name": t.name, "description": t.description, "parameters": t.parameters}}
+                {
+                    "type": "function",
+                    "function": {"name": t.name, "description": t.description, "parameters": t.parameters},
+                }
                 for t in req.tools
             ]
         return body
@@ -126,5 +136,7 @@ class MistralAdapter:
             return ProviderAuthError(message + " (check MISTRAL_API_KEY)")
         if resp.status_code == 429:
             retry = resp.headers.get("retry-after")
-            return RateLimited(message, float(retry) if retry and retry.replace(".", "", 1).isdigit() else None, daily=False)
+            return RateLimited(
+                message, float(retry) if retry and retry.replace(".", "", 1).isdigit() else None, daily=False
+            )
         return ProviderError(message)

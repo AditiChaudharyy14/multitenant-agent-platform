@@ -8,6 +8,7 @@ time and queries at runtime, so their vectors are comparable.
 import asyncio
 import threading
 from collections.abc import Sequence
+from typing import Any
 
 from app.config import get_settings
 
@@ -18,7 +19,7 @@ _model = None
 _lock = threading.Lock()
 
 
-def _get_model():  # noqa: ANN202 (fastembed is imported lazily, so no type at module level)
+def _get_model() -> Any:  # fastembed is imported lazily, so no precise type here
     """Load the model once per process, on first use (a few seconds; never at import)."""
     global _model
     with _lock:  # two threads embedding at startup must not both load it

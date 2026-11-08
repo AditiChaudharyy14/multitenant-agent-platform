@@ -1,5 +1,14 @@
 # Everything runs inside the containers, so the host needs only Docker and make.
-.PHONY: up up-traces build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live e2e e2e-setup advance logs
+.PHONY: help lint up up-traces build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live e2e e2e-setup advance logs
+
+help:  ## List the make targets
+	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/^([a-zA-Z_-]+):.*## (.*)/\1\t\2/' | awk -F'\t' '{printf "  %-16s %s\n", $$1, $$2}'
+
+# Static checks, no database or LLM: ruff (lint + format check) and mypy on the backend,
+# eslint and tsc on the frontend. One-shot containers, so nothing needs to be running.
+lint:  ## ruff, ruff format --check, mypy (backend); eslint, tsc (frontend)
+	docker compose run --rm --no-deps -T ops sh -c 'ruff check app scripts tests && ruff format --check app scripts tests && mypy app'
+	docker compose run --rm --no-deps -T frontend sh -c 'npm run -s lint && npm run -s typecheck'
 
 # Owner-only commands run in the one-shot `ops` container, which is the only place
 # DATABASE_URL_OWNER exists. The running backend never holds app_owner credentials.

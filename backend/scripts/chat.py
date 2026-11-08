@@ -96,7 +96,9 @@ def _card(card: dict) -> str:
         head = f"{kind}" + (f" ({card['kind']})" if "kind" in card else "")
         head += f" {card.get('order_number', '')} {card.get('status', '')}".rstrip()
         lines = card.get("lines") or card.get("items") or []
-        out = [head] + [f"    {x['qty']} x {x['name']} ({x['sku']}) @ {x['unit_price']} = {x['line_total']}" for x in lines]
+        out = [head] + [
+            f"    {x['qty']} x {x['name']} ({x['sku']}) @ {x['unit_price']} = {x['line_total']}" for x in lines
+        ]
         if "total_display" in card:
             out.append(f"    total {card['total_display']}, to: {card.get('delivery_address', '')}")
         out += [f"    change: {c}" for c in card.get("changes", [])]
@@ -117,7 +119,11 @@ def _card(card: dict) -> str:
             out.append(f"    [button] {slot['display']} ({who})  -> {button.rstrip('|')}")
         return "\n".join(out)
     if kind in {"booking_summary", "booking_confirmed", "booking_rescheduled", "booking_cancelled"}:
-        head = f"{kind}" + (f" ({card['kind']})" if "kind" in card else "") + f" {card.get('booking_number') or ''}".rstrip()
+        head = (
+            f"{kind}"
+            + (f" ({card['kind']})" if "kind" in card else "")
+            + f" {card.get('booking_number') or ''}".rstrip()
+        )
         out = [head, f"    {card.get('service', '')} with {card.get('practitioner', '')}: {card.get('when', '')}"
                      + (f", {card['duration_min']} min" if "duration_min" in card else "")
                      + (f", {card['price_display']}" if "price_display" in card else "")]  # fmt: skip
@@ -131,9 +137,11 @@ def _card(card: dict) -> str:
         return "\n".join(out)
     if kind == "metric":
         w = card["window"]
-        return (f"metric {card['metric']}: {json.dumps(card['values'], ensure_ascii=False)}\n"
-                f"    window: {w['label']} [{w['start']} .. {w['end']}) {w['timezone']}\n"
-                f"    definition: {card['definition']}")
+        return (
+            f"metric {card['metric']}: {json.dumps(card['values'], ensure_ascii=False)}\n"
+            f"    window: {w['label']} [{w['start']} .. {w['end']}) {w['timezone']}\n"
+            f"    definition: {card['definition']}"
+        )
     if kind == "booking_list":
         out = ["booking_list"]
         for group in ("upcoming", "past"):

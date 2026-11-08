@@ -46,6 +46,4 @@ class TurnState:
 
     def finalize(self) -> None:
         """Keep only citations that search_knowledge returned this turn. Idempotent."""
-        self.content, self.citations, self.dropped_citations = filter_citations(
-            "".join(self.text_parts), self.sources
-        )
+        self.content, self.citations, self.dropped_citations = filter_citations("".join(self.text_parts), self.sources)

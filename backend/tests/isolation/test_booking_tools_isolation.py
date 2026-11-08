@@ -49,7 +49,9 @@ async def test_foreign_booking_numbers_are_not_found(
     assert (await db_snapshot(owner_engine, studio), await db_snapshot(owner_engine, other_studio)) == before
 
 
-async def test_list_my_bookings_shows_only_my_own(studio: Studio, other_studio: Studio, owner_engine: AsyncEngine) -> None:
+async def test_list_my_bookings_shows_only_my_own(
+    studio: Studio, other_studio: Studio, owner_engine: AsyncEngine
+) -> None:
     tue = local(2026, 11, 10, 14)
     mine = await insert_studio_booking(owner_engine, studio, studio.x, "swedish", "asha", tue)
     await insert_studio_booking(owner_engine, studio, studio.y, "swedish", "bina", tue)
@@ -67,6 +69,8 @@ async def test_busy_time_of_others_is_visible_only_as_busy(studio: Studio, owner
     tue = local(2026, 11, 10, 14)
     await insert_studio_booking(owner_engine, studio, studio.y, "swedish", "asha", tue)
     with clock.freeze(NOW):
-        r = await call(create_booking, turn_ctx(studio, studio.x), service="swedish", start=iso(tue), practitioner="Asha")
+        r = await call(
+            create_booking, turn_ctx(studio, studio.x), service="swedish", start=iso(tue), practitioner="Asha"
+        )
     assert r.content_for_model.startswith("REFUSED")
     assert studio.number(1001) not in r.content_for_model  # Y's booking number is never revealed

@@ -64,9 +64,7 @@ async def test_casual_question_is_answerable(seeded: dict[str, uuid.UUID], verti
 
 @pytest.mark.parametrize("vertical", ["store", "booking"])
 @pytest.mark.parametrize("question", OUT_OF_SCOPE)
-async def test_out_of_scope_is_not_answerable(
-    seeded: dict[str, uuid.UUID], vertical: str, question: str
-) -> None:
+async def test_out_of_scope_is_not_answerable(seeded: dict[str, uuid.UUID], vertical: str, question: str) -> None:
     res = await search_kb(customer(seeded[vertical]), question)
     assert res.answerable is False
     assert res.results == []

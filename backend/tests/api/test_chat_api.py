@@ -21,9 +21,9 @@ from app.agents.providers.base import ChatRequest, ProviderUnavailable
 from app.agents.providers.fake import FakeProvider, tool_call
 from app.api.chat import chat_limiter, get_chat_provider
 from app.auth.ratelimit import login_limiter
-from app.main import app
 from app.config import get_settings, require_owner_url
 from app.domain.kb.ingest import PreparedKB, insert_chunks, prepare_kb
+from app.main import app
 from app.seed.data import load_seed_data
 from app.tenancy.orgs import OrgConfig, sync_orgs
 from tests.factories import set_owner_tenant, unique_prefix
@@ -58,6 +58,7 @@ async def chat_orgs(demo_org_configs: list[OrgConfig], owner_engine: AsyncEngine
         await set_owner_tenant(conn, org_id)
         await insert_chunks(conn, org_id, kb)
     return {v: c.slug for v, c in copies.items()}
+
 
 ORIGIN = "http://localhost:3000"
 NOT_FOUND = {"detail": "Not found"}
@@ -147,7 +148,10 @@ async def test_conversation_crud_and_auto_title(client: Client, store_sid: str, 
 
         msgs = (await c.get(f"/api/conversations/{cid}/messages")).json()
         assert [(m["role"], m["status"]) for m in msgs] == [
-            ("user", "complete"), ("assistant", "complete"), ("user", "complete"), ("assistant", "complete")
+            ("user", "complete"),
+            ("assistant", "complete"),
+            ("user", "complete"),
+            ("assistant", "complete"),
         ]
 
         assert (await c.delete(f"/api/conversations/{cid}")).status_code == 204

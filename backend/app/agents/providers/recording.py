@@ -38,7 +38,6 @@ from app.agents.providers.base import (
     request_to_dict,
 )
 
-
 # Cassettes are committed to git, so nothing secret may ever be written into one. They hold
 # normalised requests and events only (never raw HTTP), so this is defence in depth: drop
 # any "headers" mapping and redact anything that looks like an API key or key parameter.
@@ -99,7 +98,9 @@ def cassette_scope(scenario: str) -> Iterator[None]:
 
 
 class RecordReplayProvider(LLMProvider):
-    def __init__(self, mode: Literal["record", "replay"], cassette_dir: str | Path, inner: LLMProvider | None = None) -> None:
+    def __init__(
+        self, mode: Literal["record", "replay"], cassette_dir: str | Path, inner: LLMProvider | None = None
+    ) -> None:
         if mode == "record" and inner is None:
             raise ValueError("record mode needs the real provider to record from")
         self.mode, self.dir, self.inner = mode, Path(cassette_dir), inner
@@ -109,7 +110,7 @@ class RecordReplayProvider(LLMProvider):
         # Replay has no live model to restrict. Record pins the provider it records from.
         if self.inner is None:
             return self
-        return RecordReplayProvider(self.mode, self.dir, self.inner.pin(model))  # type: ignore[arg-type]
+        return RecordReplayProvider(self.mode, self.dir, self.inner.pin(model))
 
     def _path(self, scenario: str) -> Path:
         return self.dir / f"{scenario}.json"
@@ -143,8 +144,12 @@ class RecordReplayProvider(LLMProvider):
         if call["fingerprint"] != request_fingerprint(req):
             recorded = json.dumps(call["request"], indent=1, sort_keys=True, ensure_ascii=False).splitlines()
             current = json.dumps(request_to_dict(req), indent=1, sort_keys=True, ensure_ascii=False).splitlines()
-            diff = "\n".join(list(difflib.unified_diff(recorded, current, "recorded", "current", lineterm="", n=1))[:40])
-            raise CassetteMismatch(f"{scenario} call {index}: the request changed since it was recorded; {hint}\n{diff}")
+            diff = "\n".join(
+                list(difflib.unified_diff(recorded, current, "recorded", "current", lineterm="", n=1))[:40]
+            )
+            raise CassetteMismatch(
+                f"{scenario} call {index}: the request changed since it was recorded; {hint}\n{diff}"
+            )
         return [event_from_dict(e) for e in call["events"]]
 
     def _save(self, scenario: str, index: int, req: ChatRequest, events: list[Event]) -> None:

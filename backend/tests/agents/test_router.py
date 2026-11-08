@@ -56,11 +56,15 @@ class FakeTime:
         self.now += seconds
 
 
-def router(adapter: ScriptedAdapter, models: list[str], limit: int = 100, t: FakeTime | None = None) -> tuple[ModelRouter, DailyBudget]:
+def router(
+    adapter: ScriptedAdapter, models: list[str], limit: int = 100, t: FakeTime | None = None
+) -> tuple[ModelRouter, DailyBudget]:
     t = t or FakeTime()
     budget = DailyBudget(f"test-{uuid.uuid4().hex[:8]}", limit=limit)
     limiters = {m: RpmLimiter(1000, clock=t.monotonic, sleep=t.sleep) for m in models}
-    r = ModelRouter(adapter, models, budget, limiters, RetryPolicy(max_retries=3, base_delay=1.0), sleep=t.sleep, jitter=lambda: 0.5)
+    r = ModelRouter(
+        adapter, models, budget, limiters, RetryPolicy(max_retries=3, base_delay=1.0), sleep=t.sleep, jitter=lambda: 0.5
+    )
     return r, budget
 
 

@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from app.domain.money import format_money, money_str
 from app.domain.orders import repo, service
 from app.domain.orders.numbers import display_number
-from app.domain.orders.repo import Item, OutOfStock
+from app.domain.orders.repo import Item, Order, OutOfStock
 from app.domain.proposals.repo import Proposal
 from app.domain.proposals.service import CommitAborted, Committer, Describer
 from app.domain.reply import Reply
@@ -90,7 +90,9 @@ async def commit_new_order(conn: AsyncConnection, ctx: ToolContext, proposal: Pr
     )  # fmt: skip
 
 
-async def _locked_pending(conn: AsyncConnection, ctx: ToolContext, org: Org, proposal: Proposal, action: str):
+async def _locked_pending(
+    conn: AsyncConnection, ctx: ToolContext, org: Org, proposal: Proposal, action: str
+) -> Order | Reply:
     """The order, locked; or a Reply refusing because it is gone or no longer pending."""
     order = await repo.lock_own_order_by_id(conn, ctx, uuid.UUID(proposal.payload["order_id"]))
     if order is None:
@@ -188,7 +190,7 @@ async def describe(conn: AsyncConnection, ctx: ToolContext, proposal: Proposal) 
     changed (update/cancel: payload order_id), with its status as it is NOW."""
     order_id = proposal.payload.get("order_id")
     row = (await conn.execute(
-        text("SELECT order_number, status FROM orders WHERE user_id = :u AND "
+        text("SELECT order_number, status FROM orders WHERE user_id = :u AND "  # noqa: S608  (interpolates a module constant; values are bound)
              + ("id = :i" if order_id else "proposal_id = :p")),
         {"u": ctx.user_id, "i": uuid.UUID(order_id) if order_id else None, "p": proposal.id},
     )).one_or_none()  # fmt: skip

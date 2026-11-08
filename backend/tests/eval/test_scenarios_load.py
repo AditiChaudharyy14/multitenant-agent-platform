@@ -58,12 +58,16 @@ def test_scenario_refers_to_real_seed_data(sc: Scenario) -> None:
     data = _data(sc.org)
     emails = {u["email"] for u in data["users"]}
     assert sc.user in emails
-    seeded = {("order", o["key"]) for o in data.get("orders", [])} | {("booking", b["key"]) for b in data.get("bookings", [])}
+    seeded = {("order", o["key"]) for o in data.get("orders", [])} | {
+        ("booking", b["key"]) for b in data.get("bookings", [])
+    }
     text = yaml.safe_dump(sc.model_dump())
     for kind, key in re.findall(r"\{\{(order|booking):([\w-]+)\}\}", text):
         assert (kind, key) in seeded, f"placeholder {kind}:{key} is not a seed key"
     for db in sc.assertions.db:
-        ref = (db.order and db.order.ref and ("order", db.order.ref)) or (db.booking and db.booking.ref and ("booking", db.booking.ref))
+        ref = (db.order and db.order.ref and ("order", db.order.ref)) or (
+            db.booking and db.booking.ref and ("booking", db.booking.ref)
+        )
         if ref:
             assert ref in seeded, f"assertion refers to unknown seed key {ref}"
     for step in sc.setup:

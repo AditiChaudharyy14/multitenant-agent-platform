@@ -14,8 +14,17 @@ from app.agents.tools.common.confirm_proposal import confirm_proposal
 from app.agents.tools.store import cancel_order, get_order_status, list_my_orders, reorder, update_order
 from tests.factories import Shop, insert_shop_order
 from tests.store_support import (
-    call, card, db_snapshot, history, order_by_number, order_items, proposal_id, set_price,
-    set_stock, stock, turn_ctx,
+    call,
+    card,
+    db_snapshot,
+    history,
+    order_by_number,
+    order_items,
+    proposal_id,
+    set_price,
+    set_stock,
+    stock,
+    turn_ctx,
 )  # fmt: skip
 
 pytestmark = pytest.mark.usefixtures("as_app_user")
@@ -61,7 +70,9 @@ async def test_update_qty_up_and_down_adjusts_stock(shop: Shop, owner_engine: As
 
 async def test_update_lower_qty_restores_stock(shop: Shop, owner_engine: AsyncEngine) -> None:
     n = await pending_order(owner_engine, shop, items=(("GRN-1", 4),))
-    result = await call(update_order, turn_ctx(shop, shop.x), order_number=shop.number(n), items=[{"sku": "GRN-1", "qty": 1}])
+    result = await call(
+        update_order, turn_ctx(shop, shop.x), order_number=shop.number(n), items=[{"sku": "GRN-1", "qty": 1}]
+    )
     await confirm_next_turn(shop, result)
     assert await order_items(owner_engine, shop, n) == {"GRN-1": 1}
     assert await stock(owner_engine, shop, "GRN-1") == 13
@@ -69,9 +80,14 @@ async def test_update_lower_qty_restores_stock(shop: Shop, owner_engine: AsyncEn
 
 async def test_update_address(shop: Shop, owner_engine: AsyncEngine) -> None:
     n = await pending_order(owner_engine, shop)
-    result = await call(update_order, turn_ctx(shop, shop.x), order_number=shop.number(n), delivery_address="Flat 3, Patan")
+    result = await call(
+        update_order, turn_ctx(shop, shop.x), order_number=shop.number(n), delivery_address="Flat 3, Patan"
+    )
     summary = card(result, "order_summary")
-    assert (summary["old_delivery_address"], summary["delivery_address"]) == ("House 1, Thamel, Kathmandu", "Flat 3, Patan")
+    assert (summary["old_delivery_address"], summary["delivery_address"]) == (
+        "House 1, Thamel, Kathmandu",
+        "Flat 3, Patan",
+    )
     await confirm_next_turn(shop, result)
     order = await order_by_number(owner_engine, shop, n)
     assert order.delivery_address == "Flat 3, Patan"
@@ -81,7 +97,9 @@ async def test_update_address(shop: Shop, owner_engine: AsyncEngine) -> None:
 async def test_update_increase_beyond_stock_refused(shop: Shop, owner_engine: AsyncEngine) -> None:
     n = await pending_order(owner_engine, shop, items=(("GRN-2", 1),))  # GRN-2 stock 5
     before = await db_snapshot(owner_engine, shop)
-    result = await call(update_order, turn_ctx(shop, shop.x), order_number=shop.number(n), items=[{"sku": "GRN-2", "qty": 7}])
+    result = await call(
+        update_order, turn_ctx(shop, shop.x), order_number=shop.number(n), items=[{"sku": "GRN-2", "qty": 7}]
+    )
     # 1 already held by the order + 5 on the shelf = 6 at most.
     [line] = card(result, "stock_issue")["lines"]
     assert (line["sku"], line["available"]) == ("GRN-2", 6)
@@ -91,7 +109,9 @@ async def test_update_increase_beyond_stock_refused(shop: Shop, owner_engine: As
 async def test_update_removing_every_item_suggests_cancel(shop: Shop, owner_engine: AsyncEngine) -> None:
     n = await pending_order(owner_engine, shop, items=(("GRN-1", 1),))
     before = await db_snapshot(owner_engine, shop)
-    result = await call(update_order, turn_ctx(shop, shop.x), order_number=shop.number(n), items=[{"sku": "GRN-1", "qty": 0}])
+    result = await call(
+        update_order, turn_ctx(shop, shop.x), order_number=shop.number(n), items=[{"sku": "GRN-1", "qty": 0}]
+    )
     assert "cancel" in result.content_for_model.lower()
     assert await db_snapshot(owner_engine, shop) == before
 
@@ -118,7 +138,9 @@ async def test_order_shipped_between_proposal_and_confirm(shop: Shop, owner_engi
     from app.domain.orders.admin import advance
 
     n = await pending_order(owner_engine, shop)
-    result = await call(update_order, turn_ctx(shop, shop.x), order_number=shop.number(n), items=[{"sku": "GRN-1", "qty": 9}])
+    result = await call(
+        update_order, turn_ctx(shop, shop.x), order_number=shop.number(n), items=[{"sku": "GRN-1", "qty": 9}]
+    )
     admin = TenantContext(org_id=shop.org_id, user_id=shop.admin, role="admin")
     for _ in range(2):  # pending → confirmed → shipped
         async with tenant_tx(admin) as conn:
@@ -129,7 +151,9 @@ async def test_order_shipped_between_proposal_and_confirm(shop: Shop, owner_engi
 
     assert "REFUSED" in outcome.content_for_model and "shipped" in outcome.content_for_model
     after = await db_snapshot(owner_engine, shop)
-    assert after["orders"] == before["orders"] and after["items"] == before["items"] and after["stock"] == before["stock"]
+    assert (
+        after["orders"] == before["orders"] and after["items"] == before["items"] and after["stock"] == before["stock"]
+    )
 
 
 # ───────────── cancel_order ─────────────
@@ -150,7 +174,9 @@ async def test_cancel_pending_restores_stock(shop: Shop, owner_engine: AsyncEngi
     assert (await history(owner_engine, shop, n))[-1] == ("pending", "cancelled", "customer")
 
 
-async def test_confirming_a_cancellation_again_names_the_order_as_cancelled(shop: Shop, owner_engine: AsyncEngine) -> None:
+async def test_confirming_a_cancellation_again_names_the_order_as_cancelled(
+    shop: Shop, owner_engine: AsyncEngine
+) -> None:
     n = await pending_order(owner_engine, shop)
     result = await call(cancel_order, turn_ctx(shop, shop.x), order_number=shop.number(n))
     await confirm_next_turn(shop, result)

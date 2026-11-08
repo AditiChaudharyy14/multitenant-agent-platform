@@ -41,7 +41,9 @@ def test_admin_registry_holds_only_metric_tools(vertical: str) -> None:
     # One tool per metric of the vertical, plus activity_summary (which only composes them).
     assert names and names <= set(METRICS) | {"activity_summary"}
     assert not names & MUTATING and "search_knowledge" not in names
-    assert names == {n for n, m in METRICS.items() if vertical in m.verticals} | {"activity_summary"}  # keyed on vertical
+    assert names == {n for n, m in METRICS.items() if vertical in m.verticals} | {
+        "activity_summary"
+    }  # keyed on vertical
 
 
 @pytest.mark.parametrize("vertical", list(REGISTRY))
@@ -66,7 +68,9 @@ async def test_readonly_tx_is_app_readonly_and_read_only(shop: Shop) -> None:
     async with readonly_tx(TenantContext(shop.org_id, shop.admin, "admin")) as conn:
         who, ro, org = (await conn.execute(text(
             "SELECT current_user, current_setting('transaction_read_only'), current_setting('app.org_id')"))).one()  # fmt: skip
-        flags = (await conn.execute(text("SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"))).one()
+        flags = (
+            await conn.execute(text("SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"))
+        ).one()
     assert (who, ro, org) == ("app_readonly", "on", str(shop.org_id))
     assert tuple(flags) == (False, False)
 
@@ -112,7 +116,9 @@ async def _tool_values(org_id: uuid.UUID, admin: uuid.UUID, name: str, window: s
     return json.loads(result.content_for_model)["values"]
 
 
-async def test_store_admin_sees_zero_rows_of_another_org(shop: Shop, other_shop: Shop, owner_engine: AsyncEngine) -> None:
+async def test_store_admin_sees_zero_rows_of_another_org(
+    shop: Shop, other_shop: Shop, owner_engine: AsyncEngine
+) -> None:
     await build_shop(owner_engine, other_shop)  # all the activity is in the other org
     async with owner_engine.begin() as conn:  # this org's own fixture users: out of every window
         await set_owner_tenant(conn, shop.org_id)
@@ -133,12 +139,16 @@ async def test_store_admin_sees_zero_rows_of_another_org(shop: Shop, other_shop:
     assert by["new_signups"]["new_signups"] == 0
 
 
-async def test_booking_admin_sees_zero_rows_of_another_org(studio: Studio, other_studio: Studio, owner_engine: AsyncEngine) -> None:
+async def test_booking_admin_sees_zero_rows_of_another_org(
+    studio: Studio, other_studio: Studio, owner_engine: AsyncEngine
+) -> None:
     await build_studio(owner_engine, other_studio)
     assert (await _tool_values(studio.org_id, studio.admin, "bookings_by_status"))["total"] == 0
     util = await _tool_values(studio.org_id, studio.admin, "practitioner_utilisation", "this_week")
     assert all(p["booked_minutes"] == 0 for p in util["practitioners"]), util
-    assert (await _tool_values(other_studio.org_id, other_studio.admin, "bookings_by_status", "this_week"))["total"] == 8
+    assert (await _tool_values(other_studio.org_id, other_studio.admin, "bookings_by_status", "this_week"))[
+        "total"
+    ] == 8
 
 
 async def test_rls_alone_scopes_the_readonly_role(shop: Shop, other_shop: Shop, owner_engine: AsyncEngine) -> None:
@@ -162,7 +172,9 @@ async def test_a_bad_window_is_an_error_result_not_a_crash(shop: Shop) -> None:
 async def test_customer_context_cannot_create_an_admin_conversation(shop: Shop) -> None:
     with pytest.raises(DBAPIError) as ei:
         async with tenant_tx(TenantContext(shop.org_id, shop.x, "customer")) as conn:
-            await conn.execute(text("INSERT INTO conversations (org_id, user_id, kind) VALUES (app_org(), app_uid(), 'admin')"))
+            await conn.execute(
+                text("INSERT INTO conversations (org_id, user_id, kind) VALUES (app_org(), app_uid(), 'admin')")
+            )
     assert isinstance(pg_cause(ei), asyncpg.InsufficientPrivilegeError)
 
 
@@ -173,7 +185,9 @@ async def test_customer_cannot_flip_own_conversation_to_admin(shop: Shop) -> Non
     assert isinstance(pg_cause(ei), asyncpg.InsufficientPrivilegeError)
 
 
-async def test_admin_conversations_are_invisible_outside_an_admin_context(shop: Shop, owner_engine: AsyncEngine) -> None:
+async def test_admin_conversations_are_invisible_outside_an_admin_context(
+    shop: Shop, owner_engine: AsyncEngine
+) -> None:
     async with owner_engine.begin() as conn:
         await set_owner_tenant(conn, shop.org_id)
         # Even one wrongly owned by a customer (only the owner can write that) stays hidden from them.

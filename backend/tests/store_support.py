@@ -17,7 +17,9 @@ from app.tenancy.context import ToolContext
 from tests.factories import Shop, set_owner_tenant
 
 
-def turn_ctx(shop: Shop, user: uuid.UUID, turn: uuid.UUID | None = None, conversation: uuid.UUID | None = None) -> ToolContext:
+def turn_ctx(
+    shop: Shop, user: uuid.UUID, turn: uuid.UUID | None = None, conversation: uuid.UUID | None = None
+) -> ToolContext:
     return ToolContext(
         org_id=shop.org_id, user_id=user, role="customer",
         conversation_id=conversation or shop.conversations[user], turn_id=turn or uuid.uuid4(),
@@ -31,7 +33,9 @@ async def call(tool: Tool, ctx: ToolContext, **args: Any) -> ToolResult:
 
 def card(result: ToolResult, kind: str) -> dict[str, Any]:
     found = [c for c in result.cards if c["type"] == kind]
-    assert len(found) == 1, f"expected one {kind} card, got {[c['type'] for c in result.cards]}: {result.content_for_model}"
+    assert (
+        len(found) == 1
+    ), f"expected one {kind} card, got {[c['type'] for c in result.cards]}: {result.content_for_model}"
     return found[0]
 
 

@@ -90,13 +90,17 @@ def _events(body: str) -> list[tuple[str, dict]]:
     return out
 
 
-async def test_admin_chat_runs_metric_tools_and_streams_a_metric_card(shop: Shop, owner_engine: AsyncEngine, fake: FakeProvider) -> None:
+async def test_admin_chat_runs_metric_tools_and_streams_a_metric_card(
+    shop: Shop, owner_engine: AsyncEngine, fake: FakeProvider
+) -> None:
     await build_shop(owner_engine, shop)
     fake.script = [tool_call("revenue", {"window": "today"}), "Revenue today, Thu 12 Nov 2026, was NPR 4,450.00."]
     with clock.freeze(NOW):
         async with await client_for(shop.org_id, shop.admin, "admin") as c:
             conv = (await c.post("/api/admin/conversations")).json()
-            r = await c.post(f"/api/admin/conversations/{conv['id']}/messages", json={"content": "How did we do today?"})
+            r = await c.post(
+                f"/api/admin/conversations/{conv['id']}/messages", json={"content": "How did we do today?"}
+            )
             assert r.status_code == 200
             events = _events(r.text)
             cards = [d["card"] for k, d in events if k == "card"]
@@ -121,7 +125,9 @@ async def test_admin_chat_runs_metric_tools_and_streams_a_metric_card(shop: Shop
     assert run.status == "ok" and run.tools_called == ["revenue"]
 
 
-async def test_a_mutating_tool_name_from_the_model_is_unknown_in_the_admin_chat(shop: Shop, owner_engine: AsyncEngine, fake: FakeProvider) -> None:
+async def test_a_mutating_tool_name_from_the_model_is_unknown_in_the_admin_chat(
+    shop: Shop, owner_engine: AsyncEngine, fake: FakeProvider
+) -> None:
     """Even if the model 'calls' cancel_order, the admin registry doesn't have it."""
     await build_shop(owner_engine, shop)
     fake.script = [tool_call("cancel_order", {"order_number": shop.number(1001)}), "I can't change data."]

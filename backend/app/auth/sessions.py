@@ -49,10 +49,7 @@ async def lookup_session(token: str) -> tuple[UUID, UUID, str] | None:
     async with db.app_engine.connect() as conn:
         row = (
             await conn.execute(
-                text(
-                    "SELECT org_id, user_id, role FROM sessions "
-                    "WHERE token_hash = :h AND expires_at > :now"
-                ),
+                text("SELECT org_id, user_id, role FROM sessions " "WHERE token_hash = :h AND expires_at > :now"),
                 {"h": token_hash(token), "now": clock.now()},
             )
         ).one_or_none()

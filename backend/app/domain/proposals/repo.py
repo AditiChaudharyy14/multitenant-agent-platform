@@ -31,7 +31,11 @@ class Proposal:
 
 
 async def create(
-    conn: AsyncConnection, ctx: ToolContext, kind: str, payload: dict[str, Any], summary: dict[str, Any],
+    conn: AsyncConnection,
+    ctx: ToolContext,
+    kind: str,
+    payload: dict[str, Any],
+    summary: dict[str, Any],
     proposal_id: uuid.UUID,
 ) -> None:
     """Supersede the conversation's open proposals, then store this one (open, 15 min).
@@ -82,7 +86,9 @@ async def set_status(conn: AsyncConnection, proposal_id: uuid.UUID, status: str)
     await conn.execute(text("UPDATE proposals SET status = :s WHERE id = :p"), {"s": status, "p": proposal_id})
 
 
-async def list_for_conversation(conn: AsyncConnection, ctx: ToolContext, conversation_id: uuid.UUID) -> list[dict[str, Any]]:
+async def list_for_conversation(
+    conn: AsyncConnection, ctx: ToolContext, conversation_id: uuid.UUID
+) -> list[dict[str, Any]]:
     """Each proposal's current status, for the cards in the chat. Read-only: an open one past
     its expiry is reported as 'expired' without writing (confirm() records it when tried)."""
     rows = await conn.execute(

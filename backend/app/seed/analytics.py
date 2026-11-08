@@ -74,7 +74,9 @@ class HistoryConversation(_Model):
 
     @model_validator(mode="after")
     def _when(self) -> "HistoryConversation":
-        _require(self.order is None or self.booking is None, f"conversation {self.key}: an order or a booking, not both")
+        _require(
+            self.order is None or self.booking is None, f"conversation {self.key}: an order or a booking, not both"
+        )
         _require((self.started is None) == (self.booking is not None),
                  f"conversation {self.key}: give `started`, or a booking (whose chat date is derived)")  # fmt: skip
         return self
@@ -118,13 +120,19 @@ class AnalyticsData(_Model):
             if c.booking:
                 _require(vertical == "booking", f"conversation {c.key}: bookings only for a booking org")
                 b = c.booking
-                _require(b.service in offers.get(b.practitioner, set()), f"conversation {c.key}: practitioner doesn't offer service")
+                _require(
+                    b.service in offers.get(b.practitioner, set()),
+                    f"conversation {c.key}: practitioner doesn't offer service",
+                )
                 _require(b.at.minute % 15 == 0, f"conversation {c.key}: booking not on the 15-minute grid")
         for e in self.stock_events:
             _require(vertical == "store", "stock_events only for a store org")
             _require(e.customer in customers, f"stock event: unknown customer {e.customer!r}")
             _require(e.sku in skus, f"stock event: unknown sku {e.sku!r}")
-            _require(e.conversation is None or e.conversation in conversations, f"stock event: unknown conversation {e.conversation!r}")
+            _require(
+                e.conversation is None or e.conversation in conversations,
+                f"stock event: unknown conversation {e.conversation!r}",
+            )
 
 
 def load_analytics(org_dir: Path, base: SeedData, vertical: str) -> AnalyticsData | None:
@@ -164,13 +172,13 @@ def build_rows(
     out = Rows()
     t = out.tables
     users = dict(user_ids)
-    for c in data.customers:
-        users[c.key] = _rid(org_id, "user", c.key)
-        joined = _local(tz, today - timedelta(days=c.joined.days_ago), c.joined.at)
+    for cust in data.customers:
+        users[cust.key] = _rid(org_id, "user", cust.key)
+        joined = _local(tz, today - timedelta(days=cust.joined.days_ago), cust.joined.at)
         if joined > now:
             continue  # joins later today: not yet a customer
-        t["users"].append({"id": users[c.key], "org_id": org_id, "email": c.email.lower(), "display_name": c.display_name,
-                           "password_hash": hashes[c.key], "role": "customer", "created_at": joined})  # fmt: skip
+        t["users"].append({"id": users[cust.key], "org_id": org_id, "email": cust.email.lower(), "display_name": cust.display_name,
+                           "password_hash": hashes[cust.key], "role": "customer", "created_at": joined})  # fmt: skip
     present = {u["id"] for u in t["users"]} | set(user_ids.values())
 
     products = {p.sku: p for p in base.products}

@@ -9,7 +9,7 @@ WORKDIR /app
 # Only the dependencies are installed into the image; the source is bind-mounted in
 # development, so copying pyproject.toml alone keeps this layer cached across edits.
 COPY pyproject.toml ./
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir ".[dev]"
 
 # UID 1000 matches the usual WSL2 user, so generated files stay owned by the host user.
 # /models is where the fastembed_cache named volume mounts; Docker copies this directory's

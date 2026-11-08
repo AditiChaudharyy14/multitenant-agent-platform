@@ -62,4 +62,6 @@ RULES = {"store": STORE, "booking": BOOKING}
 
 
 def vertical_rules(org: Org) -> str:
-    return RULES.get(org.vertical, "").format(prefix=org.order_prefix or "XX", booking_prefix=org.booking_prefix or "XX")
+    return RULES.get(org.vertical, "").format(
+        prefix=org.order_prefix or "XX", booking_prefix=org.booking_prefix or "XX"
+    )

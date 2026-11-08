@@ -33,7 +33,9 @@ async def test_health_503_until_the_embedding_model_is_loaded(monkeypatch: pytes
     assert response.json() == {"ok": False, "db": True, "embeddings": False}
 
 
-async def test_startup_loads_the_embedding_model(monkeypatch: pytest.MonkeyPatch, synced_orgs: dict[str, OrgConfig]) -> None:
+async def test_startup_loads_the_embedding_model(
+    monkeypatch: pytest.MonkeyPatch, synced_orgs: dict[str, OrgConfig]
+) -> None:
     """The lifespan loads the model and runs one embed before the app serves a request."""
     monkeypatch.setattr(embeddings, "_model", None)
     assert not embeddings.is_loaded()

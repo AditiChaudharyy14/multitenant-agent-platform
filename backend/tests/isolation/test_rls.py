@@ -122,9 +122,7 @@ async def test_same_row_accepted_for_own_org(tenants: tuple[Tenant, Tenant], tab
 
 
 @pytest.mark.parametrize("table", TENANT_TABLES)
-async def test_update_moving_row_to_other_org_rejected(
-    tenants: tuple[Tenant, Tenant], table: str
-) -> None:
+async def test_update_moving_row_to_other_org_rejected(tenants: tuple[Tenant, Tenant], table: str) -> None:
     a, b = tenants
     with pytest.raises(DBAPIError) as ei:
         async with tenant_tx(a.admin_ctx()) as conn:
@@ -169,10 +167,7 @@ async def test_customer_cannot_insert_row_owned_by_other_customer(
     with pytest.raises(DBAPIError) as ei:
         async with tenant_tx(b.ctx(b.x, "customer")) as conn:
             await conn.execute(
-                text(
-                    "INSERT INTO orders (org_id, user_id, delivery_address, total) "
-                    "VALUES (:o, :y, 'a', 1)"
-                ),
+                text("INSERT INTO orders (org_id, user_id, delivery_address, total) " "VALUES (:o, :y, 'a', 1)"),
                 {"o": b.org_id, "y": b.y},
             )
     assert RLS_VIOLATION in str(pg_cause(ei))
@@ -187,10 +182,7 @@ async def test_customer_cannot_attach_own_row_to_other_customers_parent(
     with pytest.raises(DBAPIError) as ei:
         async with tenant_tx(b.ctx(b.x, "customer")) as conn:
             await conn.execute(
-                text(
-                    "INSERT INTO messages (org_id, user_id, conversation_id, role) "
-                    "VALUES (:o, :x, :c, 'user')"
-                ),
+                text("INSERT INTO messages (org_id, user_id, conversation_id, role) " "VALUES (:o, :x, :c, 'user')"),
                 {"o": b.org_id, "x": b.x, "c": b.conversations[b.y]},
             )
     assert isinstance(pg_cause(ei), asyncpg.ForeignKeyViolationError)
@@ -341,9 +333,7 @@ def _write_sql(op: str, table: str) -> str:
 
 @pytest.mark.parametrize("op", WRITES)
 @pytest.mark.parametrize("table", ALL_TABLES)
-async def test_readonly_tx_rejects_writes(
-    tenants: tuple[Tenant, Tenant], table: str, op: str
-) -> None:
+async def test_readonly_tx_rejects_writes(tenants: tuple[Tenant, Tenant], table: str, op: str) -> None:
     _, b = tenants
     with pytest.raises(DBAPIError) as ei:
         async with readonly_tx(b.admin_ctx()) as conn:
@@ -353,9 +343,7 @@ async def test_readonly_tx_rejects_writes(
 
 @pytest.mark.parametrize("op", WRITES)
 @pytest.mark.parametrize("table", ALL_TABLES)
-async def test_readonly_role_has_no_write_grants(
-    tenants: tuple[Tenant, Tenant], table: str, op: str
-) -> None:
+async def test_readonly_role_has_no_write_grants(tenants: tuple[Tenant, Tenant], table: str, op: str) -> None:
     """Even without READ ONLY, the role itself holds no write privilege."""
     with pytest.raises(DBAPIError) as ei:
         async with readonly_engine.begin() as conn:

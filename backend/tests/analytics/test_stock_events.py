@@ -35,13 +35,17 @@ async def test_no_event_when_stock_suffices(shop: Shop, owner_engine: AsyncEngin
 
 async def test_update_order_shortage_counts_units_already_held(shop: Shop, owner_engine: AsyncEngine) -> None:
     number = await insert_shop_order(owner_engine, shop, shop.x, [("GRN-3", 1)])  # stock 3, so 4 are available to it
-    await call(update_order, turn_ctx(shop, shop.x), order_number=shop.number(number), items=[{"sku": "GRN-3", "qty": 6}])
+    await call(
+        update_order, turn_ctx(shop, shop.x), order_number=shop.number(number), items=[{"sku": "GRN-3", "qty": 6}]
+    )
     assert [(e[1], e[2], e[3]) for e in await events(owner_engine, shop)] == [("GRN-3", 6, 4)]
 
 
 async def test_reorder_shortage_writes_events(shop: Shop, owner_engine: AsyncEngine) -> None:
     # BLK-1 has 1 left (reorder trims to 1), BLK-2 is sold out (left out): both are shortages.
-    number = await insert_shop_order(owner_engine, shop, shop.x, [("BLK-1", 2), ("BLK-2", 1), ("GRN-1", 1)], status="delivered")
+    number = await insert_shop_order(
+        owner_engine, shop, shop.x, [("BLK-1", 2), ("BLK-2", 1), ("GRN-1", 1)], status="delivered"
+    )
     await call(reorder, turn_ctx(shop, shop.x), order_number=shop.number(number))
     assert sorted((e[1], e[2], e[3]) for e in await events(owner_engine, shop)) == [("BLK-1", 2, 1), ("BLK-2", 1, 0)]
 

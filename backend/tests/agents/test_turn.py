@@ -73,13 +73,25 @@ async def drain(queue: asyncio.Queue[AgentEvent | None]) -> list[AgentEvent]:
 async def assistant_row(owner: AsyncEngine, t: Tenant, turn_id: uuid.UUID):
     async with owner.begin() as conn:
         await set_owner_tenant(conn, t.org_id)
-        msg = (await conn.execute(text(
-            "SELECT id, content, status, tool_calls, cards, citations FROM messages "
-            "WHERE conversation_id = :c AND role = 'assistant' AND created_at >= "
-            "(SELECT created_at FROM messages WHERE id = :t)"), {"c": t.conversations[t.x], "t": turn_id})).one()
-        run = (await conn.execute(text(
-            "SELECT provider, model, status, tools_called, input_tokens, output_tokens, latency_ms, error "
-            "FROM agent_runs WHERE turn_id = :t"), {"t": turn_id})).one()
+        msg = (
+            await conn.execute(
+                text(
+                    "SELECT id, content, status, tool_calls, cards, citations FROM messages "
+                    "WHERE conversation_id = :c AND role = 'assistant' AND created_at >= "
+                    "(SELECT created_at FROM messages WHERE id = :t)"
+                ),
+                {"c": t.conversations[t.x], "t": turn_id},
+            )
+        ).one()
+        run = (
+            await conn.execute(
+                text(
+                    "SELECT provider, model, status, tools_called, input_tokens, output_tokens, latency_ms, error "
+                    "FROM agent_runs WHERE turn_id = :t"
+                ),
+                {"t": turn_id},
+            )
+        ).one()
     return msg, run  # fmt: skip
 
 
@@ -167,7 +179,9 @@ def make_router(adapter: StepAdapter, models: list[str]) -> ModelRouter:
 
     budget = DailyBudget(f"test-{uuid.uuid4().hex[:8]}", limit=100)
     limiters = {m: RpmLimiter(1000, sleep=no_sleep) for m in models}
-    return ModelRouter(adapter, models, budget, limiters, RetryPolicy(max_retries=3), sleep=no_sleep, jitter=lambda: 0.5)
+    return ModelRouter(
+        adapter, models, budget, limiters, RetryPolicy(max_retries=3), sleep=no_sleep, jitter=lambda: 0.5
+    )
 
 
 def busy() -> RateLimited:

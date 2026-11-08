@@ -104,7 +104,9 @@ async def test_average_order_value_with_no_orders_is_none(built_shop: Shop) -> N
 async def test_top_products(built_shop: Shop) -> None:
     today = (await metric(built_shop.org_id, built_shop.admin, "top_products"))["values"]["products"]
     assert [(p["sku"], p["units"]) for p in today] == [("BLK-3", 3), ("GRN-1", 2), ("GRN-2", 1)]
-    month = (await metric(built_shop.org_id, built_shop.admin, "top_products", "this_month", limit=2))["values"]["products"]
+    month = (await metric(built_shop.org_id, built_shop.admin, "top_products", "this_month", limit=2))["values"][
+        "products"
+    ]
     assert [(p["sku"], p["units"]) for p in month] == [("GRN-1", 6), ("BLK-3", 3)]
 
 

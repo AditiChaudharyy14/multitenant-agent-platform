@@ -6,7 +6,7 @@ app_user. Orgs are picked by vertical (via the synced seed configs), never by sl
 
 import hashlib
 import uuid
-from collections.abc import AsyncIterator, Callable
+from collections.abc import Callable
 from datetime import timedelta
 
 import httpx
@@ -38,9 +38,7 @@ def _reset_login_limiter() -> None:
 def client() -> Client:
     def make(sid: str | None = None, origin: str | None = ORIGIN) -> httpx.AsyncClient:
         headers = {"Origin": origin} if origin else {}
-        c = httpx.AsyncClient(
-            transport=httpx.ASGITransport(app=app), base_url="http://localhost", headers=headers
-        )
+        c = httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://localhost", headers=headers)
         if sid is not None:
             c.cookies.set("sid", sid)
         return c
@@ -143,15 +141,9 @@ async def test_request_supplied_org_and_user_ids_are_ignored(
     baseline = (await me(client, sid_a)).json()
 
     async with client(sid_a) as c:
-        via_header = await c.get(
-            "/api/me", headers={"X-Org-Id": other_org, "X-User-Id": other_user, "X-Role": "admin"}
-        )
-        via_query = await c.get(
-            "/api/me", params={"org_id": other_org, "user_id": other_user, "role": "admin"}
-        )
-        via_body = await c.request(
-            "GET", "/api/me", json={"org_id": other_org, "user_id": other_user, "role": "admin"}
-        )
+        via_header = await c.get("/api/me", headers={"X-Org-Id": other_org, "X-User-Id": other_user, "X-Role": "admin"})
+        via_query = await c.get("/api/me", params={"org_id": other_org, "user_id": other_user, "role": "admin"})
+        via_body = await c.request("GET", "/api/me", json={"org_id": other_org, "user_id": other_user, "role": "admin"})
     for r in (via_header, via_query, via_body):
         assert r.status_code == 200
         assert r.json() == baseline
@@ -228,9 +220,7 @@ async def test_session_cookie_flags(client: Client, store: str, email: str) -> N
 # ───────────── Storage: argon2id hashes, no plaintext ─────────────
 
 
-async def test_passwords_and_tokens_are_never_stored_in_plaintext(
-    client: Client, store: str, email: str
-) -> None:
+async def test_passwords_and_tokens_are_never_stored_in_plaintext(client: Client, store: str, email: str) -> None:
     sid = await sid_after_signup(client, store, email)
     user_id = uuid.UUID((await me(client, sid)).json()["user"]["id"])
     org_id = await org_id_of(store)
@@ -287,9 +277,7 @@ async def test_foreign_origin_cannot_log_out(client: Client, store: str, email: 
 # ───────────── Signup can only create customers ─────────────
 
 
-async def test_signup_ignores_role_and_org_in_body(
-    client: Client, store: str, booking: str, email: str
-) -> None:
+async def test_signup_ignores_role_and_org_in_body(client: Client, store: str, booking: str, email: str) -> None:
     sid = await sid_after_signup(
         client, store, email, role="admin", org_id=str(await org_id_of(booking)), user_id=str(uuid.uuid4())
     )

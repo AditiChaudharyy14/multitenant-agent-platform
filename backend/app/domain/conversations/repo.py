@@ -45,7 +45,7 @@ def auto_title(content: str) -> str:
 async def create(conn: AsyncConnection, ctx: ToolContext, kind: str = "customer") -> dict[str, Any]:
     row = (
         await conn.execute(
-            text(f"INSERT INTO conversations (org_id, user_id, kind) VALUES (:o, :u, :k) RETURNING {_CONV_COLUMNS}"),
+            text(f"INSERT INTO conversations (org_id, user_id, kind) VALUES (:o, :u, :k) RETURNING {_CONV_COLUMNS}"),  # noqa: S608  (interpolates a module constant; values are bound)
             {"o": ctx.org_id, "u": ctx.user_id, "k": _kind(kind)},
         )
     ).one()
@@ -54,17 +54,19 @@ async def create(conn: AsyncConnection, ctx: ToolContext, kind: str = "customer"
 
 async def list_own(conn: AsyncConnection, ctx: ToolContext, kind: str = "customer") -> list[dict[str, Any]]:
     rows = await conn.execute(
-        text(f"SELECT {_CONV_COLUMNS} FROM conversations WHERE {_OWN} ORDER BY updated_at DESC, id"),
+        text(f"SELECT {_CONV_COLUMNS} FROM conversations WHERE {_OWN} ORDER BY updated_at DESC, id"),  # noqa: S608  (interpolates a module constant; values are bound)
         {"u": ctx.user_id, "k": _kind(kind)},
     )
     return [dict(r._mapping) for r in rows]
 
 
-async def rename(conn: AsyncConnection, ctx: ToolContext, cid: UUID, title: str, kind: str = "customer") -> dict[str, Any] | None:
+async def rename(
+    conn: AsyncConnection, ctx: ToolContext, cid: UUID, title: str, kind: str = "customer"
+) -> dict[str, Any] | None:
     row = (
         await conn.execute(
             text(
-                f"UPDATE conversations SET title = :t, updated_at = now() WHERE id = :c AND {_OWN} "
+                f"UPDATE conversations SET title = :t, updated_at = now() WHERE id = :c AND {_OWN} "  # noqa: S608  (interpolates a module constant; values are bound)
                 f"RETURNING {_CONV_COLUMNS}"
             ),
             {"t": title, "c": cid, "u": ctx.user_id, "k": _kind(kind)},
@@ -75,7 +77,7 @@ async def rename(conn: AsyncConnection, ctx: ToolContext, cid: UUID, title: str,
 
 async def soft_delete(conn: AsyncConnection, ctx: ToolContext, cid: UUID, kind: str = "customer") -> bool:
     res = await conn.execute(
-        text(f"UPDATE conversations SET deleted_at = now() WHERE id = :c AND {_OWN}"),
+        text(f"UPDATE conversations SET deleted_at = now() WHERE id = :c AND {_OWN}"),  # noqa: S608  (interpolates a module constant; values are bound)
         {"c": cid, "u": ctx.user_id, "k": _kind(kind)},
     )
     return res.rowcount == 1
@@ -83,7 +85,8 @@ async def soft_delete(conn: AsyncConnection, ctx: ToolContext, cid: UUID, kind: 
 
 async def exists(conn: AsyncConnection, ctx: ToolContext, cid: UUID, kind: str = "customer") -> bool:
     found = await conn.scalar(
-        text(f"SELECT 1 FROM conversations WHERE id = :c AND {_OWN}"), {"c": cid, "u": ctx.user_id, "k": _kind(kind)}
+        text(f"SELECT 1 FROM conversations WHERE id = :c AND {_OWN}"),  # noqa: S608  (module constant; values are bound)
+        {"c": cid, "u": ctx.user_id, "k": _kind(kind)},
     )
     return found is not None
 
@@ -93,13 +96,19 @@ def _public_tool_calls(steps: list[dict] | None) -> list[dict] | None:
     if steps is None:
         return None
     return [
-        {"step": s["step"], "calls": [{"id": c["id"], "name": c["name"], "arguments": c["arguments"],
-                                       "ok": c["ok"]} for c in s["calls"]]}  # fmt: skip
+        {
+            "step": s["step"],
+            "calls": [
+                {"id": c["id"], "name": c["name"], "arguments": c["arguments"], "ok": c["ok"]} for c in s["calls"]
+            ],
+        }  # fmt: skip
         for s in steps
     ]
 
 
-async def list_messages(conn: AsyncConnection, ctx: ToolContext, cid: UUID, kind: str = "customer") -> list[dict[str, Any]] | None:
+async def list_messages(
+    conn: AsyncConnection, ctx: ToolContext, cid: UUID, kind: str = "customer"
+) -> list[dict[str, Any]] | None:
     if not await exists(conn, ctx, cid, kind):
         return None
     rows = await conn.execute(
@@ -137,7 +146,7 @@ async def add_user_message(
     """Store the user's message (its id is the turn id) and auto-title a new conversation."""
     # FOR UPDATE: two first messages sent at once can't both decide they're first.
     found = await conn.scalar(
-        text(f"SELECT 1 FROM conversations WHERE id = :c AND {_OWN} FOR UPDATE"),
+        text(f"SELECT 1 FROM conversations WHERE id = :c AND {_OWN} FOR UPDATE"),  # noqa: S608  (interpolates a module constant; values are bound)
         {"c": cid, "u": ctx.user_id, "k": _kind(kind)},
     )
     if found is None:

@@ -69,7 +69,7 @@ async def test_a_turn_is_one_run_span_with_llm_and_tool_children(
         assert child.context.trace_id == run.context.trace_id
         assert child.parent is not None and child.parent.span_id == run.context.span_id
     assert run.parent is None
-    slug = (await _slug(owner_engine, shop))
+    slug = await _slug(owner_engine, shop)
     assert run.attributes["org.slug"] == slug and run.attributes["org.vertical"] == "store"
     assert run.attributes["conversation.id"] == str(conv) and run.attributes["status"] == "ok"
     assert run.attributes["tool_calls"] == 1
@@ -79,7 +79,9 @@ async def test_a_turn_is_one_run_span_with_llm_and_tool_children(
     assert t["tool.name"] == "search_products" and t["tool.status"] == "ok" and t["tool.duration_ms"] >= 0
 
 
-async def test_a_failed_tool_is_marked_error(spans: InMemorySpanExporter, shop: Shop, owner_engine: AsyncEngine) -> None:
+async def test_a_failed_tool_is_marked_error(
+    spans: InMemorySpanExporter, shop: Shop, owner_engine: AsyncEngine
+) -> None:
     conv = await _conversation(owner_engine, shop, shop.x)
     await run_customer_turn(shop, shop.x, conv, "remember this", script=[
         {"tool": "remember_preference", "args": {"key": "usual_products", "value": "x"}}, {"text": "Sorry."}])  # fmt: skip
@@ -88,7 +90,9 @@ async def test_a_failed_tool_is_marked_error(spans: InMemorySpanExporter, shop: 
     assert tool.status.status_code == trace.StatusCode.ERROR
 
 
-async def test_no_user_email_or_message_text_in_any_span(spans: InMemorySpanExporter, shop: Shop, owner_engine: AsyncEngine) -> None:
+async def test_no_user_email_or_message_text_in_any_span(
+    spans: InMemorySpanExporter, shop: Shop, owner_engine: AsyncEngine
+) -> None:
     secret_text = "my secret plan is to buy jasmine pearls for Aunt Kamala"
     conv = await _conversation(owner_engine, shop, shop.x)
     async with owner_engine.begin() as conn:

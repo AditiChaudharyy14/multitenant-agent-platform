@@ -4,7 +4,11 @@ import re
 from pathlib import Path
 
 ROOTS = [Path(__file__).resolve().parents[1] / "fixtures", Path("/eval/cassettes")]
-KEY_PATTERNS = [re.compile(r"AIza[0-9A-Za-z_\-]{30,}"), re.compile(r"x-goog-api-key", re.I), re.compile(r"Bearer\s+[A-Za-z0-9]{20,}")]
+KEY_PATTERNS = [
+    re.compile(r"AIza[0-9A-Za-z_\-]{30,}"),
+    re.compile(r"x-goog-api-key", re.I),
+    re.compile(r"Bearer\s+[A-Za-z0-9]{20,}"),
+]
 
 
 def test_no_api_keys_in_recordings() -> None:

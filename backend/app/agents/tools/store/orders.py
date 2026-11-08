@@ -7,13 +7,14 @@ from app.agents.tools.base import Tool, ToolResult, from_reply
 from app.agents.tools.store._common import Address, Args, OrderNumber, Sku, org_of
 from app.db.session import tenant_tx
 from app.domain.orders import service
+from app.domain.reply import Reply
 from app.tenancy.context import ToolContext
 
 _LABELS = {"proposed": "Summary ready", "not_found": "Order not found", "refused": "Can't do that",
            "stock_issue": "Not enough stock", "need_address": "Need an address"}  # fmt: skip
 
 
-def _done(reply, default: str) -> ToolResult:  # noqa: ANN001
+def _done(reply: Reply, default: str) -> ToolResult:
     return from_reply(reply, _LABELS.get(reply.status, default))
 
 
@@ -27,13 +28,17 @@ class NewItem(Args):
 
 class CreateOrderArgs(Args):
     items: list[NewItem] = Field(min_length=1, max_length=20)
-    delivery_address: Address | None = Field(default=None, description="Omit to reuse the address of the customer's latest order.")
+    delivery_address: Address | None = Field(
+        default=None, description="Omit to reuse the address of the customer's latest order."
+    )
 
 
 async def _create(ctx: ToolContext, args: CreateOrderArgs) -> ToolResult:
     async with tenant_tx(ctx.tenant) as conn:
         org = await org_of(conn, ctx)
-        reply = await service.propose_new_order(conn, ctx, org, [(i.sku, i.qty) for i in args.items], args.delivery_address)
+        reply = await service.propose_new_order(
+            conn, ctx, org, [(i.sku, i.qty) for i in args.items], args.delivery_address
+        )
     return _done(reply, "Order checked")
 
 
@@ -60,7 +65,9 @@ class ChangedItem(Args):
 
 class UpdateOrderArgs(Args):
     order_number: OrderNumber
-    items: list[ChangedItem] | None = Field(default=None, max_length=20, description="Only the SKUs that change; others stay as they are.")
+    items: list[ChangedItem] | None = Field(
+        default=None, max_length=20, description="Only the SKUs that change; others stay as they are."
+    )
     delivery_address: Address | None = None
 
 
@@ -151,7 +158,9 @@ list_my_orders = Tool(
 
 
 class ReorderArgs(Args):
-    order_number: OrderNumber | None = Field(default=None, description="Omit to repeat the latest order that wasn't cancelled.")
+    order_number: OrderNumber | None = Field(
+        default=None, description="Omit to repeat the latest order that wasn't cancelled."
+    )
 
 
 async def _reorder(ctx: ToolContext, args: ReorderArgs) -> ToolResult:

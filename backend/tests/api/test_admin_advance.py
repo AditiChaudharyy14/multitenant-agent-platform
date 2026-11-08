@@ -63,7 +63,9 @@ async def test_customer_gets_403_and_nothing_changes(shop: Shop, owner_engine: A
     assert (await order_by_number(owner_engine, shop, n)).status == "pending"
 
 
-async def test_other_org_or_missing_order_is_identical_404(shop: Shop, other_shop: Shop, owner_engine: AsyncEngine) -> None:
+async def test_other_org_or_missing_order_is_identical_404(
+    shop: Shop, other_shop: Shop, owner_engine: AsyncEngine
+) -> None:
     theirs = await insert_shop_order(owner_engine, other_shop, other_shop.x, [("GRN-1", 1)])
     async with await client_for(shop, shop.admin, "admin") as c:
         responses = [

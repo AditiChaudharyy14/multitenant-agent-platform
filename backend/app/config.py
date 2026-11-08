@@ -80,7 +80,7 @@ LLM_PRICES_USD_PER_1M: dict[str, tuple[str, str]] = {
 
 @lru_cache
 def get_settings() -> Settings:
-    return Settings()
+    return Settings()  # type: ignore[call-arg]  # required fields come from the environment
 
 
 def require_owner_url() -> str:

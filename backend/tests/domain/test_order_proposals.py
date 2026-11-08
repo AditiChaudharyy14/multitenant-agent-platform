@@ -16,9 +16,22 @@ from app.agents.tools.store import create_order
 from app.domain.proposals.service import PROPOSAL_TTL
 from tests.factories import Shop, insert_shop_order
 from tests.store_support import (
-    call, card, history, order_by_number, order_items, proposal_id, proposal_status, rows,
-    scalar, set_price, set_stock as set_stock_to, stock, turn_ctx,
+    call,
+    card,
+    history,
+    order_by_number,
+    order_items,
+    proposal_id,
+    proposal_status,
+    rows,
+    scalar,
+    set_price,
+    stock,
+    turn_ctx,
 )  # fmt: skip
+from tests.store_support import (
+    set_stock as set_stock_to,
+)
 
 pytestmark = pytest.mark.usefixtures("as_app_user")
 
@@ -49,7 +62,9 @@ async def test_create_order_only_proposes(shop: Shop, owner_engine: AsyncEngine)
     assert summary["total_display"] == "NPR 2,250.00"
     assert summary["delivery_address"] == ADDRESS
     assert summary["payment_method"] == "Cash on delivery"
-    assert summary["actions"] == [{"type": "confirm_proposal", "proposal_id": summary["proposal_id"], "label": "Confirm order"}]
+    assert summary["actions"] == [
+        {"type": "confirm_proposal", "proposal_id": summary["proposal_id"], "label": "Confirm order"}
+    ]
     # Nothing committed: no order, stock untouched, one open proposal.
     assert await order_count(owner_engine, shop) == 0
     assert await stock(owner_engine, shop, "GRN-1") == 10
@@ -105,7 +120,9 @@ async def test_double_confirm_creates_one_order(shop: Shop, owner_engine: AsyncE
     assert await stock(owner_engine, shop, "GRN-1") == 8
 
 
-async def test_already_confirmed_refusal_names_the_order_and_its_current_status(shop: Shop, owner_engine: AsyncEngine) -> None:
+async def test_already_confirmed_refusal_names_the_order_and_its_current_status(
+    shop: Shop, owner_engine: AsyncEngine
+) -> None:
     """Seen in a live eval: told only "already confirmed", the model said a pending order was
     "on its way". The refusal must carry the order number and its live status."""
     _, result = await propose(shop)
@@ -247,8 +264,9 @@ async def test_new_proposal_supersedes_older_open_one(shop: Shop, owner_engine: 
 
 
 async def test_confirm_from_another_conversation_is_not_found(shop: Shop, owner_engine: AsyncEngine) -> None:
-    from tests.factories import set_owner_tenant
     from sqlalchemy import text
+
+    from tests.factories import set_owner_tenant
 
     _, result = await propose(shop)
     async with owner_engine.begin() as conn:

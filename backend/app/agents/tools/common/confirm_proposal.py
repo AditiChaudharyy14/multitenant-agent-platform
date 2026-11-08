@@ -13,7 +13,12 @@ from app.agents.tools.base import Tool, ToolResult, from_reply
 from app.domain.proposals import service
 from app.tenancy.context import ToolContext
 
-_LABELS = {"committed": "Done", "refused": "Couldn't confirm", "changed": "Something changed", "not_found": "Couldn't confirm"}
+_LABELS = {
+    "committed": "Done",
+    "refused": "Couldn't confirm",
+    "changed": "Something changed",
+    "not_found": "Couldn't confirm",
+}
 
 
 class ConfirmProposalArgs(BaseModel):

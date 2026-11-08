@@ -11,6 +11,7 @@ import smtplib
 from datetime import timedelta
 from email.message import EmailMessage
 from email.utils import formataddr
+from typing import Any
 
 from sqlalchemy import text
 
@@ -30,7 +31,7 @@ def _send(host: str, port: int, msg: EmailMessage) -> None:
         smtp.send_message(msg)
 
 
-def _message(sender_name: str, row) -> EmailMessage:  # noqa: ANN001
+def _message(sender_name: str, row: Any) -> EmailMessage:
     msg = EmailMessage()
     msg["From"] = formataddr((sender_name, get_settings().email_from))
     msg["To"] = row.to_email
@@ -64,7 +65,9 @@ async def run_once(*, host: str | None = None, port: int | None = None) -> int:
                 except (OSError, smtplib.SMTPException) as exc:
                     attempts = row.attempts + 1
                     status = "failed" if attempts >= MAX_ATTEMPTS else "pending"
-                    log.warning("email %s to org %s failed (attempt %d): %s", row.id, org.slug, attempts, type(exc).__name__)
+                    log.warning(
+                        "email %s to org %s failed (attempt %d): %s", row.id, org.slug, attempts, type(exc).__name__
+                    )
                     await conn.execute(text(
                         "UPDATE email_outbox SET attempts = :a, status = :s, last_error = :e, next_attempt_at = :next "
                         "WHERE id = :i"), {"a": attempts, "s": status, "e": f"{type(exc).__name__}: {exc}"[:500],

@@ -48,8 +48,7 @@ _ISO = re.compile(r"^(?P<year>\d{4})-(?P<month>\d{2})-(?P<day>\d{2})$")
 _WEEKDAY = re.compile(r"^(?:(?P<mod>this|next|coming)\s+)?(?P<wd>[a-z]+)$")
 
 UNPARSEABLE = (
-    "couldn't understand the date {text!r}. Ask the customer for a day, or pass date_from/"
-    "date_to as YYYY-MM-DD."
+    "couldn't understand the date {text!r}. Ask the customer for a day, or pass date_from/" "date_to as YYYY-MM-DD."
 )
 
 
@@ -116,7 +115,9 @@ def _weekday_dated(text: str, today: date) -> Resolved | None:
         return found
     d = found.days[0]
     if d.weekday() != WEEKDAYS[m["wd"]]:
-        return Resolved(error=f"{d.day} {d:%b %Y} is a {d:%A}, not a {m['wd'].capitalize()}. Ask the customer which they mean.")
+        return Resolved(
+            error=f"{d.day} {d:%b %Y} is a {d:%A}, not a {m['wd'].capitalize()}. Ask the customer which they mean."
+        )
     return found
 
 

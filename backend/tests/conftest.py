@@ -16,9 +16,7 @@ _URL_VARS = ("DATABASE_URL_OWNER", "DATABASE_URL_APP", "DATABASE_URL_READONLY")
 
 for _var in _URL_VARS:
     # Same host, role and password as the container's URL; only the database differs.
-    os.environ[_var] = (
-        make_url(os.environ[_var]).set(database=TEST_DATABASE).render_as_string(hide_password=False)
-    )
+    os.environ[_var] = make_url(os.environ[_var]).set(database=TEST_DATABASE).render_as_string(hide_password=False)
 
 # No test ever talks to a real LLM: `make test` must be offline, deterministic and free.
 # The ops container has no API keys anyway; this makes the guarantee explicit.
@@ -137,15 +135,9 @@ async def as_app_user() -> None:
     async with app_engine.connect() as conn:
         row = (await conn.execute(text("SELECT current_user, current_database()"))).one()
         flags = (
-            await conn.execute(
-                text(
-                    "SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"
-                )
-            )
+            await conn.execute(text("SELECT rolsuper, rolbypassrls FROM pg_roles WHERE rolname = current_user"))
         ).one()
-        owned = await conn.scalar(
-            text("SELECT count(*) FROM pg_tables WHERE tableowner = current_user")
-        )
+        owned = await conn.scalar(text("SELECT count(*) FROM pg_tables WHERE tableowner = current_user"))
     assert tuple(row) == ("app_user", TEST_DATABASE)
     assert tuple(flags) == (False, False), "app_user must be NOSUPERUSER NOBYPASSRLS"
     assert owned == 0, "app_user must own no tables"

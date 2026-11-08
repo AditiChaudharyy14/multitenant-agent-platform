@@ -56,21 +56,38 @@ class Built:
     orders: dict[str, int] = field(default_factory=dict)
 
 
-async def _conversation(conn: AsyncConnection, org: uuid.UUID, user: uuid.UUID, when: datetime, kind: str = "customer") -> uuid.UUID:
+async def _conversation(
+    conn: AsyncConnection, org: uuid.UUID, user: uuid.UUID, when: datetime, kind: str = "customer"
+) -> uuid.UUID:
     return await conn.scalar(
-        text("INSERT INTO conversations (org_id, user_id, kind, created_at, updated_at) VALUES (:o, :u, :k, :t, :t) RETURNING id"),
+        text(
+            "INSERT INTO conversations (org_id, user_id, kind, created_at, updated_at) VALUES (:o, :u, :k, :t, :t) RETURNING id"
+        ),
         {"o": org, "u": user, "k": kind, "t": when},
     )
 
 
-async def _message(conn: AsyncConnection, org: uuid.UUID, user: uuid.UUID, conv: uuid.UUID, when: datetime, role: str = "user") -> None:
+async def _message(
+    conn: AsyncConnection, org: uuid.UUID, user: uuid.UUID, conv: uuid.UUID, when: datetime, role: str = "user"
+) -> None:
     await conn.execute(
-        text("INSERT INTO messages (org_id, user_id, conversation_id, role, content, created_at) VALUES (:o, :u, :c, :r, 'hi', :t)"),
+        text(
+            "INSERT INTO messages (org_id, user_id, conversation_id, role, content, created_at) VALUES (:o, :u, :c, :r, 'hi', :t)"
+        ),
         {"o": org, "u": user, "c": conv, "r": role, "t": when},
     )
 
 
-async def _run(conn: AsyncConnection, org: uuid.UUID, user: uuid.UUID, conv: uuid.UUID, model: str, tin: int, tout: int, when: datetime) -> None:
+async def _run(
+    conn: AsyncConnection,
+    org: uuid.UUID,
+    user: uuid.UUID,
+    conv: uuid.UUID,
+    model: str,
+    tin: int,
+    tout: int,
+    when: datetime,
+) -> None:
     await conn.execute(
         text("INSERT INTO agent_runs (org_id, user_id, conversation_id, provider, model, input_tokens, output_tokens, status, created_at) "
              "VALUES (:o, :u, :c, 'gemini', :m, :i, :out, 'ok', :t)"),
@@ -81,7 +98,9 @@ async def _run(conn: AsyncConnection, org: uuid.UUID, user: uuid.UUID, conv: uui
 async def _common(conn: AsyncConnection, org: uuid.UUID, admin: uuid.UUID) -> None:
     """Old users/conversations out of every window; the new sign-ups; an admin today."""
     await conn.execute(text("UPDATE users SET created_at = :t WHERE org_id = :o"), {"t": LONG_AGO, "o": org})
-    await conn.execute(text("UPDATE conversations SET created_at = :t, updated_at = :t WHERE org_id = :o"), {"t": LONG_AGO, "o": org})
+    await conn.execute(
+        text("UPDATE conversations SET created_at = :t, updated_at = :t WHERE org_id = :o"), {"t": LONG_AGO, "o": org}
+    )
     for when, role in ((at(11, 12, 8), "customer"), (at(11, 9, 12), "customer"), (at(11, 8, 23, 50), "customer"),
                        (at(11, 12, 9), "admin")):  # fmt: skip
         uid = await insert_user(conn, org, role)

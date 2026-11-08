@@ -66,7 +66,14 @@ async def test_signatures_do_not_affect_the_fingerprint(tmp_path: Path) -> None:
 
     def with_sig(sig: str) -> ChatRequest:
         call = ToolCall("call_0_0", "t", {"q": 1}, {"model": "m", "thought_signature": sig})
-        return ChatRequest(system="s", messages=[Message("user", "q"), Message("assistant", "", tool_calls=[call]), Message("tool", "{}", tool_call_id="call_0_0", name="t")])
+        return ChatRequest(
+            system="s",
+            messages=[
+                Message("user", "q"),
+                Message("assistant", "", tool_calls=[call]),
+                Message("tool", "{}", tool_call_id="call_0_0", name="t"),
+            ],
+        )
 
     with cassette_scope("s"):
         await collect(RecordReplayProvider("record", tmp_path, FakeProvider(["a"])), with_sig("one"))

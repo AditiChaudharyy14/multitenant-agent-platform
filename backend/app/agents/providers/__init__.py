@@ -15,7 +15,7 @@ from app.agents.providers.budget import DailyBudget
 from app.agents.providers.fake import FakeProvider
 from app.agents.providers.limiter import limiter_for
 from app.agents.providers.recording import RecordReplayProvider
-from app.agents.providers.router import ModelRouter
+from app.agents.providers.router import ModelAdapter, ModelRouter
 from app.agents.providers.scripted import ScriptedProvider, load_scenario
 from app.config import Settings, get_settings
 
@@ -27,6 +27,7 @@ def _live(settings: Settings, name: str, budget_engine: AsyncEngine | None = Non
             f"{name.upper()}_API_KEY is not set: add it to .env, choose another LLM_PROVIDER, "
             f"or replay recorded responses with EVAL_MODE=replay"
         )
+    adapter: ModelAdapter
     if name == "gemini":
         from app.agents.providers.gemini import GeminiAdapter
 
@@ -48,7 +49,9 @@ def get_provider(settings: Settings | None = None, *, budget_engine: AsyncEngine
     if s.eval_mode == "replay":
         return RecordReplayProvider("replay", s.eval_cassette_dir)  # offline: no key, no budget
     if s.llm_provider == "fake":
-        inner: LLMProvider = ScriptedProvider(load_scenario(s.fake_scenario_file)) if s.fake_scenario_file else FakeProvider()
+        inner: LLMProvider = (
+            ScriptedProvider(load_scenario(s.fake_scenario_file)) if s.fake_scenario_file else FakeProvider()
+        )
     else:
         inner = _live(s, s.llm_provider, budget_engine)
     if s.eval_mode == "record":

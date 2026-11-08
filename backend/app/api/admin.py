@@ -46,7 +46,7 @@ async def advance_order(order_number: str, ctx: ToolContext = Depends(require_ad
     async with tenant_tx(ctx.tenant) as conn:
         org = await get_org_by_id(conn, ctx.org_id)
         number = parse_order_number(order_number, org.order_prefix or "") if org else None
-        if number is None:
+        if org is None or number is None:
             raise not_found()
         try:
             before, after = await advance(conn, number)

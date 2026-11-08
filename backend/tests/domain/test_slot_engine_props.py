@@ -63,7 +63,9 @@ def overlaps(a_start: datetime, a_end: datetime, b: Interval) -> bool:
     return a_start < b.end and b.start < a_end
 
 
-def oracle(schedule: Schedule, duration: int, busy: dict, customer: list[Interval], now: datetime) -> set[tuple[datetime, uuid.UUID]]:
+def oracle(
+    schedule: Schedule, duration: int, busy: dict, customer: list[Interval], now: datetime
+) -> set[tuple[datetime, uuid.UUID]]:
     """Brute force: every quarter-hour of every day, checked rule by rule."""
     ok = set()
     for day in DAYS:
@@ -120,7 +122,10 @@ def test_every_returned_slot_obeys_every_rule(args: tuple) -> None:
 @given(inputs)
 def test_engine_matches_brute_force_oracle(args: tuple) -> None:
     schedule, duration, busy, customer, now = args
-    got = {(s.start, s.practitioner_id) for s in engine.free_slots(schedule, duration, DAYS, PRACTITIONERS, busy, customer, now)}
+    got = {
+        (s.start, s.practitioner_id)
+        for s in engine.free_slots(schedule, duration, DAYS, PRACTITIONERS, busy, customer, now)
+    }
     assert got == oracle(schedule, duration, busy, customer, now)
 
 
@@ -130,7 +135,10 @@ def test_check_slot_agrees_with_free_slots(args: tuple, day: date, q: int, pid: 
     schedule, duration, busy, customer, now = args
     start = datetime.combine(day, time(q // 4, q % 4 * 15), tzinfo=TZ).astimezone(UTC)
     reason = engine.check_slot(schedule, start, duration, now, busy[pid], customer)
-    free = {(s.start, s.practitioner_id) for s in engine.free_slots(schedule, duration, [day], PRACTITIONERS, busy, customer, now)}
+    free = {
+        (s.start, s.practitioner_id)
+        for s in engine.free_slots(schedule, duration, [day], PRACTITIONERS, busy, customer, now)
+    }
     assert (reason is None) == ((start, pid) in free), reason
 
 

@@ -64,7 +64,7 @@ async def products_by_sku(conn: AsyncConnection, skus: list[str], *, lock: bool 
     the same products always lock them in the same order and can't deadlock."""
     if not skus:
         return {}
-    sql = f"SELECT {_PRODUCT} FROM products WHERE sku = ANY(:skus) ORDER BY id"
+    sql = f"SELECT {_PRODUCT} FROM products WHERE sku = ANY(:skus) ORDER BY id"  # noqa: S608  (interpolates a module constant; values are bound)
     rows = await conn.execute(text(sql + (" FOR UPDATE" if lock else "")), {"skus": list(set(skus))})
     return {r.sku: Product(*r) for r in rows}
 
@@ -73,7 +73,8 @@ async def search_products(
     conn: AsyncConnection, *, query: str | None, category: str | None,
     min_price: Decimal | None, max_price: Decimal | None, limit: int = 10,
 ) -> list[Product]:  # fmt: skip
-    clauses, params = [], {"n": limit}
+    clauses: list[str] = []
+    params: dict[str, Any] = {"n": limit}
     if query:
         # Every word must appear in the name, SKU or category (case-insensitive).
         for i, word in enumerate(query.split()[:6]):
@@ -90,7 +91,8 @@ async def search_products(
         params["hi"] = max_price
     where = " AND ".join(clauses) or "true"
     rows = await conn.execute(
-        text(f"SELECT {_PRODUCT} FROM products WHERE {where} ORDER BY category, price, sku LIMIT :n"), params  # noqa: S608
+        text(f"SELECT {_PRODUCT} FROM products WHERE {where} ORDER BY category, price, sku LIMIT :n"),  # noqa: S608  (interpolates a module constant; values are bound)
+        params,  # noqa: S608
     )
     return [Product(*r) for r in rows]
 
@@ -103,7 +105,7 @@ async def alternatives(conn: AsyncConnection, of: Product, min_stock: int, limit
     """In-stock products from the same category, nearest in price first."""
     rows = await conn.execute(
         text(
-            f"SELECT {_PRODUCT} FROM products WHERE category = :c AND id <> :id AND stock >= :q "
+            f"SELECT {_PRODUCT} FROM products WHERE category = :c AND id <> :id AND stock >= :q "  # noqa: S608  (interpolates a module constant; values are bound)
             "ORDER BY abs(price - :p), price, sku LIMIT :n"
         ),
         {"c": of.category, "id": of.id, "q": max(min_stock, 1), "p": of.price, "n": limit},
@@ -144,9 +146,11 @@ async def restore_stock(conn: AsyncConnection, product_id: uuid.UUID, qty: int) 
 
 
 async def own_order(conn: AsyncConnection, ctx: ToolContext, number: int, *, lock: bool = False) -> Order | None:
-    sql = f"SELECT {_ORDER} FROM orders WHERE org_id = :o AND user_id = :u AND order_number = :n"
+    sql = f"SELECT {_ORDER} FROM orders WHERE org_id = :o AND user_id = :u AND order_number = :n"  # noqa: S608  (interpolates a module constant; values are bound)
     row = (
-        await conn.execute(text(sql + (" FOR UPDATE" if lock else "")), {"o": ctx.org_id, "u": ctx.user_id, "n": number})
+        await conn.execute(
+            text(sql + (" FOR UPDATE" if lock else "")), {"o": ctx.org_id, "u": ctx.user_id, "n": number}
+        )
     ).one_or_none()
     return Order(*row) if row else None
 
@@ -154,7 +158,7 @@ async def own_order(conn: AsyncConnection, ctx: ToolContext, number: int, *, loc
 async def lock_own_order_by_id(conn: AsyncConnection, ctx: ToolContext, order_id: uuid.UUID) -> Order | None:
     row = (
         await conn.execute(
-            text(f"SELECT {_ORDER} FROM orders WHERE id = :id AND org_id = :o AND user_id = :u FOR UPDATE"),
+            text(f"SELECT {_ORDER} FROM orders WHERE id = :id AND org_id = :o AND user_id = :u FOR UPDATE"),  # noqa: S608  (interpolates a module constant; values are bound)
             {"id": order_id, "o": ctx.org_id, "u": ctx.user_id},
         )
     ).one_or_none()
@@ -165,7 +169,7 @@ async def latest_reorderable(conn: AsyncConnection, ctx: ToolContext) -> Order |
     row = (
         await conn.execute(
             text(
-                f"SELECT {_ORDER} FROM orders WHERE org_id = :o AND user_id = :u AND status <> 'cancelled' "
+                f"SELECT {_ORDER} FROM orders WHERE org_id = :o AND user_id = :u AND status <> 'cancelled' "  # noqa: S608  (interpolates a module constant; values are bound)
                 "ORDER BY created_at DESC, order_number DESC LIMIT 1"
             ),
             {"o": ctx.org_id, "u": ctx.user_id},
@@ -178,7 +182,7 @@ async def list_own(conn: AsyncConnection, ctx: ToolContext, limit: int = 20) -> 
     """(order, item count), newest first."""
     rows = await conn.execute(
         text(
-            f"SELECT {', '.join('o.' + c.strip() for c in _ORDER.split(','))}, "
+            f"SELECT {', '.join('o.' + c.strip() for c in _ORDER.split(','))}, "  # noqa: S608  (interpolates a module constant; values are bound)
             "(SELECT coalesce(sum(qty), 0) FROM order_items i WHERE i.order_id = o.id) AS units "
             "FROM orders o WHERE o.org_id = :o AND o.user_id = :u "
             "ORDER BY o.created_at DESC, o.order_number DESC LIMIT :n"
@@ -232,32 +236,52 @@ async def insert_order(
                 "conversation_id, proposal_id, created_at, updated_at) "
                 "VALUES (:o, :u, 'pending', :a, 'cod', :t, :c, :p, :now, :now) RETURNING id, order_number"
             ),
-            {"o": ctx.org_id, "u": ctx.user_id, "a": address, "t": total, "c": ctx.conversation_id,
-             "p": proposal_id, "now": now},  # fmt: skip
+            {
+                "o": ctx.org_id,
+                "u": ctx.user_id,
+                "a": address,
+                "t": total,
+                "c": ctx.conversation_id,
+                "p": proposal_id,
+                "now": now,
+            },  # fmt: skip
         )
     ).one()
     return row.id, row.order_number
 
 
-async def insert_item(conn: AsyncConnection, org_id: uuid.UUID, user_id: uuid.UUID, order_id: uuid.UUID, item: Item) -> None:
+async def insert_item(
+    conn: AsyncConnection, org_id: uuid.UUID, user_id: uuid.UUID, order_id: uuid.UUID, item: Item
+) -> None:
     await conn.execute(
         text(
             "INSERT INTO order_items (org_id, user_id, order_id, product_id, sku, name, unit_price, qty) "
             "VALUES (:o, :u, :ord, :p, :sku, :n, :price, :q)"
         ),
-        {"o": org_id, "u": user_id, "ord": order_id, "p": item.product_id, "sku": item.sku, "n": item.name,
-         "price": item.unit_price, "q": item.qty},  # fmt: skip
+        {
+            "o": org_id,
+            "u": user_id,
+            "ord": order_id,
+            "p": item.product_id,
+            "sku": item.sku,
+            "n": item.name,
+            "price": item.unit_price,
+            "q": item.qty,
+        },  # fmt: skip
     )
 
 
 async def set_item_qty(conn: AsyncConnection, order_id: uuid.UUID, sku: str, qty: int) -> None:
     await conn.execute(
-        text("UPDATE order_items SET qty = :q WHERE order_id = :id AND sku = :sku"), {"id": order_id, "sku": sku, "q": qty}
+        text("UPDATE order_items SET qty = :q WHERE order_id = :id AND sku = :sku"),
+        {"id": order_id, "sku": sku, "q": qty},
     )
 
 
 async def delete_item(conn: AsyncConnection, order_id: uuid.UUID, sku: str) -> None:
-    await conn.execute(text("DELETE FROM order_items WHERE order_id = :id AND sku = :sku"), {"id": order_id, "sku": sku})
+    await conn.execute(
+        text("DELETE FROM order_items WHERE order_id = :id AND sku = :sku"), {"id": order_id, "sku": sku}
+    )
 
 
 async def update_order(conn: AsyncConnection, order_id: uuid.UUID, *, address: str, total: Decimal) -> None:
@@ -273,7 +297,8 @@ async def set_status(
     """Every transition writes order_status_history in the same transaction."""
     now = clock.now()
     await conn.execute(
-        text("UPDATE orders SET status = :s, updated_at = :now WHERE id = :id"), {"s": to_status, "now": now, "id": order.id}
+        text("UPDATE orders SET status = :s, updated_at = :now WHERE id = :id"),
+        {"s": to_status, "now": now, "id": order.id},
     )
     await insert_history(conn, org_id, order.user_id, order.id, order.status, to_status, changed_by)
 
@@ -287,8 +312,15 @@ async def insert_history(
             "INSERT INTO order_status_history (org_id, user_id, order_id, from_status, to_status, changed_at, "
             "changed_by) VALUES (:o, :u, :ord, :f, :t, :now, :by)"
         ),
-        {"o": org_id, "u": user_id, "ord": order_id, "f": from_status, "t": to_status, "now": clock.now(),
-         "by": changed_by},  # fmt: skip
+        {
+            "o": org_id,
+            "u": user_id,
+            "ord": order_id,
+            "f": from_status,
+            "t": to_status,
+            "now": clock.now(),
+            "by": changed_by,
+        },  # fmt: skip
     )
 
 
