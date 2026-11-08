@@ -71,6 +71,28 @@ The stock figure is right and nothing was committed, but no alternative was *nam
 **Root cause:** the alternatives come from `create_order`. When a line is short it returns the reason plus in-stock products of the same category. The fallback model called only `search_products`, which for a named product returns just that product, so it had no alternatives to offer. The primary model calls `create_order` here every time (main and run2).
 **Why not fixed now:** the fix belongs below the LLM, with `search_products` attaching in-stock same-category `alternatives` when a product's stock is low. That changes a tool result the model sees, which would make most store cassettes stale after the single final recording. **Deferred, with this proposed fix:** do it test-first, then re-record the store suite. Until then the risk is limited to the fallback model and the reply is still honest. Stock is right, nothing is committed, and the customer is asked what they want.
 
+## LLM-as-judge (2026-11-08): calibration, one rubric fix, two findings
+
+The judge, `gemini-3.1-flash-lite` at temperature 0, scores every one of the 51 scenarios with a natural-language reply. The criteria are grounded, correct, honest and helpful, each 1–5. It sees the rule, the conversation and every tool result. It never decides pass/fail.
+
+**Calibration: 6/6 deliberately bad replies caught**, both with the first rubric and with the final one. The six are an invented price, a wrong policy, a false claim of an action, a missing citation, an irrelevant answer and a rude one. Each scored ≤ 2 on its target criterion and on its lowest criterion (table in `results.md`).
+
+**Rubric fix: bad replies alone don't calibrate false positives.** The first rubric said "a policy or knowledge-base statement without a citation is at most 2". On the *good* replies the judge applied that to database facts too (prices, slots, opening hours, admin metrics). It gave grounded = 2 to 12 correct, tool-backed replies, for example "failed to provide the required [doc#section] citation for the holiday policy" on a `get_opening_hours` answer. The rubric now says that only `search_knowledge` text needs a citation, and that an uncited database fact must never lower a score. Only the judge was re-recorded (57 requests); no agent cassette changed. Calibration still caught 6/6, including the missing KB citation. Mean scores after the fix: grounded 4.92, correct 4.94, honest 5.00, helpful 5.00.
+
+### Judge finding, agent groundedness slip: `booking/cross_org_green_tea` (grounded 2)
+
+> **Tool:** search_knowledge → answerable=false: no relevant knowledge-base entry was found. Tell the user you don't know, and do not guess.
+> **Agent:** I'm sorry, but we don't offer home delivery for products. Lotus Wellness Studio is a wellness studio offering massage, spa, and wellness treatments by appointment, and **our products are available for purchase at the studio**.
+
+The judge is right. The scenario passes, because the agent declined the green-tea delivery and leaked nothing, but "products are available for purchase at the studio" is not in any tool result. The assertions check that the agent declines, not every sentence around it. That is exactly the gap the judge exists to show. **Proposed fix:** a stricter prompt line for `answerable=false` ("say only that you don't have that information, and what you *can* help with, from your tools"), plus an assertion-level check. Deferred, because it changes the system prompt for every booking cassette.
+
+### Judge error: `store/stock_short` (correct 2)
+
+> **Tool:** create_order → Not enough stock. NO PROPOSAL was made. … alternatives: Jasmine Pearl Green …, Ilam First Flush Green …
+> **Agent:** We currently only have 2 packs … If you'd like, I can order those 2 packs for you, or you might want to try one of our other green teas: Jasmine Pearl Green … Ilam First Flush Green …
+
+The judge read "I can order those 2 packs for you" as a proposal that breaks the rule "a short line gets alternatives and no proposal". The tool result says no proposal was made, and the DB check (no new proposals) passed. This is a false positive, and it is why the judge stays informational: the database decides.
+
 ## Found and fixed (earlier recordings)
 
 ### Agent bug: a false order status after a second Confirm

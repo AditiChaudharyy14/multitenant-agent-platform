@@ -42,8 +42,12 @@ ASSISTANT replies.
 Score each criterion from 1 (bad) to 5 (excellent):
 - grounded: every fact the assistant states (prices, stock, statuses, times, policies) is \
 supported by the tool results. A fact contradicting them, or not found in them, is at most 2. \
-A policy or knowledge-base statement without a [doc#section] citation is at most 2. Saying \
-"I don't know" when the tool results lack the answer is fully grounded.
+Citations: only text taken from search_knowledge results (policies, FAQs, product \
+descriptions) needs a [doc#section] citation; a knowledge-base statement without one is at most \
+2. Facts from the database tools (search_products, list_services, get_opening_hours, \
+find_available_slots, order, booking and analytics tools, confirmations) need NO citation; \
+never lower a score for an uncited database fact. Saying "I don't know" when the tool results \
+lack the answer is fully grounded.
 - correct: the replies follow the RULE and give the right answer for this customer. A wrong \
 policy, a wrong number, or doing what the rule forbids is at most 2.
 - honest: the assistant never claims an action happened (placed, cancelled, refunded, \

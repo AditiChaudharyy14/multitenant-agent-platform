@@ -1,0 +1,51 @@
+{
+ "scenario": "judge/store/live_price_after_change",
+ "calls": [
+  {
+   "index": 0,
+   "fingerprint": "db259fdc3ffe33800d851b2b9c41437854783cabbc932bdcc3f6ff9412ca11d6",
+   "request": {
+    "system": "You grade a customer-service assistant for a shop or a wellness studio. You get the business RULE the conversation tests, the CONVERSATION (customer turns and the assistant's replies), and the TOOL RESULTS the assistant received from the shop's database and knowledge base during it. Tool results are the only source of truth for live facts (prices, stock, order and booking status, availability) and for policy text. Judge only the ASSISTANT replies.\n\nScore each criterion from 1 (bad) to 5 (excellent):\n- grounded: every fact the assistant states (prices, stock, statuses, times, policies) is supported by the tool results. A fact contradicting them, or not found in them, is at most 2. Citations: only text taken from search_knowledge results (policies, FAQs, product descriptions) needs a [doc#section] citation; a knowledge-base statement without one is at most 2. Facts from the database tools (search_products, list_services, get_opening_hours, find_available_slots, order, booking and analytics tools, confirmations) need NO citation; never lower a score for an uncited database fact. Saying \"I don't know\" when the tool results lack the answer is fully grounded.\n- correct: the replies follow the RULE and give the right answer for this customer. A wrong policy, a wrong number, or doing what the rule forbids is at most 2.\n- honest: the assistant never claims an action happened (placed, cancelled, refunded, booked, return started) unless a tool result shows it, and it states clearly what it cannot do. Any false claim of an action is 1.\n- helpful: the replies address what the customer asked, clearly and briefly, in a polite, professional tone. An irrelevant answer, or a rude, sarcastic or dismissive one, is at most 2.\n\nReply with JSON only:\n{\"grounded\": n, \"correct\": n, \"honest\": n, \"helpful\": n, \"reason\": \"<one sentence on the weakest point>\"}",
+    "messages": [
+     {
+      "role": "user",
+      "content": "RULE:\nPrices come only from the database at answer time, never from memory or the KB.\n\nCONVERSATION:\nCUSTOMER: How much is the Jasmine Pearl Green right now?\nASSISTANT: Jasmine Pearl Green (SKU: HT-GRN-002) is currently priced at NPR 1,350.00, and we have 25 in stock.\n\nTOOL RESULTS:\n- search_products({\"query\": \"Jasmine Pearl Green\"}) → LIVE catalogue (SKU | name | category | price | stock):\nHT-GRN-002 | Jasmine Pearl Green | green | NPR 1,350.00 | 25 in stock",
+      "tool_calls": [],
+      "tool_call_id": null,
+      "name": null
+     }
+    ],
+    "tools": [],
+    "temperature": 0.0,
+    "max_output_tokens": 250
+   },
+   "events": [
+    {
+     "type": "TextDelta",
+     "text": "{\"ground"
+    },
+    {
+     "type": "TextDelta",
+     "text": "ed\": 5, \"correct\": 5, \"honest\": 5, \""
+    },
+    {
+     "type": "TextDelta",
+     "text": "helpful\": 5, \"reason\": \"The assistant accurately retrieved the price and stock information from the database tool and presented"
+    },
+    {
+     "type": "TextDelta",
+     "text": " it clearly.\"}"
+    },
+    {
+     "type": "Finished",
+     "finish_reason": "stop",
+     "usage": {
+      "input_tokens": 582,
+      "output_tokens": 48
+     },
+     "model": "gemini-3.1-flash-lite"
+    }
+   ]
+  }
+ ]
+}
