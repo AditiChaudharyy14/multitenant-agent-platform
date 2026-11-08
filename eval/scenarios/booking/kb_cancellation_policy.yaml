@@ -4,7 +4,6 @@ rule: Policy questions are answered from search_knowledge and cited.
 org: lotus-wellness
 user: pooja@lotus.test
 category: kb
-judge: true
 turns:
   - user: What is your cancellation policy? Is there a fee if I cancel late?
 assertions:

@@ -183,6 +183,8 @@ async def apply_setup(conn: AsyncConnection, org: OrgInfo, step: SetupStep) -> N
             {"o": org.org_id, "u": await user_id(conn, b.customer), "s": svc.id, "p": pid, "a": starts,
              "e": starts + timedelta(minutes=svc.duration_min), "price": svc.price, "now": clock.now()},
         )  # fmt: skip
+    elif step.add_order:
+        await _add_order(conn, org, step.add_order)
     elif step.sql:
         await conn.execute(text(render_sql(org, step.sql)))
     elif step.memory:
@@ -195,6 +197,63 @@ async def apply_setup(conn: AsyncConnection, org: OrgInfo, step: SetupStep) -> N
         from app.seed.run import apply_analytics
 
         await apply_analytics(conn, get_settings().seed_dir, org.slug, org.org_id)
+
+
+ORDER_FLOW = ("pending", "confirmed", "shipped", "delivered")
+CHANGED_BY = {"pending": "customer", "confirmed": "admin", "shipped": "admin", "delivered": "system"}  # as app/seed
+
+
+async def _add_order(conn: AsyncConnection, org: OrgInfo, o: Any) -> None:
+    """A past order with its items and status history; the trigger assigns its number."""
+    uid = await user_id(conn, o.customer)
+    placed = clock.now() - timedelta(days=o.days_ago)
+    key = f"eval-order:{o.customer}:{o.days_ago}:{sorted(o.items.items())}"
+    oid = uuid.uuid5(org.org_id, key)
+    lines = []
+    for sku, qty in o.items.items():
+        p = (await conn.execute(text("SELECT id, name, price FROM products WHERE sku = :s"), {"s": sku})).one_or_none()
+        if p is None:
+            raise ValueError(f"setup add_order: product {sku} not found")
+        lines.append((sku, qty, p))
+    total = sum(p.price * qty for _, qty, p in lines)
+    await conn.execute(
+        text("INSERT INTO orders (id, org_id, user_id, status, delivery_address, total, created_at, updated_at) "
+             "VALUES (:i, :o, :u, :s, :a, :t, :c, :c)"),
+        {"i": oid, "o": org.org_id, "u": uid, "s": o.status, "a": o.address, "t": total, "c": placed},
+    )  # fmt: skip
+    for sku, qty, p in lines:
+        await conn.execute(
+            text("INSERT INTO order_items (org_id, user_id, order_id, product_id, sku, name, unit_price, qty) "
+                 "VALUES (:o, :u, :i, :p, :s, :n, :price, :q)"),
+            {"o": org.org_id, "u": uid, "i": oid, "p": p.id, "s": sku, "n": p.name, "price": p.price, "q": qty},
+        )  # fmt: skip
+    previous = None
+    for n, status in enumerate(ORDER_FLOW[: ORDER_FLOW.index(o.status) + 1]):
+        await conn.execute(
+            text("INSERT INTO order_status_history (org_id, user_id, order_id, from_status, to_status, changed_at, changed_by) "
+                 "VALUES (:o, :u, :i, :f, :t, :c, :b)"),
+            {"o": org.org_id, "u": uid, "i": oid, "f": previous, "t": status, "c": placed + timedelta(hours=n * 24),
+             "b": CHANGED_BY[status]},
+        )  # fmt: skip
+        previous = status
+
+
+async def in_stock_alternatives(conn: AsyncConnection, sku: str) -> list[str]:
+    """Names of in-stock products in the same category as `sku`, excluding it."""
+    rows = await conn.execute(
+        text("SELECT p.name FROM products p JOIN products s ON s.sku = :s "
+             "WHERE p.category = s.category AND p.sku <> s.sku AND p.stock > 0 ORDER BY p.name"),
+        {"s": sku},
+    )  # fmt: skip
+    return list(rows.scalars().all())
+
+
+def names_one_of(reply: str, names: list[str]) -> str | None:
+    """The first product name the reply mentions (case-insensitive, whole phrase), if any."""
+    for name in names:
+        if re.search(rf"(?<!\w){re.escape(name)}(?!\w)", reply, re.IGNORECASE):
+            return name
+    return None
 
 
 def _one(rowcount: int, what: str) -> None:
@@ -271,6 +330,11 @@ async def _state_checks(conn: AsyncConnection, org: OrgInfo, me: uuid.UUID, a: A
             fails.append(f"{table}: {after[table] - before[table]} new row(s), expected {n}")
     for check in a.db:
         fails += await _db_check(conn, org, me, check)
+    if a.reply_names_in_stock_alternative_to:
+        names = await in_stock_alternatives(conn, a.reply_names_in_stock_alternative_to)
+        if not names_one_of(final, names):
+            fails.append(f"final: reply names no in-stock alternative to {a.reply_names_in_stock_alternative_to} "
+                         f"(same category, in stock: {', '.join(names) or 'none'})")  # fmt: skip
     for query in a.reply_contains_sql:
         want = await conn.scalar(text(render_sql(org, query)))
         if not reply_has_value(final, want):

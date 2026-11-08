@@ -1,5 +1,5 @@
 # Everything runs inside the containers, so the host needs only Docker and make.
-.PHONY: help stats lint secrets-scan audit lock kb-check dev up up-traces build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live e2e e2e-setup advance logs
+.PHONY: help stats lint secrets-scan audit lock kb-check dev up up-traces build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live eval-report e2e e2e-setup advance logs
 
 help:  ## List the make targets
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/^([a-zA-Z_-]+):.*## (.*)/\1\t\2/' | awk -F'\t' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -107,6 +107,8 @@ create-admin:  ## make create-admin ORG=<slug> EMAIL=<email>
 # quota is spent. The backend is switched to LLM_PROVIDER=fake for the run and always put
 # back afterwards. One-time setup: make e2e-setup.
 E2E_PY = e2e/.venv/bin/python
+# The e2e override on top of whatever COMPOSE_FILE lists (CI adds docker-compose.ci.yml).
+E2E_COMPOSE = docker compose $(foreach f,$(subst :, ,$(or $(COMPOSE_FILE),docker-compose.yml)),-f $(f)) -f docker-compose.e2e.yml
 e2e-setup:  ## Create e2e/.venv with Playwright and download Chromium (once)
 	python3 -m venv e2e/.venv
 	e2e/.venv/bin/pip install -q -r e2e/requirements.txt
@@ -115,7 +117,7 @@ e2e-setup:  ## Create e2e/.venv with Playwright and download Chromium (once)
 e2e:  ## Playwright smoke tests + screenshots in docs/screenshots (fake LLM)
 	@test -x $(E2E_PY) || (echo "run make e2e-setup first" && exit 1)
 	docker compose up -d --wait --no-deps --force-recreate frontend
-	docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --wait backend
+	$(E2E_COMPOSE) up -d --wait backend
 	@docker compose exec -T backend sh -c 'test "$$LLM_PROVIDER" = fake' || (echo "backend is not on the fake LLM: refusing to spend quota" && exit 1)
 	cd e2e && BASE_URL=http://localhost:3000 SCREENSHOT_DIR=../docs/screenshots .venv/bin/python -m pytest -q $(ARGS); \
 	  status=$$?; cd .. && docker compose up -d --wait backend; exit $$status
@@ -138,8 +140,14 @@ MODE ?= auto
 eval: evaldb  ## Run the LLM eval suite (replay where recorded, else record)
 	$(EVAL) python /eval/runner.py --mode $(MODE) $(if $(ONLY),--only "$(ONLY)") $(ARGS)
 
+#   make eval-live RUN=run2 CATEGORY=rule,safety   a pass^k repeat run into eval/runs/run2
+#                    (its own cassettes and results; the main cassettes are never touched)
 eval-live: evaldb  ## Re-record eval scenarios live (ONLY=<vertical>/<id>[,...] strongly advised)
-	$(EVAL) python /eval/runner.py --mode record $(if $(ONLY),--only "$(ONLY)") $(ARGS)
+	$(EVAL) python /eval/runner.py --mode record $(if $(ONLY),--only "$(ONLY)") $(if $(CATEGORY),--category "$(CATEGORY)") $(if $(RUN),--run-dir "/eval/runs/$(RUN)") $(ARGS)
+
+# Rebuilds eval/results.md from results.json plus eval/runs/*/results.json (no database, no LLM).
+eval-report:  ## Rebuild eval/results.md (pass^k, latency) from the stored results
+	docker compose --profile ephemeral --profile eval run --rm --no-deps -T eval python /eval/report.py
 
 # Admin/demo: one status step (pending → confirmed → shipped → delivered). The prefix picks
 # the org; runs as app_user in an admin-scoped transaction, so no owner credentials.

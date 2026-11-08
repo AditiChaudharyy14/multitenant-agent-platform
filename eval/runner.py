@@ -37,6 +37,7 @@ from sqlalchemy.engine import make_url  # noqa: E402
 
 import checks  # noqa: E402
 import evaldb  # noqa: E402
+import judge  # noqa: E402
 import quota  # noqa: E402
 import report  # noqa: E402
 import staleness  # noqa: E402
@@ -92,13 +93,15 @@ class Providers:
         used = {m: await self.budget.used(m) for m in self.settings.llm_models(self.settings.llm_provider)}
         return quota.left_combined(used, self.budget.limit)
 
-    async def print_budget(self, when: str) -> None:
+    async def print_budget(self, when: str) -> str:
         """What `make llm-budget` shows, printed in-process (no extra container per run)."""
         parts = []
         for model in self.settings.llm_models(self.settings.llm_provider):
             used = await self.budget.used(model)
             parts.append(f"{model} {used}/{self.budget.limit} used ({self.budget.limit - used} left)")
-        print(f"llm budget {when} (quota day {quota_day()} Pacific): " + "; ".join(parts), flush=True)
+        line = f"llm budget {when} (quota day {quota_day()} Pacific): " + "; ".join(parts)
+        print(line, flush=True)
+        return line
 
 
 def _parse_sse(body: str) -> list[tuple[str, dict]]:
@@ -148,7 +151,7 @@ async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider,
     app.dependency_overrides[get_chat_provider] = lambda: provider
     turns: list[checks.TurnRecord] = []
     result: dict[str, Any] = {"key": sc.key, "id": sc.id, "vertical": sc.vertical, "title": sc.title, "rule": sc.rule,
-                              "user": sc.user, "judge": sc.judge}  # fmt: skip
+                              "user": sc.user, "category": sc.category}  # fmt: skip
     started = time.monotonic()
     try:
         now = resolve_seed_now(sc.seed_now or default_now, org.timezone)
@@ -176,11 +179,13 @@ async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider,
                 r = await c.post(chat_api)
                 r.raise_for_status()
                 cid = r.json()["id"]
+                cids = [cid]
                 for turn, utext in zip(sc.turns, texts, strict=True):
                     if turn.new_conversation:  # no transcript carries over: only long-term memory can
                         r = await c.post(chat_api)
                         r.raise_for_status()
                         cid = r.json()["id"]
+                        cids.append(cid)
                     if turn.setup:  # a change *between* turns, e.g. a price update
                         async with evaldb.owner_tx(owner, org.org_id) as conn:
                             for step in turn.setup:
@@ -224,8 +229,8 @@ async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider,
                                             f"re-record: make eval-live ONLY={sc.key}")  # fmt: skip
             async with evaldb.owner_tx(owner, org.org_id) as conn:
                 fails = await checks.check_all(conn, org, sc, me, turns, before)
-                if sc.judge:  # what the agent actually retrieved, for the judge's groundedness score
-                    result["kb_passages"] = await _kb_passages(conn, cid)
+                # Every tool result the agent received: the judge's evidence for its scores.
+                result["tool_calls"] = await _tool_calls(conn, cids)
         result.update(status="pass" if not fails else "fail", failures=fails)
     except StaleCassette as exc:
         result.update(status="stale", failures=["cassette stale: the request changed since it was recorded"], detail=str(exc))
@@ -281,13 +286,17 @@ async def _fill_run(owner: Any, org: checks.OrgInfo, rec: checks.TurnRecord) -> 
         rec.latency_ms, rec.tools, rec.run_error = row.latency_ms or 0, list(row.tools_called or []), row.error
 
 
-async def _kb_passages(conn: Any, conversation_id: str) -> str:
-    steps = (await conn.execute(
-        text("SELECT tool_calls FROM messages WHERE conversation_id = :c AND role = 'assistant' ORDER BY created_at"),
-        {"c": uuid.UUID(conversation_id)},
-    )).scalars().all()  # fmt: skip
-    return "\n\n".join(c["result"] for st in steps for step in (st or []) for c in step["calls"]
-                       if c["name"] == "search_knowledge")  # fmt: skip
+async def _tool_calls(conn: Any, conversation_ids: list[str]) -> list[dict]:
+    """name, arguments and result of every tool call (and card button) in these conversations."""
+    out = []
+    for cid in conversation_ids:
+        steps = (await conn.execute(
+            text("SELECT tool_calls FROM messages WHERE conversation_id = :c AND role = 'assistant' ORDER BY created_at"),
+            {"c": uuid.UUID(cid)},
+        )).scalars().all()  # fmt: skip
+        out += [{"name": c["name"], "arguments": c.get("arguments"), "result": c.get("result", "")}
+                for st in steps for step in (st or []) for c in step["calls"]]  # fmt: skip
+    return out
 
 
 def _orgs() -> dict[str, checks.OrgInfo]:
@@ -298,7 +307,10 @@ def _orgs() -> dict[str, checks.OrgInfo]:
     return out
 
 
-def _selected(all_: list[Scenario], only: str | None) -> list[Scenario]:
+def _selected(all_: list[Scenario], only: str | None, categories: str | None = None) -> list[Scenario]:
+    if categories:
+        cats = {c.strip() for c in categories.split(",") if c.strip()}
+        all_ = [s for s in all_ if s.category in cats]
     if not only:
         return all_
     pats = [p.strip() for p in only.split(",") if p.strip()]
@@ -315,6 +327,21 @@ class StaleCassette(ScenarioError):
     """The cassette was recorded against a different request (see eval/staleness.py)."""
 
 
+def _repeat_run_dir(run_dir: Path, mode: str) -> Path:
+    """A pass^k repeat run records into its own new directory, never over the main cassettes."""
+    global CASSETTES
+    if mode != "record":
+        raise SystemExit("--run-dir is for repeat live runs: use --mode record (make eval-live)")
+    run_dir = run_dir.resolve()
+    if run_dir == EVAL_DIR or run_dir == CASSETTES.resolve() or CASSETTES.resolve() in (run_dir, *run_dir.parents):
+        raise SystemExit(f"--run-dir {run_dir} would overwrite the main cassettes or results")
+    if (run_dir / "cassettes").exists() and any((run_dir / "cassettes").rglob("*.json")):
+        raise SystemExit(f"--run-dir {run_dir} already holds cassettes; pick a new directory")
+    (run_dir / "cassettes").mkdir(parents=True, exist_ok=True)
+    CASSETTES = run_dir / "cassettes"
+    return run_dir
+
+
 def _mode(sc: Scenario, requested: str) -> str:
     if not sc.needs_model:
         return "replay"  # refused before any model call: needs no cassette, key or budget
@@ -328,12 +355,20 @@ async def main() -> int:
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--mode", choices=("auto", "record", "replay"), default="auto")
     ap.add_argument("--only", help="comma-separated scenario keys or globs, e.g. store/edit_*,booking/cancel_over_24h")
-    ap.add_argument("--judge", action="store_true", help="LLM-as-judge scores for judge: true scenarios")
+    ap.add_argument("--judge", action="store_true", help="LLM-as-judge scores for every scenario with a reply")
+    ap.add_argument("--calibrate-judge", action="store_true",
+                    help="score eval/judge_calibration.yaml's deliberately bad replies; each must get <= 2")
+    ap.add_argument("--category", help="comma-separated categories, e.g. rule,safety")
+    ap.add_argument("--run-dir", help="a repeat live run (pass^k): cassettes and results go to this new, empty "
+                                      "directory, e.g. /eval/runs/run2; the main cassettes are never touched")
     ap.add_argument("--reserve", type=int, default=0,
                     help="requests to keep on top of EVAL_MIN_BUDGET_LEFT (e.g. for a judge run afterwards)")
     ap.add_argument("--keep", action="store_true", help="keep each scenario's clone database for inspection")
     args = ap.parse_args()
     KEEP = args.keep
+    out_dir = EVAL_DIR
+    if args.run_dir:
+        out_dir = _repeat_run_dir(Path(args.run_dir), args.mode)
     logging.getLogger().setLevel(logging.WARNING)  # app.main configured INFO on import
     install_output_redaction()  # no DB URL password or API key in logs or tracebacks
     logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -351,7 +386,7 @@ async def main() -> int:
     seed_now = os.environ.get("EVAL_SEED_NOW", "2026-11-12T10:00")
     floor = int(os.environ.get("EVAL_MIN_BUDGET_LEFT", str(quota.DEFAULT_FLOOR)))
     everything = load_scenarios()
-    scenarios = _selected(everything, args.only)
+    scenarios = _selected(everything, args.only, args.category)
     orgs = _orgs()
     # The quota ledger (llm_usage) lives in the dev database, shared with the running
     # backend; everything else this run touches is on db-ephemeral.
@@ -359,7 +394,7 @@ async def main() -> int:
     main_engine = evaldb.engine(budget_url)
     providers = Providers(main_engine)
 
-    await providers.print_budget("before")
+    budget_before = await providers.print_budget("before")
     t0 = time.monotonic()
     rebuilt, fp = await evaldb.ensure_template(seed_now)
     print(f"template {evaldb.TEMPLATE}: {'rebuilt' if rebuilt else 'up to date'} ({fp}), seed now {seed_now}", flush=True)
@@ -413,17 +448,30 @@ async def main() -> int:
             provider = providers.replay
         r = await run_scenario(sc, orgs[sc.org], provider, seed_now)
         r["mode"] = mode
-        if args.judge and sc.judge and r["turns"]:
-            import judge
-
+        if args.judge and judge.judgeable(r):
             judged = (CASSETTES / "judge" / f"{sc.key}.json").exists()
             jmode = args.mode if args.mode != "auto" else ("replay" if judged else "record")
-            r["judge_scores"] = await judge.score(sc, r, providers, jmode)
+            if jmode == "record" and not quota.may_record(await providers.left(), floor, args.reserve, worst=2):
+                r["judge_scores"] = {"error": f"not judged: the quota floor of {floor} would be crossed"}
+            else:
+                r["judge_scores"] = await judge.score(sc, r, providers, jmode)
         results.append(r)
         if r["status"] == "stale":
             stale.append(sc.key)
         mark = {"pass": "PASS", "fail": "FAIL", "error": "ERR ", "stale": "STALE"}[r["status"]]
         print(redact(f"{mark} {sc.key:45s} {mode:6s} {r['wall_ms']:>6d} ms  {'; '.join(r['failures'])[:160]}"), flush=True)
+
+    calibration: list[dict] = []
+    if args.calibrate_judge:
+        cal_dir = CASSETTES / "judge" / "calibration"
+        cmode = args.mode if args.mode != "auto" else ("replay" if cal_dir.exists() and any(cal_dir.glob("*.json")) else "record")
+        if cmode == "record" and not quota.may_record(await providers.left(), floor, args.reserve, worst=10):
+            print(f"judge calibration not run: the quota floor of {floor} would be crossed", flush=True)
+        else:
+            calibration = await judge.calibrate(providers, cmode)
+            for c in calibration:
+                print(f"CALIBRATION {c['id']:28s} target {c['target']:8s} {'caught' if c['caught'] else 'MISSED'}  "
+                      f"{ {k: c['scores'].get(k) for k in judge.CRITERIA} }", flush=True)  # fmt: skip
 
     if not KEEP:  # the first drop's checkpoint flushes everything, so the rest are quick
         for sc in scenarios:
@@ -442,12 +490,15 @@ async def main() -> int:
         return 4
     position = {sc.key: i for i, sc in enumerate(scenarios)}
     results.sort(key=lambda r: position[r["key"]])  # report in file order, not run order
-    if args.only:  # a partial run updates those scenarios in the last full report
+    if args.only and not args.run_dir:  # a partial run updates those scenarios in the last full report
         results = report.merge_previous(EVAL_DIR / "results.json", results)
     results = redact_obj(results)  # results.json/.md are committed: no credentials in them
     explained = report.explained_ids(EVAL_DIR / "FAILURES.md")
-    report.write(EVAL_DIR, results, providers.primary, s.llm_models(s.llm_provider), elapsed, explained)
-    await providers.print_budget("after")
+    budget_after = await providers.print_budget("after")
+    if not calibration and not args.run_dir:  # keep the last calibration when this run made none
+        calibration = report.previous_calibration(EVAL_DIR / "results.json")
+    report.write(out_dir, results, providers.primary, s.llm_models(s.llm_provider), elapsed, explained,
+                 budget=(budget_before, budget_after), calibration=calibration)  # fmt: skip
     await main_engine.dispose()
     bad = [r["key"] for r in results if r["status"] != "pass" and r["key"] not in explained]
     print(f"\n{sum(r['status'] == 'pass' for r in results)}/{len(results)} passed in {elapsed:.1f}s"

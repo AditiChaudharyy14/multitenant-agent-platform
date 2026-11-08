@@ -13,7 +13,8 @@ import pytest
 
 from app.agents.providers.recording import REDACTED, scrub
 
-CASSETTES = sorted(Path("/eval/cassettes").rglob("*.json"))
+# The main cassettes and the pass^k repeat runs' cassettes (eval/runs/<run>/cassettes).
+CASSETTES = sorted([*Path("/eval/cassettes").rglob("*.json"), *Path("/eval/runs").glob("*/cassettes/**/*.json")])
 FORBIDDEN = [
     re.compile(r"AIza[0-9A-Za-z_\-]{35}"),  # Google API key
     re.compile(r"x-goog-api-key", re.I),
@@ -31,7 +32,7 @@ def _keys(node: object) -> set[str]:
     return set()
 
 
-@pytest.mark.parametrize("path", CASSETTES, ids=lambda p: str(p.relative_to("/eval/cassettes")))
+@pytest.mark.parametrize("path", CASSETTES, ids=lambda p: str(p.relative_to("/eval")))
 def test_cassette_holds_no_secret_or_header(path: Path) -> None:
     raw = path.read_text(encoding="utf-8")
     for pattern in FORBIDDEN:
@@ -61,8 +62,11 @@ def test_scrub_drops_headers_and_redacts_keys(monkeypatch: pytest.MonkeyPatch) -
 URL_WITH_PASSWORD = re.compile(r"\b[a-z][a-z0-9+.\-]*://[^\s:/@'\"<>]+:(?!\*\*\*@)[^\s'\"<>@]+@", re.I)
 
 
-@pytest.mark.parametrize("path", [p for p in (Path("/eval/results.json"), Path("/eval/results.md")) if p.exists()],
-                         ids=lambda p: p.name)  # fmt: skip
+RESULTS = [p for p in (Path("/eval/results.json"), Path("/eval/results.md")) if p.exists()]
+RESULTS += sorted(Path("/eval/runs").glob("*/results.*"))
+
+
+@pytest.mark.parametrize("path", RESULTS, ids=lambda p: str(p.relative_to("/eval")))
 def test_committed_results_hold_no_credentials(path: Path) -> None:
     raw = path.read_text(encoding="utf-8")
     assert not URL_WITH_PASSWORD.search(raw), f"{path.name} contains a URL with a password"

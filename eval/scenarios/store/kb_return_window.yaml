@@ -4,7 +4,6 @@ rule: Policy answers come from search_knowledge with a citation; make kb-check k
 org: himali-tea
 user: anisha@himali.test
 category: kb
-judge: true
 turns:
   - user: How long do I have to return an unopened tea? And what if it arrives damaged?
 assertions:

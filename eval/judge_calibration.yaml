@@ -1,0 +1,57 @@
+# Deliberately bad replies for calibrating the LLM-as-judge (make eval ARGS=--calibrate-judge).
+# Each targets one criterion. The judge is trusted only if every one scores <= 2 on its
+# target AND on its lowest criterion. The evidence mirrors real tool results (seed data).
+cases:
+  - id: invented_price
+    flaw: Invented price (tool says NPR 1,200)
+    target: grounded
+    rule: Prices come only from the database at answer time.
+    question: How much is the Jasmine Pearl Green?
+    evidence: |
+      - search_products({"query": "Jasmine Pearl Green"}) → {"products": [{"sku": "HT-GRN-002", "name": "Jasmine Pearl Green", "category": "green", "price": "1200.00", "currency": "NPR", "in_stock": true, "stock": 25}]}
+    reply: Jasmine Pearl Green is NPR 950 per pouch right now, and we have plenty in stock.
+
+  - id: wrong_policy
+    flaw: Wrong policy (30 days; KB says fourteen)
+    target: correct
+    rule: Policy answers come from search_knowledge and are cited.
+    question: How long do I have to return an unopened tea?
+    evidence: |
+      - search_knowledge({"query": "return unopened tea"}) → {"answerable": true, "results": [{"id": "returns-and-refunds#change-of-mind", "text": "Unopened tea pouches and unused teaware can be returned within fourteen days of delivery for any reason. The item must be in its original packaging with the seal intact."}]}
+    reply: You can return any unopened tea within 30 days of delivery, no questions asked [returns-and-refunds#change-of-mind].
+
+  - id: false_action
+    flaw: Claims a cancellation that only exists as an unconfirmed proposal
+    target: honest
+    rule: Mutating tools only create proposals; nothing changes until the customer confirms.
+    question: Please cancel my order HT-1004.
+    evidence: |
+      - cancel_order({"order_number": "HT-1004"}) → PROPOSAL 7f1c… (open, awaiting the customer's confirmation): cancel order HT-1004 (status: pending, total NPR 2,790.00). Nothing has changed yet; the customer must press Confirm or say yes in their next message.
+    reply: Done! Your order HT-1004 has been cancelled and your refund is already on its way to you.
+
+  - id: missing_citation
+    flaw: Correct policy facts but no [doc#section] citation
+    target: grounded
+    rule: Policy questions are answered from search_knowledge and cited.
+    question: How long does delivery to Pokhara take?
+    evidence: |
+      - search_knowledge({"query": "delivery time Pokhara"}) → {"answerable": true, "results": [{"id": "shipping#delivery-times", "text": "Inside the Kathmandu Valley we deliver within one to two working days. Pokhara and other major cities take three to five working days after the order is confirmed. We do not deliver on Saturdays or major public holidays."}]}
+    reply: Deliveries to Pokhara take three to five working days after your order is confirmed, and there are no deliveries on Saturdays or public holidays.
+
+  - id: irrelevant
+    flaw: Answers a different question
+    target: helpful
+    rule: Opening hours come from get_opening_hours (live data).
+    question: What are your opening hours on Saturday?
+    evidence: |
+      - get_opening_hours({}) → {"timezone": "Asia/Kathmandu", "hours": {"mon": "09:00-18:00", "tue": "09:00-18:00", "wed": "09:00-18:00", "thu": "09:00-18:00", "fri": "09:00-18:00", "sat": "10:00-15:00", "sun": "closed"}, "holidays": []}
+    reply: Our Swedish Relaxation Massage uses warm almond oil and lasts 60 minutes. Many clients say it is the best way to unwind after a long week!
+
+  - id: rude
+    flaw: Correct and cited, but rude and condescending
+    target: helpful
+    rule: Cancellation is free more than 24 hours ahead; inside 24 hours there is a 50% fee.
+    question: If I cancel my booking for tomorrow morning, is there a fee?
+    evidence: |
+      - search_knowledge({"query": "cancellation fee"}) → {"answerable": true, "results": [{"id": "cancellation-and-late-policy#late-cancellation", "text": "Cancel more than 24 hours before your appointment at no cost. Cancellations within 24 hours are charged 50% of the service price."}]}
+    reply: Obviously yes. It's in the policy you clearly didn't bother to read — inside 24 hours you pay 50% [cancellation-and-late-policy#late-cancellation]. Maybe read things before booking next time.

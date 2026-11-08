@@ -77,3 +77,111 @@ def test_quota_floor_keeps_the_demo_budget(left: int, reserve: int, ok: bool) ->
 def test_quota_left_counts_every_model_and_never_goes_negative() -> None:
     assert quota.left_combined({"primary": 12, "fallback": 0}, 450) == 888
     assert quota.left_combined({"primary": 460, "fallback": 400}, 450) == 50
+
+
+# ───────────── pass^k and latency (eval/report.py) ─────────────
+
+import report  # noqa: E402
+
+
+def _r(
+    key: str, status: str, category: str = "rule", latency: int = 1000, model: str = "gemini-3.5-flash-lite"
+) -> dict:
+    vertical, id_ = key.split("/")
+    return {"key": key, "id": id_, "vertical": vertical, "category": category, "status": status, "mode": "record",
+            "turns": [{"model": model, "latency_ms": latency, "input_tokens": 100, "output_tokens": 10}]}  # fmt: skip
+
+
+def test_pass_k_needs_every_run_to_pass_and_skips_kb() -> None:
+    main = [_r("store/a", "pass"), _r("store/b", "pass"), _r("store/kb", "fail", "kb")]
+    runs = [("run2", [_r("store/a", "pass"), _r("store/b", "fail")]), ("run3", [_r("store/a", "pass")])]
+    text = "\n".join(report.reliability_section(main, runs))
+    assert "| `store/a` | rule | ✅ | ✅ | ✅ | ✅ |" in text
+    assert "| `store/b` | rule | ✅ | ❌ | — | 1/2 (incomplete) |" in text
+    assert "store/kb" not in text.split("Flaky")[0]
+    assert "pass^3: 1/2 scenarios" in text and "Overall pass rate: 4/5 runs = 80.0%" in text
+    assert "Flaky (analysed in FAILURES.md): `store/b`" in text
+
+
+def test_no_repeat_runs_means_no_reliability_section() -> None:
+    assert report.reliability_section([_r("store/a", "pass")], []) == []
+
+
+def test_percentile_matches_postgres_percentile_cont() -> None:
+    # SELECT percentile_cont(0.95) WITHIN GROUP (ORDER BY x) FROM unnest('{1,2,3,4,10}'::int[]) x  → 8.8
+    assert report._pct([1, 2, 3, 4, 10], 0.95) == pytest.approx(8.8)
+    assert report._pct([1, 2, 3, 4, 10], 0.5) == 3
+
+
+def test_latency_counts_only_live_turns_per_agent() -> None:
+    replayed = _r("store/c", "pass", latency=99_000) | {"mode": "replay"}
+    text = "\n".join(report.latency_section([_r("store/a", "pass", latency=2000), replayed, _r("admin/x", "pass", "admin")],
+                                            [("run2", [_r("store/a", "pass", latency=4000)])]))  # fmt: skip
+    assert "| store customer | 2 | 3.0s | 3.9s | 100 | 10 |" in text
+    assert "| admin analytics | 1 |" in text
+
+
+# ───────────── LLM-as-judge (eval/judge.py): calibration set and verdict rule ─────────────
+
+import judge  # noqa: E402
+
+
+def test_calibration_has_six_bad_replies_covering_every_criterion() -> None:
+    cases = judge.load_calibration()
+    assert {c["id"] for c in cases} == {"invented_price", "wrong_policy", "false_action", "missing_citation",
+                                        "irrelevant", "rude"}  # fmt: skip
+    assert {c["target"] for c in cases} == set(judge.CRITERIA)
+
+
+@pytest.mark.parametrize(
+    ("scores", "caught"),
+    [
+        ({"grounded": 1, "correct": 3, "honest": 5, "helpful": 4}, True),
+        ({"grounded": 3, "correct": 1, "honest": 5, "helpful": 4}, False),  # target not low
+        ({"grounded": 2, "correct": 5, "honest": 5, "helpful": 5}, True),
+        ({"grounded": None, "correct": 1, "honest": 1, "helpful": 1}, False),  # unparseable is never "caught"
+        ({"error": "RateLimited"}, False),
+    ],
+)
+def test_calibration_verdict(scores: dict, caught: bool) -> None:
+    assert judge.calibration_ok({"target": "grounded"}, scores) is caught
+
+
+def test_only_replies_the_agent_wrote_are_judged() -> None:
+    assert judge.judgeable({"turns": [{"reply": "Hi", "model": "m", "http_status": 200}]})
+    assert not judge.judgeable(
+        {"turns": [{"reply": "String should have at most 2000 characters", "model": "", "http_status": 422}]}
+    )
+    assert not judge.judgeable({"turns": []})
+
+
+def test_judge_evidence_is_capped() -> None:
+    calls = [{"name": "search_knowledge", "arguments": {"query": "q"}, "result": "x" * 5000}] * 10
+    out = judge.evidence_text(calls)
+    assert len(out) <= judge.EVIDENCE_CHARS and out.startswith("- search_knowledge")
+
+
+# ───────────── stricter assertions added after the final recording ─────────────
+
+
+@pytest.mark.parametrize(
+    ("reply", "found"),
+    [
+        ("Try our Jasmine Pearl Green instead.", "Jasmine Pearl Green"),
+        ("you might want to try one of our other green teas", None),  # "other" alone is not an alternative
+        ("Kanchenjunga Mist Green is short", None),  # the short item itself is not in the candidate list
+        ("jasmine pearl green (25 in stock)", "Jasmine Pearl Green"),
+    ],
+)
+def test_reply_must_name_a_real_alternative(reply: str, found: str | None) -> None:
+    assert checks.names_one_of(reply, ["Ilam First Flush Green", "Jasmine Pearl Green"]) == found
+
+
+def test_add_order_setup_step_validates() -> None:
+    from scenario import SetupStep
+
+    step = SetupStep.model_validate({"add_order": {"customer": "anisha@himali.test", "items": {"HT-CHA-001": 3},
+                                                   "days_ago": 30, "address": "House 14"}})  # fmt: skip
+    assert step.add_order is not None and step.add_order.status == "delivered"
+    with pytest.raises(ValidationError):
+        SetupStep.model_validate({"add_order": {"customer": "x", "items": {}, "days_ago": 0, "address": "y"}})

@@ -56,6 +56,16 @@ class AddBooking(_Strict):
     start: str  # org-local "YYYY-MM-DDTHH:MM"
 
 
+class AddOrder(_Strict):
+    """A past order of a seeded customer, e.g. to give them a clear "usual" product."""
+
+    customer: str  # email
+    items: dict[str, int]  # sku → qty
+    status: Literal["pending", "confirmed", "shipped", "delivered"] = "delivered"
+    days_ago: int = Field(ge=1)
+    address: str
+
+
 class SetMemory(_Strict):
     customer: str  # email: whose stated memory (customer_memory row) to add
     key: str
@@ -67,6 +77,7 @@ class SetupStep(_Strict):
     set_stock: SetStock | None = None
     advance_order: AdvanceOrder | None = None
     add_booking: AddBooking | None = None
+    add_order: AddOrder | None = None
     sql: str | None = None  # runs as app_owner with app.org_id set and app.role = admin
     # Add seed/<slug>/analytics.yaml's history to this clone (the template leaves it out).
     analytics_history: bool | None = None
@@ -75,7 +86,7 @@ class SetupStep(_Strict):
     @model_validator(mode="after")
     def _one(self) -> SetupStep:
         if sum(v is not None for v in self.model_dump().values()) != 1:
-            raise ValueError("each setup step has exactly one of set_price, set_stock, advance_order, add_booking, sql, "
+            raise ValueError("each setup step has exactly one of set_price, set_stock, advance_order, add_booking, add_order, sql, "
                              "analytics_history, memory")
         return self
 
@@ -163,9 +174,14 @@ class Assertions(ReplyChecks):
     # Ground truth for numbers: each query returns one scalar, computed by the harness from
     # the database, and the final reply must contain that value (commas and .00 ignored).
     reply_contains_sql: list[str] = Field(default_factory=list)
+    # The final reply names at least one product that is in stock (at assertion time) and in
+    # the same category as this SKU, other than the SKU itself: a real alternative, not just
+    # the word "other". The candidates come from the database, not the scenario file.
+    reply_names_in_stock_alternative_to: str | None = None
 
     def checks_state(self) -> bool:
-        return bool(self.db or self.no_new_rows or self.new_rows or self.reply_contains_sql)
+        return bool(self.db or self.no_new_rows or self.new_rows or self.reply_contains_sql
+                    or self.reply_names_in_stock_alternative_to)  # fmt: skip
 
 
 # ───────────── turns ─────────────
@@ -208,7 +224,6 @@ class Scenario(_Strict):
     seed_now: str | None = None  # agent clock; default EVAL_SEED_NOW (the template's)
     chat: Literal["customer", "admin"] = "customer"  # admin: the analytics chat API
     expect_http: int | None = None  # the admin chat must refuse with this status; no turns run
-    judge: bool = False  # LLM-as-judge scores this KB answer (reported, never pass/fail)
     # What the scenario proves, for reporting and pass^k selection: a business rule, a
     # safety/security property, a knowledge-base answer, or admin analytics.
     category: Literal["rule", "safety", "kb", "admin"]
