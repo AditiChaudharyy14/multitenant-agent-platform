@@ -63,6 +63,8 @@ class RedactingFormatter(logging.Formatter):
 def install_output_redaction() -> None:
     """Redact every log line (tracebacks included) and an uncaught exception's report."""
     for handler in logging.getLogger().handlers:
+        if type(handler.formatter).__name__ == "JsonFormatter":
+            continue  # app.logging_setup's formatter already redacts, and must stay JSON
         handler.setFormatter(RedactingFormatter(handler.formatter._fmt if handler.formatter else None))
 
     def hook(exc_type: type[BaseException], exc: BaseException, tb: Any) -> None:

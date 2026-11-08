@@ -1,10 +1,10 @@
 import asyncio
-import logging
 from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app import logging_setup
 from app.api import admin, chat, conversations, health, kb, panels
 from app.auth import routes as auth_routes
 from app.auth.csrf import OriginCheckMiddleware
@@ -41,12 +41,13 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     await readonly_engine.dispose()
 
 
-# uvicorn configures only its own loggers; this makes app.* INFO lines (e.g. the LLM
-# budget: "gemini/<model>: 37/450 requests today, 413 left") visible in `make logs`.
-logging.basicConfig(level=logging.INFO, format="%(levelname)s %(name)s: %(message)s")
+# JSON log lines for app.* and uvicorn (e.g. the LLM budget line), visible in `make logs`.
+logging_setup.configure()  # JSON lines with request_id, route and org
 
 app = FastAPI(title="Multi-Tenant Agent Platform", lifespan=lifespan)
 app.add_middleware(OriginCheckMiddleware, allowed_origins=get_settings().allowed_origin_set)
+# Added last, so it is outermost: even a CSRF 403 gets a request id.
+app.add_middleware(logging_setup.RequestContextMiddleware, router_app=app)
 app.include_router(health.router)
 app.include_router(auth_routes.router)
 app.include_router(conversations.router)
