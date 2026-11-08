@@ -1,6 +1,7 @@
 "use client";
 
 import { type KeyboardEvent, useEffect, useRef } from "react";
+import { MAX_MESSAGE_CHARS } from "@/lib/limits";
 
 interface Props {
   value: string;
@@ -44,9 +45,14 @@ export function Composer({ value, onChange, onSend, onStop, streaming, disabled,
         onChange={(e) => onChange(e.target.value)}
         onKeyDown={onKeyDown}
         placeholder={placeholder}
-        maxLength={4000}
+        maxLength={MAX_MESSAGE_CHARS}
         className="max-h-[200px] min-h-[40px] flex-1 resize-none bg-transparent focus-visible:outline-none px-2 py-2 text-[16px] leading-6 outline-none placeholder:text-muted"
       />
+      {value.length > MAX_MESSAGE_CHARS - 200 && (
+        <span data-testid="char-count" aria-live="polite" className="self-center text-[12px] tabular-nums text-muted">
+          {value.length}/{MAX_MESSAGE_CHARS}
+        </span>
+      )}
       {streaming ? (
         <button
           type="button"

@@ -34,7 +34,7 @@ from app.tenancy.orgs import Org, get_org_by_id
 router = APIRouter(prefix="/api/conversations")
 
 HEARTBEAT_SECONDS = 15.0
-MAX_MESSAGE_CHARS = 4000
+MAX_MESSAGE_CHARS = 2000  # the Composer enforces the same limit (frontend/lib/limits.ts)
 
 # 20 chat messages per minute per user (CLAUDE.md). Per process, like the login limiter.
 chat_limiter = SlidingWindowLimiter(limit=20, window=timedelta(minutes=1))

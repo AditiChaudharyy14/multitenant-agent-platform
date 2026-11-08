@@ -11,6 +11,7 @@ import { MessageView, type UiMessage } from "@/components/chat/MessageView";
 import { MyItemsPanel, PanelDrawer, panelTitle, type PanelData } from "@/components/chat/MyItemsPanel";
 import { SourceDrawer } from "@/components/chat/SourceDrawer";
 import { OrgSeal } from "@/components/OrgSeal";
+import { MAX_MESSAGE_CHARS } from "@/lib/limits";
 import { api, ApiError, CHAT_API } from "@/lib/api";
 import { streamMessage, type MessageBody } from "@/lib/sse";
 import { ADMIN_SUGGESTIONS, SUGGESTIONS } from "@/lib/suggestions";
@@ -236,6 +237,10 @@ export function ChatScreen({ me, routeConversationId, mode = "customer" }: { me:
         if ("content" in body) setDraft(text);
         setRateUntil(Date.now() + (err.retryAfter ?? 60) * 1000);
         setNow(Date.now());
+      } else if (err instanceof ApiError && err.status === 422) {
+        // Refused by the server's input limits (e.g. too long): nothing was stored.
+        if ("content" in body) setDraft(text);
+        patch(asstKey, (m) => ({ ...m, status: "error", error: { code: "invalid", message: `Messages can be at most ${MAX_MESSAGE_CHARS.toLocaleString("en-US")} characters. Shorten it and try again.` } }));
       } else if (err instanceof ApiError && err.status === 401) {
         router.replace(`/a/${slug}`);
       } else {
