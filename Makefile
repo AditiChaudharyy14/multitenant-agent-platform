@@ -1,5 +1,5 @@
 # Everything runs inside the containers, so the host needs only Docker and make.
-.PHONY: help lint kb-check up up-traces build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live e2e e2e-setup advance logs
+.PHONY: help lint kb-check dev up up-traces build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live e2e e2e-setup advance logs
 
 help:  ## List the make targets
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/^([a-zA-Z_-]+):.*## (.*)/\1\t\2/' | awk -F'\t' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -28,6 +28,10 @@ up: migrate sync-orgs  ## Start db, backend and frontend, then wait until health
 up-traces: migrate sync-orgs  ## Start everything plus Jaeger; traces at http://localhost:16686
 	OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4318 docker compose --profile observability up -d --wait
 	@echo "Jaeger UI: http://localhost:16686 (service multitenant-backend)"
+
+# Hot reload for development: uvicorn --reload and next dev (pages compile on first visit).
+dev: migrate sync-orgs  ## Like up, but with hot reload (APP_MODE=dev)
+	APP_MODE=dev docker compose up -d --wait
 
 build:  ## Rebuild images after a dependency change, then restart on them
 	docker compose build
@@ -110,7 +114,8 @@ e2e-setup:  ## Create e2e/.venv with Playwright and download Chromium (once)
 
 e2e:  ## Playwright smoke tests + screenshots in docs/screenshots (fake LLM)
 	@test -x $(E2E_PY) || (echo "run make e2e-setup first" && exit 1)
-	docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --wait backend frontend
+	docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --wait backend
+	docker compose up -d --wait --force-recreate frontend
 	cd e2e && BASE_URL=http://localhost:3000 SCREENSHOT_DIR=../docs/screenshots .venv/bin/python -m pytest -q $(ARGS); \
 	  status=$$?; cd .. && docker compose up -d --wait backend; exit $$status
 

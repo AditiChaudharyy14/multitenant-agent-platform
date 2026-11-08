@@ -23,7 +23,8 @@ services:
     build: ./backend
     # Shared with `ops`, so `make build` refreshes both.
     image: multitenant-agents-backend:dev
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    # APP_MODE=prod (the default, `make up`): no --reload. APP_MODE=dev (`make dev`): hot reload.
+    command: sh -c 'exec uvicorn app.main:app --host 0.0.0.0 --port 8000 $$(if [ "$$APP_MODE" = dev ]; then echo --reload; fi)'
     # No DATABASE_URL_OWNER here on purpose: the running app never holds app_owner
     # credentials. Owner-only commands run in the `ops` service below.
     environment:
@@ -32,6 +33,7 @@ services:
       SEED_DIR: /seed
       ALLOWED_ORIGINS: ${ALLOWED_ORIGINS:-http://localhost:3000}
       APP_ENV: ${APP_ENV:-local}
+      APP_MODE: ${APP_MODE:-prod}
       WATCHFILES_FORCE_POLLING: ${WATCHFILES_FORCE_POLLING:-true}
       EMBED_CACHE_DIR: ${EMBED_CACHE_DIR:-/models}
       # LLM settings and keys go to the backend only. `ops` (where `make test` runs) never
@@ -217,7 +219,11 @@ services:
 
   frontend:
     build: ./frontend
+    # APP_MODE=prod (the default, `make up`): a production `next build`, then `next start`.
+    # APP_MODE=dev (`make dev`): `next dev` with hot reload (compiles each page on first visit).
+    command: sh -c 'if [ "$$APP_MODE" = dev ]; then exec npm run dev; else npm run build && exec npm run start -- --hostname 0.0.0.0 --port 3000; fi'
     environment:
+      APP_MODE: ${APP_MODE:-prod}
       WATCHPACK_POLLING: ${WATCHPACK_POLLING:-true}
       # Where the Next server proxies /api/* (and fetches org branding server-side).
       BACKEND_URL: ${BACKEND_URL:-http://backend:8000}
@@ -233,12 +239,13 @@ services:
       backend:
         condition: service_healthy
     healthcheck:
-      # Without this, `up --wait` returns before next dev is listening.
+      # Without this, `up --wait` returns before Next is listening. In production mode the
+      # port opens only after `next build`, which takes a few minutes on a small machine.
       test: ["CMD", "node", "-e", "require('net').connect(3000, '127.0.0.1').on('connect', () => process.exit(0)).on('error', () => process.exit(1))"]
       interval: 3s
       timeout: 3s
       retries: 20
-      start_period: 5s
+      start_period: 300s
 
   # Local mail catcher: the backend's SMTP target. Nothing leaves the machine; every email
   # shows up in the web UI at http://localhost:8025. SMTP (1025) stays on the compose

@@ -30,7 +30,7 @@ make seed                # loads all three orgs' data and knowledge-base vectors
 
 - `GEMINI_API_KEY` goes in `.env` (git-ignored). Without it the app runs but chats fail with a provider error; `make test`, `make e2e` and `make eval` (replay) need no key.
 - **The first `make up` is slow: about 25 to 30 minutes**, measured from a fresh clone on a WSL2 VM with 5 GB of RAM. It builds the frontend image (`npm ci`, about 8 min) and the backend image (about 5 min); then the backend downloads the embedding model (about 130 MB) and reports healthy only once it is loaded (`backend/app/api/health.py`). `make seed` took under 2 minutes. Later `make up` runs take seconds.
-- The frontend runs `next dev`, which compiles each page on its first request: the first visit to a page can take 30 seconds or more (the chat page up to a few minutes on a slow machine); after that it is fast.
+- `make up` runs **production mode**: the frontend serves a production `next build` (built when the container starts, about 5 minutes including the backend's model warm-up on this machine) and uvicorn runs without reload, so pages load in well under a second. For working on the code, `make dev` runs `next dev` and `uvicorn --reload` instead (pages then compile on their first visit).
 
 | What | URL |
 |---|---|
