@@ -3,6 +3,7 @@ title: Unanswerable (acupuncture is not offered)
 rule: No invented services, prices or citations; say so and offer what exists.
 org: lotus-wellness
 user: pooja@lotus.test
+category: kb
 turns:
   - user: Do you offer acupuncture? How much is a session?
 assertions:

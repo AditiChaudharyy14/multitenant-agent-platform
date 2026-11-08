@@ -3,6 +3,7 @@ title: '"How did we do today?" → orders and revenue match the database, with w
 rule: Every number comes from a read-only metric tool and states its window and definition.
 org: himali-tea
 user: admin@himali.test
+category: admin
 chat: admin
 setup:
   - analytics_history: true

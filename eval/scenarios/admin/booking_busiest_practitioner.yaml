@@ -3,6 +3,7 @@ title: '"Which practitioner is busiest this week?" → the top practitioner by b
 rule: Utilisation = booked minutes (confirmed or completed) ÷ open minutes, stated with its window.
 org: lotus-wellness
 user: admin@lotus.test
+category: admin
 chat: admin
 setup:
   - analytics_history: true

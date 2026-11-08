@@ -3,6 +3,7 @@ title: Cancel a pending order → cancelled and stock restored
 rule: cancelled is reachable only from pending; stock is restored and history written.
 org: himali-tea
 user: bikash@himali.test
+category: rule
 turns:
   - user: Please cancel my order {{order:c2-pending}}.
     expect:

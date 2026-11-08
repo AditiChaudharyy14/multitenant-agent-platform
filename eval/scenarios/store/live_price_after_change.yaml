@@ -3,6 +3,7 @@ title: Live price after a price change
 rule: Prices come only from the database at answer time, never from memory or the KB.
 org: himali-tea
 user: kiran@himali.test
+category: rule
 setup:
   - set_price: {sku: HT-GRN-002, price: "1350"}
 turns:

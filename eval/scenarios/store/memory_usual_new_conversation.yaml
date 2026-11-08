@@ -3,6 +3,7 @@ title: '"My usual tea" in a brand-new conversation → a proposal for the most-o
 rule: Long-term memory derives "usual" from the customer's own non-cancelled orders; it carries across conversations, and prices still come from tools.
 org: himali-tea
 user: anisha@himali.test
+category: rule
 turns:
   # Anisha's history: 3 × Kathmandu Masala Chai is her most-ordered product (by units).
   - user: Hi! Could you order my usual tea again? Same quantity as my usual, to House 14, Jhamsikhel Marg, Lalitpur.

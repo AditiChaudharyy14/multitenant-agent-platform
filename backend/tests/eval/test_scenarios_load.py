@@ -70,7 +70,7 @@ def test_scenario_refers_to_real_seed_data(sc: Scenario) -> None:
         )
         if ref:
             assert ref in seeded, f"assertion refers to unknown seed key {ref}"
-    for step in sc.setup:
+    for step in [*sc.setup, *(s for t in sc.turns for s in t.setup)]:
         if step.add_booking:
             assert step.add_booking.customer in emails
     if sc.chat == "admin":

@@ -3,6 +3,7 @@ title: Booking on a holiday → refused with alternatives
 rule: Slots must avoid holidays; refusals offer the nearest free times.
 org: lotus-wellness
 user: pooja@lotus.test
+category: rule
 turns:
   - user: Please book a Hot Stone Therapy on Wednesday 2 December at 10:00.
 assertions:

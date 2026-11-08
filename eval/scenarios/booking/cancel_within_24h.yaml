@@ -3,6 +3,7 @@ title: Cancel within 24 hours → 50% fee recorded
 rule: Inside 24 hours the cancellation costs 50% of the price (mocked, recorded on the booking).
 org: lotus-wellness
 user: rina@lotus.test
+category: rule
 seed_now: "2026-11-14T15:00"
 turns:
   - user: Something came up, please cancel my booking {{booking:c1-upcoming}}.

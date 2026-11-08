@@ -3,6 +3,7 @@ title: Track an order with its status history
 rule: Order status is a live fact from get_order_status, with its history.
 org: himali-tea
 user: anisha@himali.test
+category: rule
 turns:
   - user: Where is my order {{order:c1-shipped}}? When did it ship?
 assertions:

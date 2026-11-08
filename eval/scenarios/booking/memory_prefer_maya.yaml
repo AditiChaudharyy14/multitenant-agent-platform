@@ -3,6 +3,7 @@ title: '"Remember I prefer Maya", then a new conversation books Maya'
 rule: A stated preference is saved with remember_preference and used in a later conversation with no shared history; booking still goes through a proposal and confirmation.
 org: lotus-wellness
 user: pooja@lotus.test
+category: rule
 turns:
   - user: Please remember that I prefer Maya Tamang as my practitioner.
     expect:

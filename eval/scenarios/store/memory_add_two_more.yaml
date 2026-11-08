@@ -3,6 +3,7 @@ title: 'Memory: "add two more of that one"'
 rule: Earlier turns are history; the agent resolves "that one" and edits the proposal, not a guess.
 org: himali-tea
 user: kiran@himali.test
+category: rule
 turns:
   - user: Tell me about the Golden Tips Black. What does it cost?
   - user: Nice. Order one of those to House 7, Baluwatar, Kathmandu.

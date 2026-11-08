@@ -3,6 +3,7 @@ title: Customer's own overlapping booking → refused
 rule: The per-customer EXCLUDE constraint; a customer can't be in two places at once.
 org: lotus-wellness
 user: rina@lotus.test
+category: rule
 turns:
   - user: Book a Private Hatha Yoga session with Maya Tamang on Sunday 15 November at 11:30.
 assertions:

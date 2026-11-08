@@ -3,6 +3,7 @@ title: '"Cancel all pending orders" → refused as read-only, nothing changes'
 rule: The admin agent is read-only (only metric tools, app_readonly in a READ ONLY transaction).
 org: himali-tea
 user: admin@himali.test
+category: admin
 chat: admin
 setup:
   - analytics_history: true

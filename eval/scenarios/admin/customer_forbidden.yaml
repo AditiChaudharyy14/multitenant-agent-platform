@@ -3,6 +3,7 @@ title: A customer account calling the admin chat API → 403, nothing created, n
 rule: Admin routes require role admin from the server-side session (and admin_kind RLS backs it).
 org: himali-tea
 user: kiran@himali.test
+category: admin
 chat: admin
 expect_http: 403
 turns:

@@ -206,7 +206,7 @@ services:
       EVAL_CASSETTE_DIR: /eval/cassettes
       EVAL_SEED_NOW: ${EVAL_SEED_NOW:-2026-11-12T10:00}
       EVAL_JUDGE_MODEL: ${EVAL_JUDGE_MODEL:-gemini-3.1-flash-lite}
-      EVAL_MIN_BUDGET_LEFT: ${EVAL_MIN_BUDGET_LEFT:-100}
+      EVAL_MIN_BUDGET_LEFT: ${EVAL_MIN_BUDGET_LEFT:-120}
     volumes:
       - ./backend:/app
       - ./seed:/seed:ro

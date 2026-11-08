@@ -3,6 +3,7 @@ title: Cancel more than 24 hours ahead → no fee
 rule: Cancellation is free more than 24 hours before the start.
 org: lotus-wellness
 user: rina@lotus.test
+category: rule
 turns:
   - user: Please cancel my booking {{booking:c1-upcoming}}.
     expect:

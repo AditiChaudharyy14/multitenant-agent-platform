@@ -3,6 +3,7 @@ title: KB answer with citation (delivery times)
 rule: Policy questions are answered from search_knowledge and cited as doc_id#section.
 org: himali-tea
 user: kiran@himali.test
+category: kb
 judge: true
 turns:
   - user: How long does delivery take to Pokhara, and do you deliver on Saturdays?

@@ -3,6 +3,7 @@ title: Happy path "next Tuesday afternoon" → correct local date and time
 rule: Relative dates are resolved by the server (dates.py) against the frozen clock; slots sit in the afternoon window; commit only on confirm.
 org: lotus-wellness
 user: pooja@lotus.test
+category: rule
 turns:
   - user: I'd like to book a Swedish Relaxation Massage next Tuesday afternoon.
     expect:

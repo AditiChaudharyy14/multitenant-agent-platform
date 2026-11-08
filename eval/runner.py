@@ -37,6 +37,7 @@ from sqlalchemy.engine import make_url  # noqa: E402
 
 import checks  # noqa: E402
 import evaldb  # noqa: E402
+import quota  # noqa: E402
 import report  # noqa: E402
 import staleness  # noqa: E402
 from app import clock  # noqa: E402
@@ -87,7 +88,9 @@ class Providers:
         return RecordReplayProvider("record", CASSETTES, self.live())
 
     async def left(self) -> int:
-        return self.budget.limit - await self.budget.used(self.primary)
+        """Requests left today across the primary and fallback models together."""
+        used = {m: await self.budget.used(m) for m in self.settings.llm_models(self.settings.llm_provider)}
+        return quota.left_combined(used, self.budget.limit)
 
     async def print_budget(self, when: str) -> None:
         """What `make llm-budget` shows, printed in-process (no extra container per run)."""
@@ -178,7 +181,13 @@ async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider,
                         r = await c.post(chat_api)
                         r.raise_for_status()
                         cid = r.json()["id"]
+                    if turn.setup:  # a change *between* turns, e.g. a price update
+                        async with evaldb.owner_tx(owner, org.org_id) as conn:
+                            for step in turn.setup:
+                                await checks.apply_setup(conn, org, step)
                     rec = checks.TurnRecord(request=utext or f"[{turn.action}]")
+                    if utext and len(utext) > 300:  # e.g. {{chars:2001}}: keep the report readable
+                        rec.request = f"{utext[:80]}… ({len(utext)} characters)"
                     try:
                         body = {"content": utext} if utext else {"action": _action_payload(turn.action or "", turns)}
                     except ScenarioError:
@@ -188,6 +197,12 @@ async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider,
                         turns.append(rec)
                         continue
                     resp = await c.post(f"{chat_api}/{cid}/messages", json=body)
+                    if turn.expect_http is not None and resp.status_code != 200:
+                        # Refused before any turn started; check_all compares the status.
+                        rec.http_status, rec.status = resp.status_code, "refused"
+                        rec.reply = _refusal_text(resp)
+                        turns.append(rec)
+                        continue
                     if resp.status_code != 200:
                         raise ScenarioError(f"POST message: HTTP {resp.status_code} {resp.text[:200]}")
                     for kind, data in _parse_sse(resp.text):
@@ -228,6 +243,17 @@ async def run_scenario(sc: Scenario, org: checks.OrgInfo, provider: LLMProvider,
         result["turns"] = [t.__dict__ for t in turns]
         result["wall_ms"] = int((time.monotonic() - started) * 1000)
     return result
+
+
+def _refusal_text(resp: httpx.Response) -> str:
+    """The refusal's message(s), without the echoed input (a 2001-character message)."""
+    try:
+        detail = resp.json().get("detail")
+    except ValueError:
+        return resp.text[:300]
+    if isinstance(detail, list):  # FastAPI validation errors
+        return "; ".join(str(d.get("msg", "")) for d in detail if isinstance(d, dict))
+    return str(detail)
 
 
 async def _expect_refused(c: httpx.AsyncClient, chat_api: str, status: int, text_: str) -> list[str]:
@@ -290,7 +316,7 @@ class StaleCassette(ScenarioError):
 
 
 def _mode(sc: Scenario, requested: str) -> str:
-    if sc.expect_http is not None:
+    if not sc.needs_model:
         return "replay"  # refused before any model call: needs no cassette, key or budget
     if requested != "auto":
         return requested
@@ -303,6 +329,8 @@ async def main() -> int:
     ap.add_argument("--mode", choices=("auto", "record", "replay"), default="auto")
     ap.add_argument("--only", help="comma-separated scenario keys or globs, e.g. store/edit_*,booking/cancel_over_24h")
     ap.add_argument("--judge", action="store_true", help="LLM-as-judge scores for judge: true scenarios")
+    ap.add_argument("--reserve", type=int, default=0,
+                    help="requests to keep on top of EVAL_MIN_BUDGET_LEFT (e.g. for a judge run afterwards)")
     ap.add_argument("--keep", action="store_true", help="keep each scenario's clone database for inspection")
     args = ap.parse_args()
     KEEP = args.keep
@@ -321,7 +349,7 @@ async def main() -> int:
         if make_url(os.environ.get(var, "")).host != ephemeral:
             raise SystemExit(f"{var} must point at {ephemeral}; run evals through `make eval`")
     seed_now = os.environ.get("EVAL_SEED_NOW", "2026-11-12T10:00")
-    min_left = int(os.environ.get("EVAL_MIN_BUDGET_LEFT", "100"))
+    floor = int(os.environ.get("EVAL_MIN_BUDGET_LEFT", str(quota.DEFAULT_FLOOR)))
     everything = load_scenarios()
     scenarios = _selected(everything, args.only)
     orgs = _orgs()
@@ -372,8 +400,10 @@ async def main() -> int:
             continue
         if mode == "record":
             left = await providers.left()
-            if left < min_left:
-                stopped = f"not run: {providers.primary} has {left} requests left today (< {min_left})"
+            if not quota.may_record(left, floor, args.reserve):
+                stopped = (f"not run: {left} requests left today across all models; one more scenario "
+                           f"(up to {quota.WORST_CASE_PER_SCENARIO}) could go below the floor of {floor}"
+                           f"{f' + reserve {args.reserve}' if args.reserve else ''}")
                 print(redact(f"STOP: {stopped}"), flush=True)
                 results.append({"key": sc.key, "id": sc.id, "vertical": sc.vertical, "title": sc.title, "rule": sc.rule,
                                 "status": "skipped", "failures": [stopped], "turns": [], "mode": mode})  # fmt: skip

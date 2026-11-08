@@ -3,6 +3,7 @@ title: Reschedule to a free time
 rule: Reschedule proposes, the confirm re-checks the slot and moves the same booking.
 org: lotus-wellness
 user: rina@lotus.test
+category: rule
 turns:
   - user: Please move my booking {{booking:c1-upcoming}} to Tuesday 17 November at 10:00.
     expect:

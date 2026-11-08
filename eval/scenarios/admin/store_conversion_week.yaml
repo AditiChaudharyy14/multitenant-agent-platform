@@ -3,6 +3,7 @@ title: '"What''s our conversion rate this week?" → converted ÷ started conver
 rule: Conversion = customer conversations started in the window with an order created in them ÷ all started.
 org: himali-tea
 user: admin@himali.test
+category: admin
 chat: admin
 setup:
   - analytics_history: true

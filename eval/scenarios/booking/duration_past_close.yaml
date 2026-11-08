@@ -3,6 +3,7 @@ title: Service would run past closing → refused
 rule: A slot must fit the service's full duration before closing (Friday closes 15:00).
 org: lotus-wellness
 user: pooja@lotus.test
+category: rule
 turns:
   - user: Book a Deep Tissue Massage on Friday 20 November at 14:00.
 assertions:

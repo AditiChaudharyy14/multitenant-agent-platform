@@ -128,13 +128,15 @@ evaldb: ephemeral-db  ## Ensure app_eval and eval_template exist on db-ephemeral
 # LLM scenario suite (eval/scenarios) → eval/results.md and results.json. Prints the LLM
 # budget (as make llm-budget) before and after. Each scenario runs
 # on its own clone of a seeded template database, with the clock frozen.
-#   make eval        replay a scenario's cassette if it exists, else record it (live)
+#   make eval        replay a scenario's cassette if it exists, else record it (live);
+#                    MODE=replay never touches the network (CI), a missing cassette fails
 #   make eval-live   record live, overwriting cassettes; ONLY=store/edit_shipped,booking/*
 #                    limits it to some scenarios (never re-record the whole suite casually)
 #   ARGS=--judge     add LLM-as-judge scores for KB-answer scenarios (reported separately)
 EVAL = docker compose --profile ephemeral --profile eval run --rm eval
+MODE ?= auto
 eval: evaldb  ## Run the LLM eval suite (replay where recorded, else record)
-	$(EVAL) python /eval/runner.py --mode auto $(if $(ONLY),--only "$(ONLY)") $(ARGS)
+	$(EVAL) python /eval/runner.py --mode $(MODE) $(if $(ONLY),--only "$(ONLY)") $(ARGS)
 
 eval-live: evaldb  ## Re-record eval scenarios live (ONLY=<vertical>/<id>[,...] strongly advised)
 	$(EVAL) python /eval/runner.py --mode record $(if $(ONLY),--only "$(ONLY)") $(ARGS)

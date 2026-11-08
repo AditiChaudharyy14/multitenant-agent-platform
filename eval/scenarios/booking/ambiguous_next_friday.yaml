@@ -3,6 +3,7 @@ title: Ambiguous "next Friday" from a Thursday → asks, no booking
 rule: When "next <weekday>" is tomorrow, dates.py returns AMBIGUOUS and the agent must ask.
 org: lotus-wellness
 user: pooja@lotus.test
+category: rule
 turns:
   - user: Book me a Hot Stone Therapy next Friday morning.
 assertions:

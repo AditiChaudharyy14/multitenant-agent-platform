@@ -3,6 +3,7 @@ title: Not enough stock → alternative offered, nothing committed
 rule: Stock is checked live; a short line gets alternatives and no proposal.
 org: himali-tea
 user: kiran@himali.test
+category: rule
 turns:
   - user: I want 5 packs of Kanchenjunga Mist Green delivered to House 7, Baluwatar, Kathmandu.
 assertions:

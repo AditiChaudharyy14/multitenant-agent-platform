@@ -3,6 +3,7 @@ title: Services and prices match the database
 rule: Prices and durations come only from list_services.
 org: lotus-wellness
 user: pooja@lotus.test
+category: rule
 turns:
   - user: What treatments do you offer and how much does each cost?
 assertions:

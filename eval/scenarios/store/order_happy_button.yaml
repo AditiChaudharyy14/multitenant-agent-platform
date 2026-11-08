@@ -3,6 +3,7 @@ title: Happy path order confirmed with the Confirm button
 rule: create_order only proposes; the Confirm button commits a pending order and decrements stock atomically.
 org: himali-tea
 user: kiran@himali.test
+category: rule
 turns:
   - user: Please order 2 packs of Himalayan Sencha, delivered to House 7, Baluwatar, Kathmandu.
     expect:

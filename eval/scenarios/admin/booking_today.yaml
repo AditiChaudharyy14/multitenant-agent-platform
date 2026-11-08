@@ -3,6 +3,7 @@ title: '"How did we do today?" at the studio → today''s appointments match the
 rule: Booking metrics count appointments by their start time in the org's timezone.
 org: lotus-wellness
 user: admin@lotus.test
+category: admin
 chat: admin
 setup:
   - analytics_history: true

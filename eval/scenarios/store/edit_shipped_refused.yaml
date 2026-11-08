@@ -3,6 +3,7 @@ title: Editing a shipped order is refused with its status
 rule: Only pending orders can be edited; the refusal states the current status.
 org: himali-tea
 user: anisha@himali.test
+category: rule
 turns:
   - user: Can you add one more Kathmandu Masala Chai to my order {{order:c1-shipped}}?
 assertions:

@@ -3,6 +3,7 @@ title: Practitioner already booked → alternatives
 rule: The EXCLUDE constraint per practitioner; the slot engine reads busy times via busy_intervals().
 org: lotus-wellness
 user: pooja@lotus.test
+category: rule
 setup:
   - add_booking: {customer: suman@lotus.test, service: Swedish Relaxation Massage, practitioner: Sunita Rai, start: "2026-11-17T14:00"}
 turns:

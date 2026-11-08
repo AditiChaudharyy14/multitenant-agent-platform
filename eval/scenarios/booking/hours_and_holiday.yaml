@@ -3,6 +3,7 @@ title: Opening hours and a holiday
 rule: Hours and holidays come from get_opening_hours, not the KB.
 org: lotus-wellness
 user: pooja@lotus.test
+category: rule
 turns:
   - user: What are your opening hours? And are you open on Wednesday 2 December?
 assertions:

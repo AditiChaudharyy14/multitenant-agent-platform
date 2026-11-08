@@ -3,6 +3,7 @@ title: 'Memory: "same practitioner as last time"'
 rule: Earlier turns are history; "last time" resolves to the customer's own past booking, not a guess.
 org: lotus-wellness
 user: rina@lotus.test
+category: rule
 turns:
   - user: Who did my last massage, and when was it?
     expect:

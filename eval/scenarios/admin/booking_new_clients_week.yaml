@@ -3,6 +3,7 @@ title: '"How many new clients this week?" → customer sign-ups since Monday, fr
 rule: Windows are resolved by the server (this week starts Monday, org timezone), never by the model.
 org: lotus-wellness
 user: admin@lotus.test
+category: admin
 chat: admin
 setup:
   - analytics_history: true

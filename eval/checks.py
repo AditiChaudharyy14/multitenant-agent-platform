@@ -22,7 +22,7 @@ from scenario import Assertions, BookingCheck, DbCheck, OrderCheck, ReplyChecks,
 
 # Tables no_new_rows / new_rows may name (all org-scoped).
 COUNTED_TABLES = ("orders", "order_items", "order_status_history", "bookings", "proposals", "products",
-                  "conversations", "stock_events", "customer_memory")
+                  "conversations", "stock_events", "customer_memory", "messages", "agent_runs")
 
 NEXT_STATUS = {"pending": "confirmed", "confirmed": "shipped", "shipped": "delivered"}
 
@@ -52,6 +52,7 @@ class TurnRecord:
     output_tokens: int = 0
     latency_ms: int = 0
     run_error: str | None = None  # agent_runs.error (cassette problems show up here)
+    http_status: int = 200  # a turn the server refused outright (expect_http) keeps its status
 
 
 def seed_row_id(org: OrgInfo, kind: str, key: str) -> uuid.UUID:
@@ -80,10 +81,18 @@ async def number_of(conn: AsyncConnection, org: OrgInfo, kind: str, key: str) ->
 
 
 _PLACEHOLDER = re.compile(r"\{\{(order|booking):([\w-]+)\}\}")
+_CHARS = re.compile(r"\{\{chars:(\d+)\}\}")
+_FILLER = "Please tell me everything about your teas. "
+
+
+def expand_chars(s: str) -> str:
+    """{{chars:N}} → exactly N characters of plain filler text (for the message-length limit)."""
+    return _CHARS.sub(lambda m: (_FILLER * (int(m.group(1)) // len(_FILLER) + 1))[: int(m.group(1))], s)
 
 
 async def render(conn: AsyncConnection, org: OrgInfo, s: str) -> str:
-    """Replace {{order:key}} / {{booking:key}} with the seeded row's number."""
+    """Replace {{order:key}} / {{booking:key}} with the seeded row's number, {{chars:N}} with filler."""
+    s = expand_chars(s)
     out, pos = [], 0
     for m in _PLACEHOLDER.finditer(s):
         out += [s[pos : m.start()], await number_of(conn, org, m.group(1), m.group(2))]
@@ -229,6 +238,8 @@ async def check_all(conn: AsyncConnection, org: OrgInfo, sc: Scenario, me: uuid.
     if not turns:  # an expect_http scenario: nothing was said, only the state checks apply
         return await _state_checks(conn, org, me, a, "", before)
     for i, (turn, t) in enumerate(zip(sc.turns, turns, strict=True)):
+        if turn.expect_http is not None and t.http_status != turn.expect_http:
+            fails.append(f"turn {i + 1}: HTTP {t.http_status}, expected {turn.expect_http}")
         if turn.expect:
             fails += check_reply(await _render_checks(conn, org, turn.expect), t.reply, t.tools, f"turn {i + 1}")
     all_tools = [name for t in turns for name in t.tools]

@@ -3,6 +3,7 @@ title: Edit a pending order's quantity
 rule: Pending orders can be edited (FOR UPDATE + pending check); stock follows the change.
 org: himali-tea
 user: bikash@himali.test
+category: rule
 turns:
   - user: On my order {{order:c2-pending}}, please change the Ginger Cardamom Chai from 2 to 3.
     expect:

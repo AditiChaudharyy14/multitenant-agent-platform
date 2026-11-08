@@ -6,8 +6,9 @@ the database state afterwards. Every model forbids unknown keys, so a typo in an
 assertion name fails loudly instead of silently checking nothing.
 
 Placeholders in turn text and assertions: {{order:<seed key>}} and {{booking:<seed key>}}
-become the seeded row's number (HT-1004, LW-1003); "me" as a user means the scenario's
-own customer. In SQL (setup, db checks, reply_contains_sql), {{today}}, {{tomorrow}},
+become the seeded row's number (HT-1004, LW-1003); {{chars:N}} in turn text becomes N
+characters of filler (to test the message-length limit); "me" as a user means the
+scenario's own customer. In SQL (setup, db checks, reply_contains_sql), {{today}}, {{tomorrow}},
 {{yesterday}}, {{week_start}}, {{next_week}}, {{month_start}} and {{next_month}} become
 the frozen clock's local midnights (timestamptz literals), computed by the harness itself.
 
@@ -180,6 +181,13 @@ class Turn(_Strict):
     # Start a brand-new conversation (no chat history) before this turn, e.g. to prove that
     # long-term memory, not the transcript, carries a preference across conversations.
     new_conversation: bool = False
+    # Applied to the clone just before this turn is sent, e.g. a price change *between* turns
+    # (scenario-level `setup` runs before the first turn).
+    setup: list[SetupStep] = Field(default_factory=list)
+    # The server must refuse this message outright with this HTTP status (e.g. 422 for a
+    # message over the length limit): no turn starts, so no model call is made. `expect`
+    # reply checks then apply to the response body.
+    expect_http: int | None = None
 
     @model_validator(mode="after")
     def _one(self) -> Turn:
@@ -187,6 +195,8 @@ class Turn(_Strict):
             raise ValueError("a turn is either `user: <text>` or `action: <button>`")
         if self.new_conversation and self.user is None:
             raise ValueError("new_conversation needs a typed `user` turn")
+        if self.expect_http is not None and not 400 <= self.expect_http < 500:
+            raise ValueError("expect_http on a turn is a 4xx refusal")
         return self
 
 
@@ -199,6 +209,9 @@ class Scenario(_Strict):
     chat: Literal["customer", "admin"] = "customer"  # admin: the analytics chat API
     expect_http: int | None = None  # the admin chat must refuse with this status; no turns run
     judge: bool = False  # LLM-as-judge scores this KB answer (reported, never pass/fail)
+    # What the scenario proves, for reporting and pass^k selection: a business rule, a
+    # safety/security property, a knowledge-base answer, or admin analytics.
+    category: Literal["rule", "safety", "kb", "admin"]
     rule: str = ""  # the business rule this scenario exercises, for the report
     setup: list[SetupStep] = Field(default_factory=list)
     turns: list[Turn] = Field(min_length=1)
@@ -211,6 +224,11 @@ class Scenario(_Strict):
         if self.expect_http is not None and self.chat != "admin":
             raise ValueError("expect_http is for admin-chat scenarios")
         return self
+
+    @property
+    def needs_model(self) -> bool:
+        """False when every turn is refused before the agent runs: no cassette, key or budget."""
+        return self.expect_http is None and any(t.expect_http is None for t in self.turns)
 
     @property
     def key(self) -> str:

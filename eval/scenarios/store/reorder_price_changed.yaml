@@ -3,6 +3,7 @@ title: '"Same as last time" with a price change noted'
 rule: reorder re-prices at today's price and the agent mentions every change.
 org: himali-tea
 user: anisha@himali.test
+category: rule
 setup:
   - set_price: {sku: HT-OOL-001, price: "1450"}
 turns:
