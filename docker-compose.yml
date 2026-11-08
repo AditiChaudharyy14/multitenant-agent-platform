@@ -171,6 +171,7 @@ services:
       - ./frontend/components:/repo/frontend/components:ro
       - ./frontend/lib:/repo/frontend/lib:ro
       - ./frontend/next.config.ts:/repo/frontend/next.config.ts:ro
+      - ./frontend/Dockerfile:/repo/frontend/Dockerfile:ro
     depends_on:
       db-ephemeral:
         condition: service_healthy

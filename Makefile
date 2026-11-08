@@ -1,5 +1,5 @@
 # Everything runs inside the containers, so the host needs only Docker and make.
-.PHONY: help stats lint kb-check dev up up-traces build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live e2e e2e-setup advance logs
+.PHONY: help stats lint secrets-scan audit lock kb-check dev up up-traces build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live e2e e2e-setup advance logs
 
 help:  ## List the make targets
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/^([a-zA-Z_-]+):.*## (.*)/\1\t\2/' | awk -F'\t' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -149,6 +149,18 @@ advance:  ## make advance ORDER=<order number, e.g. HT-1042>
 # Runs as app_user in an admin-scoped transaction per org (like make advance).
 stats:  ## p50/p95 turn latency and average tokens per turn, per org and agent
 	docker compose exec backend python -m scripts.stats
+
+# Supply chain (docs/security.md). gitleaks scans every commit on every ref, read-only.
+secrets-scan:  ## gitleaks over the full git history
+	docker run --rm -v "$$PWD":/repo:ro zricethezav/gitleaks:v8.21.2 git /repo --log-opts=--all --redact --no-banner
+
+audit:  ## pip-audit on backend/requirements.lock; npm audit (production deps) in the frontend
+	docker run --rm -v "$$PWD/backend/requirements.lock":/r.txt:ro python:3.12-slim sh -c "pip install -q pip-audit==2.7.3 && pip-audit -r /r.txt --progress-spinner off"
+	docker compose run --rm --no-deps -T frontend npm audit --omit=dev --audit-level=critical
+
+# Regenerate the backend lockfile from pyproject.toml in a clean container, then make build.
+lock:  ## Re-resolve backend/requirements.lock from pyproject.toml
+	docker run --rm -v "$$PWD/backend":/src -w /src python:3.12-slim sh -c "pip install -q '.[dev]' && (echo '# Exact versions installed in the backend image (make lock regenerates it from pyproject.toml).'; echo '# The Dockerfile installs from this file, so every build gets the same packages.'; pip freeze --exclude-editable | grep -v '^multitenant-agents-backend') > requirements.lock"
 
 logs:  ## Follow logs from all services
 	docker compose logs -f
