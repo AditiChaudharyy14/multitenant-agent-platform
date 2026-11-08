@@ -31,3 +31,14 @@ def test_remembered_preference_shows_and_can_be_forgotten(page: Page) -> None:
     page.reload()  # gone on the server, not just hidden
     panel = open_panel(page, "My orders")
     expect(panel.get_by_test_id("memories")).to_contain_text("Nothing yet")
+
+
+def test_admin_on_the_customer_chat_has_no_memory_section(page: Page) -> None:
+    """Memory is private to customers: the API 404s an admin, so the UI must not ask
+    (the page fails on any console error)."""
+    from test_admin_analytics import ADMIN_EMAIL, ADMIN_PASSWORD, log_in
+
+    log_in(page, "himali-tea", ADMIN_EMAIL, ADMIN_PASSWORD)
+    panel = open_panel(page, "My orders")
+    expect(panel).to_be_visible()
+    expect(page.get_by_test_id("memories")).to_have_count(0)
