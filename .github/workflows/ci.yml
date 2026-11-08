@@ -54,6 +54,11 @@ jobs:
       # db-ephemeral is pgvector/pgvector:pg16 (tmpfs); the suite connects as app_user for
       # everything the app does, exactly as locally.
       - run: make test
+      # The container user (uid 1000) wrote the model files; let actions/cache (the runner
+      # user) read them when it saves the cache after the job.
+      - name: Make the embedding model cache readable for saving
+        if: always()
+        run: sudo chmod -R a+rwX .cache/fastembed
 
   frontend-typecheck:
     name: frontend typecheck
@@ -89,3 +94,8 @@ jobs:
         run: make eval MODE=replay ARGS="--judge --calibrate-judge"
       - name: Committed results match the replay
         run: git diff --stat --exit-code -- eval/cassettes eval/runs || (echo "replay changed committed cassettes" && exit 1)
+      # The container user (uid 1000) wrote the model files; let actions/cache (the runner
+      # user) read them when it saves the cache after the job.
+      - name: Make the embedding model cache readable for saving
+        if: always()
+        run: sudo chmod -R a+rwX .cache/fastembed

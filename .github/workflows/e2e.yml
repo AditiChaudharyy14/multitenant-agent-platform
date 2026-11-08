@@ -39,6 +39,11 @@ jobs:
           make migrate seed
           docker compose -f docker-compose.yml -f docker-compose.ci.yml -f docker-compose.e2e.yml up -d --wait
       - run: make e2e
+      # The container user (uid 1000) wrote the model files; let actions/cache (the runner
+      # user) read them when it saves the cache after the job.
+      - name: Make the embedding model cache readable for saving
+        if: always()
+        run: sudo chmod -R a+rwX .cache/fastembed
       - name: Screenshots
         if: always()
         uses: actions/upload-artifact@v4
