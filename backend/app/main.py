@@ -10,6 +10,7 @@ from app.auth import routes as auth_routes
 from app.auth.csrf import OriginCheckMiddleware
 from app.config import get_settings
 from app.db.session import app_engine, readonly_engine
+from app.domain.kb import embeddings
 from app.domain.notifications import worker as email_worker
 from app.observability import tracing
 from app.tenancy.orgs import check_orgs_present, load_org_configs
@@ -21,6 +22,10 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     configs = load_org_configs(get_settings().seed_dir)
     async with app_engine.connect() as conn:
         await check_orgs_present(conn, configs)
+    # Load the embedding model and run one embed now: uvicorn accepts no request until the
+    # lifespan has started, and /api/health also requires it, so the Docker healthcheck
+    # (and `up --wait`) only pass once the first search_knowledge is fast.
+    await embeddings.warm_up()
     # Email sender + 24 h reminder scan (domain/notifications), only where the service
     # enables them: never in tests or evals, which call their run_once() directly.
     workers = email_worker.start() if get_settings().email_worker_enabled else []

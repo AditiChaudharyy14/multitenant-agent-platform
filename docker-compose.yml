@@ -76,12 +76,16 @@ services:
       mailpit:
         condition: service_started
     healthcheck:
-      # urlopen raises on the 503 returned when the database is unreachable.
+      # urlopen raises on the 503 returned until the database answers AND the embedding
+      # model is loaded (the lifespan warms it before serving; see app/api/health.py).
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health', timeout=4)"]
-      interval: 5s
+      interval: 3s
       timeout: 5s
       retries: 10
-      start_period: 10s
+      # The first-ever start downloads the model (~130 MB) into fastembed_cache before it
+      # loads; failures inside this window don't count, and healthy is reported as soon as
+      # a check passes.
+      start_period: 120s
 
   # One-shot container for owner-only work: migrations, org sync, seed and tests.
   # The profile keeps `docker compose up` from starting it; Makefile targets use

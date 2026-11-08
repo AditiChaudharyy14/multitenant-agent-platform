@@ -29,6 +29,18 @@ def _get_model():  # noqa: ANN202 (fastembed is imported lazily, so no type at m
         return _model
 
 
+def is_loaded() -> bool:
+    """Whether the model is in memory (the health check reports it)."""
+    return _model is not None
+
+
+async def warm_up() -> None:
+    """Load the model and run one embed, off the event loop. Called from the app lifespan
+    before the server accepts requests, so the first search_knowledge doesn't pay for the
+    load (several seconds on a cold container; ~30 s seen under memory pressure)."""
+    await asyncio.to_thread(_embed, ["warm up"])
+
+
 def to_pgvector(vec: Sequence[float]) -> str:
     """pgvector's text format, so queries bind it as text and CAST(:v AS vector)."""
     if len(vec) != DIMENSIONS:
