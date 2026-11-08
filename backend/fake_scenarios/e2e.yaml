@@ -83,6 +83,10 @@ rules:
       - tool: remember_preference
         args: {key: milk, value: "{1} milk"}
       - text: "Noted, I'll remember how you take your milk."
+  # XSS probe: raw HTML in a reply must render as text, never as elements or script.
+  - match: "show me some html"
+    steps:
+      - text: "Here you go: <script>window.__xss = 1</script> <img src=x onerror=\"window.__xss = 2\"> and [a link](https://example.com)."
   # The Confirm button: the server commits before the model speaks; it only acknowledges.
   - match: "^confirm$"
     steps:

@@ -13,6 +13,7 @@ from app.db.session import app_engine, readonly_engine
 from app.domain.kb import embeddings
 from app.domain.notifications import worker as email_worker
 from app.observability import tracing
+from app.security_headers import SecurityHeadersMiddleware
 from app.tenancy.orgs import check_orgs_present, load_org_configs
 
 
@@ -46,6 +47,7 @@ logging_setup.configure()  # JSON lines with request_id, route and org
 
 app = FastAPI(title="Multi-Tenant Agent Platform", lifespan=lifespan)
 app.add_middleware(OriginCheckMiddleware, allowed_origins=get_settings().allowed_origin_set)
+app.add_middleware(SecurityHeadersMiddleware)  # outside the CSRF check: its 403 gets them too
 # Added last, so it is outermost: even a CSRF 403 gets a request id.
 app.add_middleware(logging_setup.RequestContextMiddleware, router_app=app)
 app.include_router(health.router)

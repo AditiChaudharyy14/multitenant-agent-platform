@@ -114,8 +114,9 @@ e2e-setup:  ## Create e2e/.venv with Playwright and download Chromium (once)
 
 e2e:  ## Playwright smoke tests + screenshots in docs/screenshots (fake LLM)
 	@test -x $(E2E_PY) || (echo "run make e2e-setup first" && exit 1)
+	docker compose up -d --wait --no-deps --force-recreate frontend
 	docker compose -f docker-compose.yml -f docker-compose.e2e.yml up -d --wait backend
-	docker compose up -d --wait --force-recreate frontend
+	@docker compose exec -T backend sh -c 'test "$$LLM_PROVIDER" = fake' || (echo "backend is not on the fake LLM: refusing to spend quota" && exit 1)
 	cd e2e && BASE_URL=http://localhost:3000 SCREENSHOT_DIR=../docs/screenshots .venv/bin/python -m pytest -q $(ARGS); \
 	  status=$$?; cd .. && docker compose up -d --wait backend; exit $$status
 
