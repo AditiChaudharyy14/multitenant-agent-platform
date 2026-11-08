@@ -243,9 +243,11 @@ Eval columns name scenarios in `eval/scenarios/`; their results are in [Evaluati
 
 | | |
 |---|---|
-| Run | `make eval` replays each scenario's recorded cassette and records live only where none exists. `make eval-live ONLY=store/order_typed_yes,booking/*` re-records just those scenarios (spends quota). `make eval ARGS=--judge` adds LLM-as-judge scores for the knowledge-base answers. `make llm-budget` shows today's requests per model. |
-| Output | `eval/results.md` and `eval/results.json` |
-| Stale cassettes | A cassette stores a fingerprint of the exact request. If the system prompt or tool list changes, `make eval` prints one "STALE" banner, records nothing live (even with a key set), leaves `eval/results.md` unchanged and exits with status 4, which `make` reports as `Error 4` (`eval/staleness.py`, `backend/tests/eval/test_staleness.py`). **This is the current state** until the re-record. |
+| Run | `make eval` replays each scenario's recorded cassette and records live only where none exists. `make eval-live ONLY=store/order_typed_yes,booking/*` re-records just those scenarios (spends quota). `make eval MODE=replay` never touches the network (what CI runs). `make eval ARGS="--judge --calibrate-judge"` adds LLM-as-judge scores (grounded / correct / honest / helpful, informational only) for every reply, plus the calibration against six deliberately bad replies. `make eval-live RUN=run2 CATEGORY=rule,safety` makes a pass^k repeat run into `eval/runs/run2`. `make eval-report` rebuilds the report. `make llm-budget` shows today's requests per model. |
+| Output | `eval/results.md` and `eval/results.json`; failures, flakes and judge findings are analysed in `eval/FAILURES.md` |
+| Final results (2026-11-08) | **53/53** in the single final live recording after the last prompt change, all answered by the primary model. **pass^3 39/41** on the business-rule and safety scenarios (121/123 runs, 98.4%). The judge's calibration caught **6/6** bad replies. Live p50 / p95 turn latency: store 6.7 s / 32.8 s, booking 5.0 s / 45.6 s (the p95 includes the 12-RPM limiter's waits). |
+| CI | `.github/workflows/ci.yml` on every push: `make lint`, `make test` (pgvector Postgres), the frontend typecheck, and `make eval MODE=replay` with the judge, offline and without secrets. `e2e.yml` runs `make e2e` on demand (`workflow_dispatch`). |
+| Stale cassettes | A cassette stores a fingerprint of the exact request. If the system prompt or tool list changes, `make eval` prints one "STALE" banner, records nothing live (even with a key set), leaves `eval/results.md` unchanged and exits with status 4, which `make` reports as `Error 4` (`eval/staleness.py`, `backend/tests/eval/test_staleness.py`). |
 
 **Design**
 

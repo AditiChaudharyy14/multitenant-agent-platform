@@ -1,6 +1,6 @@
 # Eval results
 
-Generated 2026-11-08 18:10 UTC. Models: primary `gemini-3.5-flash-lite`, fallback `gemini-3.1-flash-lite`. Wall time 23.0s.
+Generated 2026-11-08 18:27 UTC. Models: primary `gemini-3.5-flash-lite`, fallback `gemini-3.1-flash-lite`. Wall time 23.0s.
 
 Each scenario runs on its own clone of the seeded template database with the clock frozen, and is checked against **database state** as well as the reply. `mode` is `replay` (recorded cassette, no network) or `record` (live). Latency and tokens are those of the recording.
 
@@ -219,3 +219,14 @@ From every turn recorded live in this report's runs (main + repeat runs), as sto
 | admin analytics | 6 | 11.2s | 12.8s | 6,131 | 139 |
 | booking customer | 91 | 5.0s | 45.6s | 6,273 | 102 |
 | store customer | 119 | 6.7s | 32.8s | 5,989 | 98 |
+
+## `make stats` (dev database, 2026-11-08)
+
+`make stats` reads `agent_runs` in the **dev** database: manual chats, demo runs and `make e2e` turns on the scripted fake model, whose flat 1.4 s and small token counts are visible below. Eval turns never land there, because every scenario runs on a throwaway clone. **The live-model figures are in the table above.** This table shows the command working, per org and agent, under RLS as each org's admin.
+
+| Org | Agent | Turns | p50 | p95 | Avg tokens in / turn | Avg tokens out / turn |
+|---|---|---|---|---|---|---|
+| himali-tea | admin | 2 | 0.05s | 0.07s | 56 | 20 |
+| himali-tea | customer | 92 | 1.4s | 7.6s | 1,205 | 71 |
+| kathmandu-spice | customer | 2 | 0.76s | 0.77s | 170 | 25 |
+| lotus-wellness | customer | 44 | 1.4s | 1.4s | 1,463 | 96 |

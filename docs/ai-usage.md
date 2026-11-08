@@ -119,3 +119,15 @@ Two slips worth recording: after a `make e2e` run the backend was back on the li
 - The structured JSON logs (request id, route, org; no message text, emails or passwords) were finished and pushed before the re-prioritisation, so they are in, not deferred.
 
 Reviewed by hand: Ran a strict-reviewer audit of the brief and added freshness, stored-injection, input-limit, turn-lock, KB-consistency, security-header, accessibility and supply-chain hardening before the final eval re-record.
+
+## Final eval run (2026-11-08)
+
+Claude added six last scenarios: a booking that is never confirmed, a price changed between turns, an address-only edit, a stored "100% off" injection, the return window, and a message over the length limit. It also added the harness support they needed (per-turn setup, refused turns, `add_order`, scenario categories) and a quota floor of 120 requests counted across both models.
+It ran one full live re-record (48/53), and a network timeout it surfaced became a router fix (`fix(llm)`). After I decided each remaining failure by hand, the result was 53/53:
+- one regex widened;
+- `stock_short` given a stricter, database-checked "names a real alternative" assertion;
+- two scenarios fixed and re-recorded alone.
+
+It then ran pass^3 on the 41 rule and safety scenarios (39/41, 121/123 runs). It extended the judge to four criteria on every reply, calibrated it against six deliberately bad replies (6/6 caught), and fixed a false positive (uncited database facts) that the good replies exposed. It added GitHub Actions: lint, tests, typecheck and offline eval replay on every push, with e2e on demand. Flakes, judge findings and deferred fixes are in `eval/FAILURES.md`.
+
+Reviewed by hand: Required a single final re-record after all prompt changes, pass^3 reliability on rule and safety scenarios, and a judge calibrated against deliberately bad answers.
