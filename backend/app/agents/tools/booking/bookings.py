@@ -95,6 +95,7 @@ async def _list(ctx: ToolContext, args: NoArgs) -> ToolResult:
 
 list_my_bookings = Tool(
     name="list_my_bookings",
+    live=True,
     description="The customer's bookings: upcoming ones, then past and cancelled ones, with booking numbers.",
     args_model=NoArgs,
     handler=_list,

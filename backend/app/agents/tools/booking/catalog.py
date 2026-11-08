@@ -19,6 +19,7 @@ async def _services(ctx: ToolContext, args: NoArgs) -> ToolResult:
 
 list_services = Tool(
     name="list_services",
+    live=True,
     description="Every service with its LIVE price, duration and which practitioners offer it. Use it for any "
                 "question about prices, durations or who does what.",
     args_model=NoArgs,
@@ -35,6 +36,7 @@ async def _hours(ctx: ToolContext, args: NoArgs) -> ToolResult:
 
 get_opening_hours = Tool(
     name="get_opening_hours",
+    live=True,
     description="The studio's weekly opening hours (closed days included) and upcoming holidays.",
     args_model=NoArgs,
     handler=_hours,
@@ -68,6 +70,7 @@ async def _find(ctx: ToolContext, args: FindSlotsArgs) -> ToolResult:
 
 find_available_slots = Tool(
     name="find_available_slots",
+    live=True,
     description="LIVE free start times for a service, optionally with one practitioner. Pass the customer's words "
                 "as `when`; the result states the exact dates it resolved to. If it says AMBIGUOUS, ask the customer "
                 "which date they mean. Without `when` or dates it searches the next 7 days.",

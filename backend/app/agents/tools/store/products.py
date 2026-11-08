@@ -33,6 +33,7 @@ async def _handle(ctx: ToolContext, args: SearchProductsArgs) -> ToolResult:
 
 search_products = Tool(
     name="search_products",
+    live=True,
     description=(
         "Search the live product catalogue: returns SKU, name, category, current price and stock. "
         "Call it for any question about price or availability, and to find the SKU before create_order. "

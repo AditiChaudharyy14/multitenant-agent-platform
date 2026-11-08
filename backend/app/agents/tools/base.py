@@ -32,6 +32,11 @@ class ToolResult:
 
 Handler = Callable[[ToolContext, Any], Awaitable[ToolResult]]
 
+# Appended to every live-data tool's description (Tool.live).
+FRESHNESS = (
+    "Call this again each time you state these facts: results from earlier in the conversation " "may be out of date."
+)
+
 
 @dataclass(frozen=True, slots=True)
 class Tool:
@@ -40,9 +45,13 @@ class Tool:
     args_model: type[BaseModel]  # validated before the handler runs; use extra="forbid"
     handler: Handler
     activity_label: str  # UI text while it runs, e.g. "Checking stock…"
+    # Returns live facts (prices, stock, status, availability): the model is told to call it
+    # again whenever it states them, instead of repeating an earlier result.
+    live: bool = False
 
     def spec(self) -> ToolSpec:
-        return ToolSpec(self.name, self.description, plain_schema(self.args_model.model_json_schema()))
+        description = f"{self.description} {FRESHNESS}" if self.live else self.description
+        return ToolSpec(self.name, description, plain_schema(self.args_model.model_json_schema()))
 
 
 def error_result(message: str) -> ToolResult:

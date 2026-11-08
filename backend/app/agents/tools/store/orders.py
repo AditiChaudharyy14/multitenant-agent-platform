@@ -127,6 +127,7 @@ async def _status(ctx: ToolContext, args: OrderNumberArgs) -> ToolResult:
 
 get_order_status = Tool(
     name="get_order_status",
+    live=True,
     description="Live status of one of the customer's orders: items, total, address and status history.",
     args_model=OrderNumberArgs,
     handler=_status,
@@ -147,6 +148,7 @@ async def _list(ctx: ToolContext, args: NoArgs) -> ToolResult:
 
 list_my_orders = Tool(
     name="list_my_orders",
+    live=True,
     description="The customer's orders, newest first, with number, date, status and total.",
     args_model=NoArgs,
     handler=_list,
