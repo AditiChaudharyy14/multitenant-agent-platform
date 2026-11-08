@@ -23,6 +23,7 @@ from typing import Any
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
+from app.domain import untrusted
 from app.tenancy.context import ToolContext
 
 MAX_STATED = 20  # stated memories per customer
@@ -62,9 +63,26 @@ def normalise_key(raw: str) -> str:
     return key
 
 
+# Values that read as instructions to the assistant, not as a preference. A memory is shown
+# to the model in every later conversation, so this is a stored prompt injection: refused
+# when it is saved (it is also wrapped as untrusted data when shown; see prompt_block).
+_INSTRUCTION_LIKE = re.compile(
+    r"\b(ignore|disregard|override|bypass)\b.{0,40}\b(rules?|instructions?|prompt|polic(?:y|ies)|guidelines?)\b"
+    r"|\b(previous|prior|above) instructions\b|\byou are now\b|\bact as\b|\bpretend\b|\bsystem prompt\b"
+    r"|\b(admin|developer|god) mode\b|\bjailbreak\b"
+    r"|\b(discounts?|coupons?|vouchers?|promo(?:tion)? codes?|refunds?|free of charge|for free)\b|\d+\s*% off\b",
+    re.IGNORECASE,
+)
+
+
 def _clean_value(raw: str) -> str:
     """One line, no markup, trimmed: the value is shown inside the prompt as data."""
-    value = re.sub(r"\s+", " ", re.sub(r"[<>]", "", raw)).strip()
+    if _INSTRUCTION_LIKE.search(raw):
+        raise MemoryRefused(
+            "that reads like an instruction to the assistant, not a preference, so it was not saved; "
+            "preferences are things like a favourite practitioner or how they take their tea"
+        )
+    value = untrusted.clean(raw, cap=10_000)  # the cap is enforced below, as a refusal
     if not value:
         raise MemoryRefused("a memory needs a value")
     if len(value) > MAX_VALUE:
@@ -186,7 +204,8 @@ _LABEL = {"stated": "they told you", "derived": "from their history"}
 
 async def prompt_block(conn: AsyncConnection, ctx: ToolContext, vertical: str) -> str:
     """The short block the server appends to the system prompt at turn start."""
-    facts = [f"- {m.key} ({_LABEL[m.source]}): {m.value}" for m in await list_memories(conn, ctx, vertical)]
+    facts = [f"- {m.key} ({_LABEL[m.source]}): {untrusted.wrap('memory', m.value)}"
+             for m in await list_memories(conn, ctx, vertical)]  # fmt: skip
     budget = MAX_BLOCK_CHARS - len(BLOCK) - 40
     kept: list[str] = []
     for line in facts:  # derived first, so "usual" survives a long list of stated notes

@@ -24,6 +24,7 @@ from app.domain.proposals import repo as proposals
 from app.domain.proposals.repo import PROPOSAL_TTL
 from app.domain.reply import Reply
 from app.domain.timefmt import local_display
+from app.domain.untrusted import wrap
 from app.tenancy.context import ToolContext
 from app.tenancy.orgs import Org
 
@@ -211,7 +212,7 @@ async def propose_new_order(
     }  # fmt: skip
     what = (
         f"{intro + ' ' if intro else ''}new order of {_describe(lines, org.currency)}; total "
-        f"{format_money(total, org.currency)}; deliver to {address}."
+        f"{format_money(total, org.currency)}; deliver to {wrap('delivery_address', address)}."
     )
     if changes:
         what += " Changes: " + " ".join(changes)
@@ -269,7 +270,7 @@ async def propose_reorder(conn: AsyncConnection, ctx: ToolContext, org: Org, raw
         "changes": changes, "unavailable": unavailable,
     }  # fmt: skip
     what = (f"repeat of {source_number}: {_describe(lines, org.currency)}; total {format_money(total, org.currency)}; "
-            f"deliver to {source.delivery_address}. "
+            f"deliver to {wrap('delivery_address', source.delivery_address)}. "
             + ("Tell the customer about EVERY change: " + " ".join(changes) if changes else "Nothing changed since then."))  # fmt: skip
     return await _propose(conn, ctx, org, "reorder", payload, card, what)
 
@@ -340,7 +341,9 @@ async def propose_update(
     }  # fmt: skip
     parts = [f"{d['name']} {d['old_qty']} -> {d['new_qty']}" for d in diff]
     if new_address != order.delivery_address:
-        parts.append(f"address '{order.delivery_address}' -> '{new_address}'")
+        parts.append(
+            f"address {wrap('delivery_address', order.delivery_address)} -> {wrap('delivery_address', new_address)}"
+        )
     what = (f"{intro + ' ' if intro else ''}change {number}: {', '.join(parts)}. New total "
             f"{format_money(total, org.currency)} (was {format_money(order.total, org.currency)}).")  # fmt: skip
     return await _propose(conn, ctx, org, "update_order", payload, card, what)
@@ -388,7 +391,7 @@ async def order_status(conn: AsyncConnection, ctx: ToolContext, org: Org, raw_nu
     return Reply(
         f"Order {number}: status {order.status}. Items: "
         + "; ".join(f"{i.qty} x {i.name}" for i in lines)
-        + f". Total {card['total_display']} ({PAYMENT_METHOD}). Deliver to {order.delivery_address}. "
+        + f". Total {card['total_display']} ({PAYMENT_METHOD}). Deliver to {wrap('delivery_address', order.delivery_address)}. "
         f"History ({org.timezone}): {timeline}. "
         + (
             "It can still be changed or cancelled." if card["can_edit"] else "It can no longer be changed or cancelled."

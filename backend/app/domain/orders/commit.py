@@ -24,6 +24,7 @@ from app.domain.orders.repo import Item, Order, OutOfStock
 from app.domain.proposals.repo import Proposal
 from app.domain.proposals.service import CommitAborted, Committer, Describer
 from app.domain.reply import Reply
+from app.domain.untrusted import wrap
 from app.tenancy.context import ToolContext
 from app.tenancy.orgs import Org, get_org_by_id
 
@@ -85,7 +86,7 @@ async def commit_new_order(conn: AsyncConnection, ctx: ToolContext, proposal: Pr
     }  # fmt: skip
     return Reply(
         f"CONFIRMED: order {shown} is placed with status pending, total {card['total_display']}, cash on "
-        f"delivery, to {p['delivery_address']}. Give the customer the order number {shown}.",
+        f"delivery, to {wrap('delivery_address', p['delivery_address'])}. Give the customer the order number {shown}.",
         cards=[card], status="committed",
     )  # fmt: skip
 
@@ -158,7 +159,7 @@ async def commit_update(conn: AsyncConnection, ctx: ToolContext, proposal: Propo
         "delivery_address": p["delivery_address"],
     }  # fmt: skip
     return Reply(f"CONFIRMED: order {number} is updated. New total {card['total_display']}, delivering to "
-                 f"{p['delivery_address']}. It is still pending.", cards=[card], status="committed")  # fmt: skip
+                 f"{wrap('delivery_address', p['delivery_address'])}. It is still pending.", cards=[card], status="committed")  # fmt: skip
 
 
 async def commit_cancel(conn: AsyncConnection, ctx: ToolContext, proposal: Proposal) -> Reply:
