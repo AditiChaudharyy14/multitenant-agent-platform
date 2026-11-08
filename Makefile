@@ -1,5 +1,5 @@
 # Everything runs inside the containers, so the host needs only Docker and make.
-.PHONY: help lint kb-check dev up up-traces build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live e2e e2e-setup advance logs
+.PHONY: help stats lint kb-check dev up up-traces build down migrate sync-orgs seed kb-search chat testdb test test-live record-fixtures llm-budget create-admin ephemeral-db evaldb eval eval-live e2e e2e-setup advance logs
 
 help:  ## List the make targets
 	@grep -hE '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | sed -E 's/^([a-zA-Z_-]+):.*## (.*)/\1\t\2/' | awk -F'\t' '{printf "  %-16s %s\n", $$1, $$2}'
@@ -144,6 +144,11 @@ eval-live: evaldb  ## Re-record eval scenarios live (ONLY=<vertical>/<id>[,...] 
 advance:  ## make advance ORDER=<order number, e.g. HT-1042>
 	@test -n "$(ORDER)" || (echo "usage: make advance ORDER=HT-1042" && exit 1)
 	docker compose exec backend python -m scripts.advance "$(ORDER)"
+
+# Per org and agent, from agent_runs: turns, p50/p95 latency and average tokens per turn.
+# Runs as app_user in an admin-scoped transaction per org (like make advance).
+stats:  ## p50/p95 turn latency and average tokens per turn, per org and agent
+	docker compose exec backend python -m scripts.stats
 
 logs:  ## Follow logs from all services
 	docker compose logs -f
