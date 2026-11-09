@@ -92,19 +92,19 @@ Accounts are per org: a login works only at its own org (`test_a_customer_can_lo
 
 ```mermaid
 flowchart LR
-  B[Browser] -->|/a/slug/..., /api/*| N[Next.js<br/>same-origin proxy]
-  N --> F[FastAPI<br/>session, Origin check, rate limits]
-  F --> T[Turn service<br/>agents/turn.py]
-  T --> L[Agent loop<br/>agents/loop.py]
-  L --> P[Provider router<br/>RPM limiter, daily budget, fallback]
-  P --> G[(Gemini API)]
-  L --> TL[Tools<br/>registry keyed on org.vertical]
-  TL --> D[Domain<br/>orders, bookings, slots, kb, memory, proposals, analytics]
-  D --> PG[(Postgres 16<br/>RLS, pgvector, btree_gist)]
+  B["Browser"] -->|"/a/slug, /api"| N["Next.js<br/>same-origin proxy"]
+  N --> F["FastAPI<br/>session, Origin check, rate limits"]
+  F --> T["Turn service<br/>agents/turn.py"]
+  T --> L["Agent loop<br/>agents/loop.py"]
+  L --> P["Provider router<br/>RPM limiter, daily budget, fallback"]
+  P --> G[("Gemini API")]
+  L --> TL["Tools<br/>registry keyed on org.vertical"]
+  TL --> D["Domain<br/>orders, bookings, slots, kb, memory, proposals, analytics"]
+  D --> PG[("Postgres 16<br/>RLS, pgvector, btree_gist")]
   F --> D
-  W[Email worker<br/>outbox sender, reminder scan] --> PG
-  W --> M[Mailpit :8025]
-  T -. OTLP spans, opt-in .-> J[Jaeger :16686]
+  W["Email worker<br/>outbox sender, reminder scan"] --> PG
+  W --> M["Mailpit :8025"]
+  T -.->|"OTLP spans, opt-in"| J["Jaeger :16686"]
 ```
 
 **Life of one chat turn**
