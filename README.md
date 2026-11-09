@@ -25,7 +25,7 @@ Code paths are relative to `backend/app/` unless they start with `backend/`, `fr
 | Slot engine (pure, property-tested) | `backend/app/domain/slots/engine.py` | `check_slot` (line 70), `nearest` (line 130) |
 | Eval runner (DB-state assertions, template clones, record/replay) | `eval/runner.py` | `run_scenario` (line 141) |
 
-Demo video: <link>
+Demo video: https://www.youtube.com/watch?v=oMMA8ApCpNU
 
 | Requirement shown | Timestamp |
 |---|---|
