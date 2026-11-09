@@ -37,12 +37,15 @@ def _scan(files: list[Path], pattern: re.Pattern[str]) -> set[str]:
 
 def variables_read() -> dict[str, set[str]]:
     py = [*APP.glob("app/**/*.py"), *APP.glob("scripts/**/*.py"), *EVAL.glob("*.py")]
+    # Test harnesses (backend pytest, Playwright e2e): their knobs are documented too.
+    harness = [*APP.glob("tests/**/*.py"), *(REPO / "e2e/tests").glob("*.py")]
     frontend = [
         p for p in (REPO / "frontend").rglob("*") if p.suffix in {".ts", ".tsx"} and "node_modules" not in p.parts
     ]
     return {
         "Settings": {name.upper() for name in Settings.model_fields},
         "os.environ": _scan(py, _ENV_READ),
+        "test harness": _scan(harness, _ENV_READ),
         "docker-compose.yml": _scan([REPO / "docker-compose.yml"], _COMPOSE_VAR),
         "docker/db": _scan(sorted((REPO / "docker/db").glob("*")), _SQL_VAR),
         "frontend": _scan(frontend, _PROCESS_ENV),
@@ -70,3 +73,4 @@ def test_the_scan_finds_known_reads() -> None:
     assert {"OTEL_EXPORTER_OTLP_ENDPOINT", "EVAL_SEED_NOW"} <= found["os.environ"]
     assert {"POSTGRES_USER", "APP_USER_PASSWORD"} <= found["docker-compose.yml"] | found["docker/db"]
     assert "BACKEND_URL" in found["frontend"]
+    assert {"TEST_DB_HOST", "BASE_URL"} <= found["test harness"]
